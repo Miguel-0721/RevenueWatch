@@ -1,0 +1,27 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  stripeAccounts StripeAccount[]
+}
+
+model StripeAccount {
+  id              String   @id @default(cuid())
+  stripeAccountId String   @unique
+  status          String   @default("active")
+  name            String?
+  createdAt       DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+}
