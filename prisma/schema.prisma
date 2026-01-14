@@ -25,3 +25,16 @@ model StripeAccount {
   user   User   @relation(fields: [userId], references: [id])
   userId String
 }
+
+model StripeEvent {
+  id              String   @id @default(cuid())
+  stripeEventId   String   @unique
+  type            String
+  stripeAccountId String?
+  payload         String   // JSON stored as string (SQLite-safe)
+  createdAt       DateTime @default(now())
+
+  @@index([type])
+  @@index([stripeAccountId])
+}
+

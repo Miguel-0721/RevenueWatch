@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { prisma } from "@/lib/prisma";
+
 
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -24,6 +26,22 @@ export async function POST(req: Request) {
     );
 
     console.log("✅ Webhook verified:", event.type);
+
+
+
+await prisma.stripeEvent.upsert({
+  where: { stripeEventId: event.id },
+  update: {},
+  create: {
+    stripeEventId: event.id,
+    type: event.type,
+    stripeAccountId: event.account ?? null,
+    payload: JSON.stringify(event),
+  },
+});
+
+
+    
 
     return NextResponse.json({ received: true });
   } catch (err: any) {
