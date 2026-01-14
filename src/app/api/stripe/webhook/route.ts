@@ -28,6 +28,17 @@ export async function POST(req: Request) {
     console.log("✅ Webhook verified:", event.type);
 
 
+    if (event.type === "payment_intent.payment_failed") {
+  await prisma.alert.create({
+    data: {
+      type: "payment_failed",
+      stripeAccountId: event.account ?? null,
+      stripeEventId: event.id,
+      message: "A payment failed in Stripe",
+    },
+  });
+}
+
 
 await prisma.stripeEvent.upsert({
   where: { stripeEventId: event.id },

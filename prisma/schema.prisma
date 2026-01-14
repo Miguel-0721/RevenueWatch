@@ -38,3 +38,15 @@ model StripeEvent {
   @@index([stripeAccountId])
 }
 
+
+model Alert {
+  id              String   @id @default(cuid())
+  type            String   // e.g. "payment_failed"
+  stripeAccountId String?
+  stripeEventId   String   @unique
+  message         String
+  createdAt       DateTime @default(now())
+
+  @@index([type])
+  @@index([stripeAccountId])
+}
