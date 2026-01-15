@@ -38,15 +38,30 @@ model StripeEvent {
   @@index([stripeAccountId])
 }
 
-
 model Alert {
   id              String   @id @default(cuid())
   type            String   // e.g. "payment_failed"
   stripeAccountId String?
   stripeEventId   String   @unique
   message         String
+
+  windowStart     DateTime
+  windowEnd       DateTime
+
   createdAt       DateTime @default(now())
 
   @@index([type])
   @@index([stripeAccountId])
+}
+
+model RevenueMetric {
+  id              String   @id @default(cuid())
+  stripeAccountId String?
+  amount          Int      // cents
+  periodStart     DateTime
+  periodEnd       DateTime
+  createdAt       DateTime @default(now())
+
+  @@index([stripeAccountId])
+  @@index([periodStart])
 }
