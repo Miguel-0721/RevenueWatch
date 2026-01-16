@@ -157,17 +157,20 @@ create: {
       return NextResponse.json({ received: true });
     }
 
- const alert = await prisma.alert.create({
+const alert = await prisma.alert.create({
   data: {
     type: "revenue_drop",
     stripeEventId: event.id,
-    stripeAccountId, // ✅ CORRECT
-    message: `Revenue dropped by ${(dropRatio * 100).toFixed(0)}%`,
+    stripeAccountId,
+    message: `Revenue dropped by ${(dropRatio * 100).toFixed(0)}% compared to baseline.
+Baseline (${BASELINE_HOURS}h): €${(baselineAmount / 100).toFixed(2)}
+Current (${REVENUE_WINDOW_MINUTES} min): €${(currentAmount / 100).toFixed(2)}`,
     windowStart: currentWindowStart,
     windowEnd: new Date(now.getTime() + REVENUE_WINDOW_MINUTES * 60 * 1000),
     cooldownUntil: getCooldownUntil("revenue_drop"),
   },
 });
+
 
 
     await sendAlertEmail({
@@ -212,7 +215,8 @@ create: {
         type: "payment_failed",
         stripeEventId: event.id,
         stripeAccountId,
-        message: `Multiple payment failures detected`,
+      message: `Multiple payment failures detected in the last ${FAILURE_WINDOW_MINUTES} minutes`,
+
         windowStart,
         windowEnd: new Date(
           Date.now() + FAILURE_WINDOW_MINUTES * 60 * 1000
