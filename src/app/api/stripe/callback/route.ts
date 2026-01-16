@@ -1,35 +1,61 @@
 import { NextResponse } from "next/server";
-import { stripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const code = searchParams.get("code");
+  const url = new URL(req.url);
+  const code = url.searchParams.get("code");
+
+  console.log("🔁 OAuth callback hit");
+  console.log("Code:", code);
 
   if (!code) {
-    return NextResponse.json({ error: "Missing code" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing OAuth code" },
+      { status: 400 }
+    );
   }
 
-  const response = await stripe.oauth.token({
-    grant_type: "authorization_code",
-    code,
-  });
+  try {
+    console.log("🔐 Exchanging code for token...");
 
- const stripeAccountId = response.stripe_user_id;
+    const response = await fetch(
+      "https://connect.stripe.com/oauth/token",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          code,
+          client_id: process.env.STRIPE_CLIENT_ID!,
+          client_secret: process.env.STRIPE_SECRET_KEY!, // IMPORTANT
+        }),
+      }
+    );
 
-if (!stripeAccountId) {
-  return NextResponse.json(
-    { error: "Stripe account ID missing from OAuth response" },
-    { status: 500 }
-  );
-}
+    const text = await response.text();
+    console.log("Stripe raw response:", text);
 
+    const data = JSON.parse(text);
 
-  const user = await prisma.user.findFirst();
+    if (!response.ok) {
+      console.error("❌ Stripe OAuth error:", data);
+      return NextResponse.json(
+        { error: "Stripe OAuth failed", details: data },
+        { status: 400 }
+      );
+    }
 
-  if (!user) {
-    return NextResponse.json({ error: "No user found" }, { status: 500 });
-  }
+    const stripeAccountId = data.stripe_user_id;
+    console.log("✅ Connected account:", stripeAccountId);
+
+    if (!stripeAccountId) {
+      return NextResponse.json(
+        { error: "No stripe_user_id returned", data },
+        { status: 400 }
+      );
+    }
 
 await prisma.stripeAccount.upsert({
   where: { stripeAccountId },
@@ -39,13 +65,23 @@ await prisma.stripeAccount.upsert({
   create: {
     stripeAccountId,
     status: "active",
-    userId: user.id,
   },
 });
 
 
-  return NextResponse.json({
-    success: true,
-    stripeAccountId,
-  });
+
+
+
+    console.log("💾 Stripe account saved");
+
+    return NextResponse.redirect(
+      new URL("/dashboard", req.url)
+    );
+  } catch (err) {
+    console.error("🔥 OAuth exception FULL:", err);
+    return NextResponse.json(
+      { error: "OAuth exception", message: String(err) },
+      { status: 500 }
+    );
+  }
 }
