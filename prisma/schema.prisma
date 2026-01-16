@@ -48,11 +48,14 @@ model Alert {
   windowStart     DateTime
   windowEnd       DateTime
 
+  cooldownUntil   DateTime?   // ⬅️ NEW (alert cooldown support)
+
   createdAt       DateTime @default(now())
 
   @@index([type])
   @@index([stripeAccountId])
 }
+
 
 model RevenueMetric {
   id              String   @id @default(cuid())

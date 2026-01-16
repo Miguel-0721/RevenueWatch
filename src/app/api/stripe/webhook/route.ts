@@ -26,6 +26,18 @@ const FAILURE_WINDOW_MINUTES = 15;
 const FAILURE_THRESHOLD = 3;
 
 
+function getCooldownUntil(type: string) {
+  const now = Date.now();
+
+  const hours =
+    type === "revenue_drop" ? 12 :
+    type === "payment_failed" ? 6 :
+    6;
+
+  return new Date(now + hours * 60 * 60 * 1000);
+}
+
+
 
 export async function POST(req: Request) {
   console.log("🧠 WEBHOOK ROUTE HIT");
@@ -122,7 +134,52 @@ if (event.type === "payment_intent.succeeded") {
     if (baselineAmount > MIN_BASELINE_REVENUE) {
       const dropRatio = 1 - currentAmount / baselineAmount;
 
+
+// Low-volume guard: ignore tiny current windows
+const MIN_CURRENT_REVENUE = 2_000; // €20 in cents
+
+if (currentAmount < MIN_CURRENT_REVENUE) {
+  console.log(
+    "[NO ALERT] Current revenue too low for meaningful drop detection"
+  );
+  return NextResponse.json({ received: true });
+}
+
+
+
       if (dropRatio >= DROP_THRESHOLD) {
+
+
+// Sustained condition: require drop in previous window too
+const previousWindowStart = new Date(
+  currentWindowStart.getTime() - REVENUE_WINDOW_MINUTES * 60 * 1000
+);
+
+const previousRevenue = await prisma.revenueMetric.aggregate({
+  _sum: { amount: true },
+  where: {
+    stripeAccountId: event.account ?? null,
+    periodEnd: {
+      gte: previousWindowStart,
+      lt: currentWindowStart,
+    },
+  },
+});
+
+const previousAmount = previousRevenue._sum.amount ?? 0;
+
+const previousDropRatio =
+  baselineAmount > 0 ? 1 - previousAmount / baselineAmount : 0;
+
+if (previousDropRatio < DROP_THRESHOLD) {
+  console.log(
+    "[NO ALERT] Revenue drop not sustained across multiple windows"
+  );
+  return NextResponse.json({ received: true });
+}
+
+
+
         const existingAlert = await prisma.alert.findFirst({
           where: {
             type: "revenue_drop",
@@ -131,8 +188,29 @@ if (event.type === "payment_intent.succeeded") {
           },
         });
 
-        if (!existingAlert) {
-     const alert = await prisma.alert.create({
+    if (!existingAlert) {
+
+  const cooldownActive = await prisma.alert.findFirst({
+    where: {
+      type: "revenue_drop",
+      stripeAccountId: event.account ?? null,
+      cooldownUntil: {
+        gt: new Date(),
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  if (cooldownActive) {
+    console.log(
+      `[ALERT SKIPPED] revenue_drop still in cooldown until ${cooldownActive.cooldownUntil}`
+    );
+    return NextResponse.json({ received: true });
+  }
+
+const alert = await prisma.alert.create({
   data: {
     type: "revenue_drop",
     stripeEventId: event.id,
@@ -140,15 +218,17 @@ if (event.type === "payment_intent.succeeded") {
     message: `Revenue dropped by ${(dropRatio * 100).toFixed(0)}% compared to baseline`,
     windowStart: currentWindowStart,
     windowEnd: new Date(now.getTime() + REVENUE_WINDOW_MINUTES * 60 * 1000),
+    cooldownUntil: getCooldownUntil("revenue_drop"),
   },
 });
 
-await sendAlertEmail({
-  type: alert.type,
-  message: alert.message,
-});
 
-        }
+  await sendAlertEmail({
+    type: alert.type,
+    message: alert.message,
+  });
+}
+
       }
     }
   }
@@ -177,6 +257,44 @@ await sendAlertEmail({
   });
 
  if (recentFailures >= FAILURE_THRESHOLD) {
+
+// Low-volume guard: require enough activity
+const MIN_FAILURE_EVENTS = 5;
+
+if (recentFailures < MIN_FAILURE_EVENTS) {
+  console.log(
+    "[NO ALERT] Not enough payment failures to be statistically meaningful"
+  );
+  return NextResponse.json({ received: true });
+}
+
+
+
+// Sustained condition: check previous failure window
+const previousFailureWindowStart = new Date(
+  windowStart.getTime() - FAILURE_WINDOW_MINUTES * 60 * 1000
+);
+
+const previousFailures = await prisma.stripeEvent.count({
+  where: {
+    type: "payment_intent.payment_failed",
+    createdAt: {
+      gte: previousFailureWindowStart,
+      lt: windowStart,
+    },
+    stripeAccountId: event.account ?? null,
+  },
+});
+
+if (previousFailures < FAILURE_THRESHOLD) {
+  console.log(
+    "[NO ALERT] Payment failures not sustained across windows"
+  );
+  return NextResponse.json({ received: true });
+}
+
+
+
     const existingAlert = await prisma.alert.findFirst({
       where: {
         type: "payment_failed",
@@ -187,8 +305,29 @@ await sendAlertEmail({
       },
     });
 
-    if (!existingAlert) {
-  const alert = await prisma.alert.create({
+ if (!existingAlert) {
+
+  const cooldownActive = await prisma.alert.findFirst({
+    where: {
+      type: "payment_failed",
+      stripeAccountId: event.account ?? null,
+      cooldownUntil: {
+        gt: new Date(),
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  if (cooldownActive) {
+    console.log(
+      `[ALERT SKIPPED] payment_failed still in cooldown until ${cooldownActive.cooldownUntil}`
+    );
+    return NextResponse.json({ received: true });
+  }
+
+const alert = await prisma.alert.create({
   data: {
     type: "payment_failed",
     stripeEventId: event.id,
@@ -196,15 +335,17 @@ await sendAlertEmail({
     message: `Multiple payment failures detected within ${FAILURE_WINDOW_MINUTES} minutes`,
     windowStart,
     windowEnd: new Date(Date.now() + FAILURE_WINDOW_MINUTES * 60 * 1000),
+    cooldownUntil: getCooldownUntil("payment_failed"),
   },
 });
 
-await sendAlertEmail({
-  type: alert.type,
-  message: alert.message,
-});
 
-    }
+  await sendAlertEmail({
+    type: alert.type,
+    message: alert.message,
+  });
+}
+
   }
 }
 
