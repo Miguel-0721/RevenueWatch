@@ -11,10 +11,12 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 // ---------------- CONFIG ----------------
 
 const REVENUE_WINDOW_MINUTES = 60;
-const BASELINE_HOURS = 24;
+const BASELINE_HOURS = 30;
 const DROP_THRESHOLD = 0.4;
-const MIN_BASELINE_REVENUE = 10_000;
-const MIN_CURRENT_REVENUE = 2_000;
+const MIN_BASELINE_REVENUE = 1; // €100+
+const MIN_CURRENT_REVENUE = 1;   // €20+
+
+
 
 const FAILURE_WINDOW_MINUTES = 15;
 const FAILURE_THRESHOLD = 3;
@@ -54,16 +56,24 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Webhook error" }, { status: 400 });
   }
 
+
+const stripeAccountId =
+  event.account ?? "test_account_local";
+
+
+
   // 1️⃣ Store every event (audit trail)
   await prisma.stripeEvent.upsert({
     where: { stripeEventId: event.id },
     update: {},
-    create: {
-      stripeEventId: event.id,
-      type: event.type,
-      stripeAccountId: event.account ?? null,
-      payload: JSON.stringify(event),
-    },
+create: {
+  stripeEventId: event.id,
+  type: event.type,
+  stripeAccountId,
+  payload: JSON.stringify(event),
+},
+
+
   });
 
   // Ignore unrelated events
@@ -77,7 +87,8 @@ export async function POST(req: Request) {
   // ---------------- REVENUE DROP ----------------
 
   if (event.type === "payment_intent.succeeded") {
-    if (!event.account) return NextResponse.json({ received: true });
+    
+
 
     const pi = event.data.object as Stripe.PaymentIntent;
     if (!pi.amount_received || pi.amount_received <= 0) {
@@ -88,7 +99,8 @@ export async function POST(req: Request) {
 
     await prisma.revenueMetric.create({
       data: {
-        stripeAccountId: event.account,
+        stripeAccountId,
+
         amount: pi.amount_received,
         periodStart: new Date(now.getTime() - REVENUE_WINDOW_MINUTES * 60 * 1000),
         periodEnd: now,
@@ -105,18 +117,20 @@ export async function POST(req: Request) {
 
     const currentRevenue = await prisma.revenueMetric.aggregate({
       _sum: { amount: true },
-      where: {
-        stripeAccountId: event.account,
-        periodEnd: { gte: currentWindowStart },
-      },
+    where: {
+  stripeAccountId,
+  periodEnd: { gte: currentWindowStart },
+},
+
     });
 
     const baselineRevenue = await prisma.revenueMetric.aggregate({
       _sum: { amount: true },
-      where: {
-        stripeAccountId: event.account,
-        periodEnd: { gte: baselineStart, lt: currentWindowStart },
-      },
+     where: {
+  stripeAccountId,
+  periodEnd: { gte: baselineStart, lt: currentWindowStart },
+},
+
     });
 
     const currentAmount = currentRevenue._sum.amount ?? 0;
@@ -134,26 +148,28 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true });
     }
 
-    const allowed = await canTriggerAlert({
-      stripeAccountId: event.account,
-      type: "revenue_drop",
-    });
+ const allowed = await canTriggerAlert({
+  stripeAccountId,
+  type: "revenue_drop",
+});
+
 
     if (!allowed) {
       return NextResponse.json({ received: true });
     }
 
-    const alert = await prisma.alert.create({
-      data: {
-        type: "revenue_drop",
-        stripeEventId: event.id,
-        stripeAccountId: event.account,
-        message: `Revenue dropped by ${(dropRatio * 100).toFixed(0)}%`,
-        windowStart: currentWindowStart,
-        windowEnd: new Date(now.getTime() + REVENUE_WINDOW_MINUTES * 60 * 1000),
-        cooldownUntil: getCooldownUntil("revenue_drop"),
-      },
-    });
+ const alert = await prisma.alert.create({
+  data: {
+    type: "revenue_drop",
+    stripeEventId: event.id,
+    stripeAccountId, // ✅ CORRECT
+    message: `Revenue dropped by ${(dropRatio * 100).toFixed(0)}%`,
+    windowStart: currentWindowStart,
+    windowEnd: new Date(now.getTime() + REVENUE_WINDOW_MINUTES * 60 * 1000),
+    cooldownUntil: getCooldownUntil("revenue_drop"),
+  },
+});
+
 
     await sendAlertEmail({
       type: alert.type,
@@ -164,7 +180,7 @@ export async function POST(req: Request) {
   // ---------------- PAYMENT FAILURES ----------------
 
   if (event.type === "payment_intent.payment_failed") {
-    if (!event.account) return NextResponse.json({ received: true });
+
 
     const windowStart = new Date(
       Date.now() - FAILURE_WINDOW_MINUTES * 60 * 1000
@@ -172,7 +188,7 @@ export async function POST(req: Request) {
 
     const failures = await prisma.stripeEvent.count({
       where: {
-        stripeAccountId: event.account,
+        stripeAccountId,
         type: "payment_intent.payment_failed",
         createdAt: { gte: windowStart },
       },
@@ -183,7 +199,7 @@ export async function POST(req: Request) {
     }
 
     const allowed = await canTriggerAlert({
-      stripeAccountId: event.account,
+      stripeAccountId,
       type: "payment_failed",
     });
 
@@ -195,7 +211,7 @@ export async function POST(req: Request) {
       data: {
         type: "payment_failed",
         stripeEventId: event.id,
-        stripeAccountId: event.account,
+        stripeAccountId,
         message: `Multiple payment failures detected`,
         windowStart,
         windowEnd: new Date(
