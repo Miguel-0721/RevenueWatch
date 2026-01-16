@@ -20,7 +20,6 @@ const MIN_CURRENT_REVENUE = 1;   // €20+
 
 const FAILURE_WINDOW_MINUTES = 15;
 const FAILURE_THRESHOLD = 3;
-const MIN_FAILURE_EVENTS = 5;
 
 // ---------------- HELPERS ----------------
 
@@ -194,9 +193,10 @@ create: {
       },
     });
 
-    if (failures < FAILURE_THRESHOLD || failures < MIN_FAILURE_EVENTS) {
-      return NextResponse.json({ received: true });
-    }
+   if (failures < FAILURE_THRESHOLD) {
+  return NextResponse.json({ received: true });
+}
+
 
     const allowed = await canTriggerAlert({
       stripeAccountId,
