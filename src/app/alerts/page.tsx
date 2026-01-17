@@ -7,53 +7,59 @@ export default async function AlertsPage() {
   });
 
   return (
-    <main style={{ padding: "24px", fontFamily: "system-ui" }}>
-      <h1 style={{ fontSize: "20px", marginBottom: "16px" }}>
+    <main style={{ padding: "24px", maxWidth: 900, margin: "0 auto" }}>
+      <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 16 }}>
         Alerts
       </h1>
 
       {alerts.length === 0 && (
-        <p>No alerts yet.</p>
+        <p style={{ color: "#666" }}>No alerts yet.</p>
       )}
 
       <ul style={{ listStyle: "none", padding: 0 }}>
         {alerts.map((alert) => (
-      <li
-  key={alert.id}
+          <li
+            key={alert.id}
+            style={{
+              border: "1px solid #e5e5e5",
+              borderRadius: 8,
+              padding: 16,
+              marginBottom: 12,
+            }}
+          >
+          <div
   style={{
-    borderLeft:
-  alert.severity === "critical"
-    ? "4px solid #dc2626" // red
-    : alert.severity === "warning"
-    ? "4px solid #d97706" // amber
-    : "4px solid #999",
-    borderTop: "1px solid #ddd",
-    borderRight: "1px solid #ddd",
-    borderBottom: "1px solid #ddd",
-    borderRadius: "6px",
-    padding: "12px",
-    marginBottom: "12px",
+    display: "flex",
+    justifyContent: "space-between",
+    marginBottom: 8,
+    alignItems: "center",
   }}
 >
+  <strong>
+    {alert.type.replace("_", " ").toUpperCase()}
+    {alert.stripeAccountId && (
+      <span style={{ color: "#999", fontWeight: 400, marginLeft: 8 }}>
+        — {alert.stripeAccountId}
+      </span>
+    )}
+  </strong>
 
-            <div style={{ fontWeight: 600 }}>
-              {alert.type.replace("_", " ").toUpperCase()}
-            </div>
+  <span
+    style={{
+      color: alert.severity === "critical" ? "#c0392b" : "#f39c12",
+      fontWeight: 600,
+    }}
+  >
+    {alert.severity.toUpperCase()}
+  </span>
+</div>
 
-            <div style={{ marginTop: "4px" }}>
-              {alert.message}
-            </div>
 
-            <div
-              style={{
-                marginTop: "6px",
-                fontSize: "12px",
-                color: "#666",
-              }}
-            >
-              {new Date(alert.createdAt).toLocaleString()} ·{" "}
-              {alert.stripeAccountId}
-            </div>
+            <p style={{ marginBottom: 8 }}>{alert.message}</p>
+
+            <small style={{ color: "#777" }}>
+              {new Date(alert.createdAt).toLocaleString()}
+            </small>
           </li>
         ))}
       </ul>
