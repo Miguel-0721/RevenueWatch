@@ -22,11 +22,11 @@ export default async function AlertsPage() {
   key={alert.id}
   style={{
     borderLeft:
-      alert.type === "payment_failed"
-        ? "4px solid #d97706" // amber
-        : alert.type === "revenue_drop"
-        ? "4px solid #dc2626" // red
-        : "4px solid #999",
+  alert.severity === "critical"
+    ? "4px solid #dc2626" // red
+    : alert.severity === "warning"
+    ? "4px solid #d97706" // amber
+    : "4px solid #999",
     borderTop: "1px solid #ddd",
     borderRight: "1px solid #ddd",
     borderBottom: "1px solid #ddd",

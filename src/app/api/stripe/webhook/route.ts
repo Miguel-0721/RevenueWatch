@@ -10,11 +10,12 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 // ---------------- CONFIG ----------------
 
-const REVENUE_WINDOW_MINUTES = 60;
+const REVENUE_WINDOW_MINUTES = 1;
 const BASELINE_HOURS = 30;
 const DROP_THRESHOLD = 0.4;
-const MIN_BASELINE_REVENUE = 1; // €100+
-const MIN_CURRENT_REVENUE = 1;   // €20+
+const MIN_BASELINE_REVENUE = 50_00;   // €50.00 (in cents)
+const MIN_CURRENT_REVENUE = 20_00;    // €20.00 (in cents)
+
 
 
 
@@ -25,7 +26,7 @@ const FAILURE_THRESHOLD = 3;
 
 function getCooldownUntil(type: string) {
   const hours =
-    type === "revenue_drop" ? 12 :
+    type === "revenue_drop" ? 0.01 :
     type === "payment_failed" ? 6 :
     6;
 
@@ -143,6 +144,14 @@ create: {
     }
 
     const dropRatio = 1 - currentAmount / baselineAmount;
+
+let severity: "warning" | "critical" = "warning";
+
+if (dropRatio >= 0.8) {
+  severity = "critical";
+}
+
+
     if (dropRatio < DROP_THRESHOLD) {
       return NextResponse.json({ received: true });
     }
@@ -160,16 +169,28 @@ create: {
 const alert = await prisma.alert.create({
   data: {
     type: "revenue_drop",
+    severity,
     stripeEventId: event.id,
     stripeAccountId,
     message: `Revenue dropped by ${(dropRatio * 100).toFixed(0)}% compared to baseline.
 Baseline (${BASELINE_HOURS}h): €${(baselineAmount / 100).toFixed(2)}
 Current (${REVENUE_WINDOW_MINUTES} min): €${(currentAmount / 100).toFixed(2)}`,
+context: JSON.stringify({
+  dropRatio,
+  baselineHours: BASELINE_HOURS,
+  baselineAmount,
+  currentWindowMinutes: REVENUE_WINDOW_MINUTES,
+  currentAmount,
+  threshold: DROP_THRESHOLD,
+}),
+
+
     windowStart: currentWindowStart,
     windowEnd: new Date(now.getTime() + REVENUE_WINDOW_MINUTES * 60 * 1000),
     cooldownUntil: getCooldownUntil("revenue_drop"),
   },
 });
+
 
 
 
@@ -210,20 +231,28 @@ Current (${REVENUE_WINDOW_MINUTES} min): €${(currentAmount / 100).toFixed(2)}`
       return NextResponse.json({ received: true });
     }
 
-    const alert = await prisma.alert.create({
-      data: {
-        type: "payment_failed",
-        stripeEventId: event.id,
-        stripeAccountId,
-      message: `Multiple payment failures detected in the last ${FAILURE_WINDOW_MINUTES} minutes`,
+const alert = await prisma.alert.create({
+  data: {
+    type: "payment_failed",
+    severity: "warning",
+    stripeEventId: event.id,
+    stripeAccountId,
+    message: `Multiple payment failures detected in the last ${FAILURE_WINDOW_MINUTES} minutes`,
+ context: JSON.stringify({
+  failureWindowMinutes: FAILURE_WINDOW_MINUTES,
+  failureThreshold: FAILURE_THRESHOLD,
+  failuresCounted: failures,
+}),
 
-        windowStart,
-        windowEnd: new Date(
-          Date.now() + FAILURE_WINDOW_MINUTES * 60 * 1000
-        ),
-        cooldownUntil: getCooldownUntil("payment_failed"),
-      },
-    });
+
+    windowStart,
+    windowEnd: new Date(
+      Date.now() + FAILURE_WINDOW_MINUTES * 60 * 1000
+    ),
+    cooldownUntil: getCooldownUntil("payment_failed"),
+  },
+});
+
 
     await sendAlertEmail({
       type: alert.type,

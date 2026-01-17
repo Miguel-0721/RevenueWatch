@@ -39,22 +39,27 @@ model StripeEvent {
 }
 
 model Alert {
-  id              String  @id @default(cuid())
-  type            String // e.g. "payment_failed"
+  id              String   @id @default(cuid())
+  type            String
+  severity        String   @default("warning")
   stripeAccountId String?
-  stripeEventId   String  @unique
+  stripeEventId   String   @unique
   message         String
 
-  windowStart DateTime
-  windowEnd   DateTime
+  context         String?   // ✅ MUST be String for SQLite
 
-  cooldownUntil DateTime? // ⬅️ NEW (alert cooldown support)
-
-  createdAt DateTime @default(now())
+  windowStart     DateTime
+  windowEnd       DateTime
+  cooldownUntil   DateTime?
+  createdAt       DateTime @default(now())
 
   @@index([type])
+  @@index([severity])
   @@index([stripeAccountId])
 }
+
+
+
 
 model RevenueMetric {
   id              String   @id @default(cuid())

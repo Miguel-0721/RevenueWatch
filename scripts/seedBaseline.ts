@@ -1,38 +1,37 @@
-import { prisma } from "../src/lib/prisma.ts";
-
-
-
-
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { prisma } = require("../src/lib/prisma");
 
 async function seedBaseline() {
   const stripeAccountId = "test_account_local";
-
   const now = new Date();
-  const oneHour = 60 * 60 * 1000;
+
+  const hours = 30;
+  const intervalMinutes = 60;
+  const amountPerHour = 2000; // €20.00 per hour (in cents)
+
+  const rows = [];
+
+  for (let i = hours; i > 0; i--) {
+    const periodEnd = new Date(now.getTime() - (i - 1) * 60 * 60 * 1000);
+    const periodStart = new Date(
+      periodEnd.getTime() - intervalMinutes * 60 * 1000
+    );
+
+    rows.push({
+      stripeAccountId,
+      amount: amountPerHour,
+      periodStart,
+      periodEnd,
+    });
+  }
 
   await prisma.revenueMetric.createMany({
-    data: [
-      {
-        stripeAccountId,
-        amount: 200_000,
-        periodStart: new Date(now.getTime() - 26 * oneHour),
-        periodEnd: new Date(now.getTime() - 25 * oneHour),
-      },
-      {
-        stripeAccountId,
-        amount: 180_000,
-        periodStart: new Date(now.getTime() - 25 * oneHour),
-        periodEnd: new Date(now.getTime() - 24 * oneHour),
-      },
-    ],
+    data: rows,
   });
 
-  console.log("✅ Baseline revenue seeded");
+  console.log("✅ Seeded baseline revenue metrics");
 }
 
 seedBaseline()
-  .then(() => process.exit(0))
-  .catch((err) => {
-    console.error(err);
-    process.exit(1);
-  });
+  .catch(console.error)
+  .finally(() => prisma.$disconnect());
