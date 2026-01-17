@@ -10,11 +10,11 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 // ---------------- CONFIG ----------------
 
-const REVENUE_WINDOW_MINUTES = 1;
+const REVENUE_WINDOW_MINUTES = 60;
 const BASELINE_HOURS = 30;
 const DROP_THRESHOLD = 0.4;
-const MIN_BASELINE_REVENUE = 50_00;   // €50.00 (in cents)
-const MIN_CURRENT_REVENUE = 20_00;    // €20.00 (in cents)
+const MIN_BASELINE_REVENUE = 100_00; // €100
+const MIN_CURRENT_REVENUE = 20_00;   // €20
 
 
 
@@ -26,7 +26,7 @@ const FAILURE_THRESHOLD = 3;
 
 function getCooldownUntil(type: string) {
   const hours =
-    type === "revenue_drop" ? 0.01 :
+   type === "revenue_drop" ? 12 :
     type === "payment_failed" ? 6 :
     6;
 
