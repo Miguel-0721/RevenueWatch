@@ -8,26 +8,163 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-12-15.clover",
 });
 
+
+
+/**
+ * ALERTING PHILOSOPHY
+ *
+ * RevenueWatch is an insurance-style monitoring system.
+ * It is intentionally conservative by design.
+ *
+ * Design principles:
+ * - Prefer false negatives over false positives
+ * - Alert only on sustained or meaningful anomalies
+ * - Avoid alert fatigue at all costs
+ * - Never react to single events in isolation
+ *
+ * This system does NOT:
+ * - Predict revenue
+ * - Optimize performance
+ * - Recommend actions
+ * - Provide analytics or insights
+ */
+
+
+
+
+/**
+ * PRODUCTION DEFAULTS — DECISION NOTE (PRE-KVK)
+ *
+ * The values below represent the intended initial production defaults.
+ * They are chosen to be conservative and boring by design.
+ *
+ * Goals:
+ * - Catch meaningful, sustained issues
+ * - Avoid alert fatigue
+ * - Prefer false negatives over false positives
+ *
+ * These values MUST NOT be tuned reactively.
+ * Any future changes should be deliberate and data-informed.
+ *
+ * Intended defaults:
+ *
+ * Revenue drop detection:
+ * - BASELINE_HOURS:        14 days
+ *   Rationale: captures a stable recent norm while adapting over time.
+ *
+ * - REVENUE_WINDOW_MINUTES: 60 minutes
+ *   Rationale: ignores brief volatility; detects sustained drops.
+ *
+ * - DROP_THRESHOLD:        50%
+ *   Rationale: large deviation required to avoid noise.
+ *
+ * - MIN_BASELINE_REVENUE:  €500
+ *   Rationale: prevents alerts on very low-volume accounts.
+ *
+ * - MIN_CURRENT_REVENUE:   €100
+ *   Rationale: ensures meaningful current activity before comparison.
+ *
+ * Payment failure detection:
+ * - FAILURE_WINDOW_MINUTES: 30 minutes
+ *   Rationale: clusters indicate systemic issues, not random failures.
+ *
+ * - FAILURE_THRESHOLD:      5 failures
+ *   Rationale: meaningful volume required before alerting.
+ *
+ * Cooldowns:
+ * - revenue_drop:   12 hours
+ * - payment_failed: 6 hours
+ *   Rationale: prevent repeated alerts for the same underlying issue.
+ *
+ * NOTE:
+ * These defaults are intentionally conservative.
+ * It is acceptable to miss minor issues; it is not acceptable to spam alerts.
+ */
+
+
+
 // ---------------- CONFIG ----------------
 
-const REVENUE_WINDOW_MINUTES = 60;
-const BASELINE_HOURS = 30;
-const DROP_THRESHOLD = 0.4;
-const MIN_BASELINE_REVENUE = 100_00; // €100
-const MIN_CURRENT_REVENUE = 20_00;   // €20
+// Revenue drop alert (production-safe defaults)
+
+
+/**
+ * Baseline vs current window comparison.
+ *
+ * The baseline represents "normal" recent behavior.
+ * The current window is intentionally shorter to detect sustained drops.
+ *
+ * Short-term spikes or dips are ignored by design.
+ */
+
+
+
+const REVENUE_WINDOW_MINUTES = 60;      // 1 hour sustained window
+const BASELINE_HOURS = 14 * 24;         // 14 days baseline
+
+
+/**
+ * Revenue drop threshold.
+ *
+ * The threshold represents a meaningful deviation,
+ * not a normal fluctuation.
+ *
+ * We intentionally avoid reacting to small or brief changes.
+ */
+
+
+
+const DROP_THRESHOLD = 0.5;             // 50% sustained drop
+
+
+/**
+ * Minimum revenue guards.
+ *
+ * These thresholds prevent alerts when:
+ * - The account is new
+ * - Traffic is extremely low
+ * - Random variance would dominate the signal
+ *
+ * Alerts below these levels are more likely noise than risk.
+ */
+
+
+
+const MIN_BASELINE_REVENUE = 500_00;    // €500 baseline required
+const MIN_CURRENT_REVENUE = 100_00;     // €100 current activity required
 
 
 
 
-const FAILURE_WINDOW_MINUTES = 15;
-const FAILURE_THRESHOLD = 3;
+
+// Payment failure alert (production-safe defaults)
+
+const FAILURE_WINDOW_MINUTES = 30;  // sustained failures, not spikes
+const FAILURE_THRESHOLD = 5;        // meaningful failure volume
+
 
 // ---------------- HELPERS ----------------
+
+
+/**
+ * Cooldowns & deduplication.
+ *
+ * Once an alert is triggered, further alerts of the same type
+ * are suppressed for a fixed cooldown period.
+ *
+ * This prevents:
+ * - Alert storms
+ * - Repeated notifications for the same issue
+ * - Operator fatigue
+ */
+
+
+
 
 function getCooldownUntil(type: string) {
   const hours =
    type === "revenue_drop" ? 12 :
-    type === "payment_failed" ? 6 :
+   type === "payment_failed" ? 6 :
     6;
 
   return new Date(Date.now() + hours * 60 * 60 * 1000);
@@ -57,9 +194,44 @@ export async function POST(req: Request) {
   }
 
 
-const stripeAccountId =
-  event.account ?? "test_account_local";
+/**
+ * Stripe Connect events include `event.account`.
+ * In local development (Stripe CLI), this may be missing.
+ * 
+ * - In development: allow a safe dev-only fallback
+ * - In production: missing account is a hard error
+ */
+let stripeAccountId: string;
 
+if (event.account) {
+  stripeAccountId = event.account;
+} else {
+  if (process.env.NODE_ENV === "production") {
+    console.error("Missing Stripe account on event", event.id);
+    return NextResponse.json(
+      { error: "Missing Stripe account context" },
+      { status: 400 }
+    );
+  }
+
+  // Dev-only fallback for Stripe CLI
+  stripeAccountId = "dev_test_account";
+}
+
+
+// 🔒 Guard: ignore events for disconnected / inactive accounts
+const account = await prisma.stripeAccount.findUnique({
+  where: { stripeAccountId },
+});
+
+if (!account || account.status !== "active") {
+  console.log(
+    "⚠️ Ignoring event for inactive or disconnected Stripe account:",
+    stripeAccountId
+  );
+
+  return NextResponse.json({ received: true });
+}
 
 
   // 1️⃣ Store every event (audit trail)
@@ -201,6 +373,17 @@ context: JSON.stringify({
   }
 
   // ---------------- PAYMENT FAILURES ----------------
+
+
+/**
+ * Payment failure spike detection.
+ *
+ * Individual payment failures are expected and normal.
+ * Alerts are triggered only when failures cluster within
+ * a short time window, indicating a systemic issue.
+ */
+
+
 
   if (event.type === "payment_intent.payment_failed") {
 

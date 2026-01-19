@@ -22,7 +22,7 @@ export async function sendAlertEmail({
     const result = await resend.emails.send({
       from: "onboarding@resend.dev",
       to: ["miguelaamaya97@gmail.com"],
-      subject: `🚨 RevenueWatch Alert: ${type}`,
+      subject: `🚨 RevenueWatch alert — ${type.replace("_", " ")}`,
       text: message,
     });
 

@@ -1,9 +1,39 @@
+/**
+ * Stripe Connect — OAuth Callback
+ *
+ * This route is called by Stripe after the user authorizes access.
+ *
+ * Expected behavior (post-KVK):
+ * - Receive authorization `code`
+ * - Exchange code for access token
+ * - Extract `stripe_user_id`
+ * - Persist Stripe account connection
+ *
+ * Current state:
+ * - OAuth is disabled (pre-KVK)
+ * - This route should not be hit in normal flow
+ *
+ * SECURITY:
+ * - Read-only access only
+ * - Never store secret keys
+ * - Never assume account ownership without verification
+ */
+
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
+
+  // Pre-KVK guard: OAuth should not run unless Stripe Connect is enabled
+  if (!process.env.STRIPE_CONNECT_CLIENT_ID) {
+    return NextResponse.json(
+      { error: "Stripe Connect OAuth not enabled" },
+      { status: 400 }
+    );
+  }
 
   console.log("🔁 OAuth callback hit");
   console.log("Code:", code);
@@ -28,8 +58,9 @@ export async function GET(req: Request) {
         body: new URLSearchParams({
           grant_type: "authorization_code",
           code,
-          client_id: process.env.STRIPE_CLIENT_ID!,
-          client_secret: process.env.STRIPE_SECRET_KEY!, // IMPORTANT
+          client_id: process.env.STRIPE_CONNECT_CLIENT_ID!,
+          client_secret: process.env.STRIPE_SECRET_KEY!, // Stripe platform secret key (never shared with connected accounts)
+
         }),
       }
     );
