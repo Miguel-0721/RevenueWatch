@@ -323,19 +323,31 @@ if (!isFirstProcessing) {
 const currentAmount = currentRevenue._sum.amount ?? 0;
 
 
+const nowHour = now.getHours();
+const nowDay = now.getDay();
+const isWeekend = nowDay === 0 || nowDay === 6;
+
 const baselineMetrics = await prisma.revenueMetric.findMany({
   where: {
     stripeAccountId,
     periodEnd: { gte: baselineStart, lt: currentWindowStart },
+    hourOfDay: nowHour,
+    ...(isWeekend
+      ? { dayOfWeek: { in: [0, 6] } }
+      : { dayOfWeek: { in: [1, 2, 3, 4, 5] } }),
   },
   select: {
     amount: true,
   },
 });
 
-if (baselineMetrics.length === 0) {
+if (baselineMetrics.length < 5) {
   return NextResponse.json({ received: true });
 }
+
+
+
+
 
 const baselineTotal = baselineMetrics.reduce(
   (sum, m) => sum + m.amount,
@@ -384,10 +396,11 @@ const alert = await prisma.alert.create({
     severity,
     stripeEventId: event.id,
     stripeAccountId,
-    message: `Revenue dropped by ${(dropRatio * 100).toFixed(0)}% compared to baseline.
-Baseline (${BASELINE_HOURS}h): €${(baselineAmount / 100).toFixed(2)}
+message: `Revenue dropped by ${(dropRatio * 100).toFixed(0)}% compared to baseline.
+Baseline (same hour & day type, last ${BASELINE_HOURS}h): €${(baselineAmount / 100).toFixed(2)}
 Current (${REVENUE_WINDOW_MINUTES} min): €${(currentAmount / 100).toFixed(2)}`,
 context: JSON.stringify({
+
   dropRatio,
   baselineHours: BASELINE_HOURS,
   baselineAmount,
@@ -405,11 +418,13 @@ context: JSON.stringify({
 
 
 
+sendAlertEmail({
+  type: alert.type,
+  message: alert.message,
+}).catch((err) => {
+  console.error("Alert email failed (non-blocking):", err);
+});
 
-    await sendAlertEmail({
-      type: alert.type,
-      message: alert.message,
-    });
   }
 
   // ---------------- PAYMENT FAILURES ----------------
@@ -477,10 +492,13 @@ const alert = await prisma.alert.create({
 });
 
 
-    await sendAlertEmail({
-      type: alert.type,
-      message: alert.message,
-    });
+  sendAlertEmail({
+  type: alert.type,
+  message: alert.message,
+}).catch((err) => {
+  console.error("Alert email failed (non-blocking):", err);
+});
+
   }
 
   return NextResponse.json({ received: true });
