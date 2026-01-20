@@ -60,15 +60,21 @@ model Alert {
 
 
 
-
 model RevenueMetric {
   id              String   @id @default(cuid())
   stripeAccountId String?
   amount          Int // cents
   periodStart     DateTime
   periodEnd       DateTime
+
+  // Phase B groundwork (no behavior change yet)
+  hourOfDay       Int?
+  dayOfWeek       Int?
+
   createdAt       DateTime @default(now())
 
   @@index([stripeAccountId])
   @@index([periodStart])
+  @@index([dayOfWeek, hourOfDay])
 }
+

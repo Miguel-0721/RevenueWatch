@@ -99,7 +99,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 
 
-const REVENUE_WINDOW_MINUTES = 60;      // 1 hour sustained window
+const REVENUE_WINDOW_MINUTES = 2;      // 1 hour sustained window
 const BASELINE_HOURS = 14 * 24;         // 14 days baseline
 
 
@@ -130,8 +130,8 @@ const DROP_THRESHOLD = 0.5;             // 50% sustained drop
 
 
 
-const MIN_BASELINE_REVENUE = 500_00;    // €500 baseline required
-const MIN_CURRENT_REVENUE = 100_00;     // €100 current activity required
+const MIN_BASELINE_REVENUE = 1;    // €500 baseline required
+const MIN_CURRENT_REVENUE = 1;     // €100 current activity required
 
 
 
@@ -140,7 +140,7 @@ const MIN_CURRENT_REVENUE = 100_00;     // €100 current activity required
 // Payment failure alert (production-safe defaults)
 
 const FAILURE_WINDOW_MINUTES = 30;  // sustained failures, not spikes
-const FAILURE_THRESHOLD = 5;        // meaningful failure volume
+const FAILURE_THRESHOLD = 2;        // meaningful failure volume
 
 
 // ---------------- HELPERS ----------------
@@ -234,19 +234,29 @@ if (!account || account.status !== "active") {
 }
 
 
-  // 1️⃣ Store every event (audit trail)
-  await prisma.stripeEvent.upsert({
-    where: { stripeEventId: event.id },
-    update: {},
-create: {
-  stripeEventId: event.id,
-  type: event.type,
-  stripeAccountId,
-  payload: JSON.stringify(event),
-},
+// 1️⃣ Store every event (audit trail) + idempotency guard (retry-safe)
+const existing = await prisma.stripeEvent.findUnique({
+  where: { stripeEventId: event.id },
+  select: { id: true },
+});
 
+const isFirstProcessing = !existing;
 
+if (isFirstProcessing) {
+  await prisma.stripeEvent.create({
+    data: {
+      stripeEventId: event.id,
+      type: event.type,
+      stripeAccountId,
+      payload: JSON.stringify(event),
+    },
   });
+} else {
+  // Keep audit trail intact (optional: update payload/type if you ever want)
+  // We intentionally do NOT re-run side effects on retries.
+}
+
+
 
   // Ignore unrelated events
   if (
@@ -269,15 +279,28 @@ create: {
 
     const now = new Date();
 
-    await prisma.revenueMetric.create({
-      data: {
-        stripeAccountId,
+   // 🔒 Idempotency guard: never write revenue twice for the same Stripe event
+if (!isFirstProcessing) {
+  console.log("🔁 Retry detected — skipping revenueMetric creation");
+} else {
+ await prisma.revenueMetric.create({
+  data: {
+    stripeAccountId,
+    amount: pi.amount_received,
+    periodStart: new Date(
+      now.getTime() - REVENUE_WINDOW_MINUTES * 60 * 1000
+    ),
+    periodEnd: now,
 
-        amount: pi.amount_received,
-        periodStart: new Date(now.getTime() - REVENUE_WINDOW_MINUTES * 60 * 1000),
-        periodEnd: now,
-      },
-    });
+    // Phase B: time context capture
+    hourOfDay: now.getHours(),     // 0–23
+    dayOfWeek: now.getDay(),       // 0–6 (Sun = 0)
+  },
+});
+
+}
+
+
 
     const currentWindowStart = new Date(
       now.getTime() - REVENUE_WINDOW_MINUTES * 60 * 1000
@@ -296,17 +319,34 @@ create: {
 
     });
 
-    const baselineRevenue = await prisma.revenueMetric.aggregate({
-      _sum: { amount: true },
-     where: {
-  stripeAccountId,
-  periodEnd: { gte: baselineStart, lt: currentWindowStart },
-},
 
-    });
+const currentAmount = currentRevenue._sum.amount ?? 0;
 
-    const currentAmount = currentRevenue._sum.amount ?? 0;
-    const baselineAmount = baselineRevenue._sum.amount ?? 0;
+
+const baselineMetrics = await prisma.revenueMetric.findMany({
+  where: {
+    stripeAccountId,
+    periodEnd: { gte: baselineStart, lt: currentWindowStart },
+  },
+  select: {
+    amount: true,
+  },
+});
+
+if (baselineMetrics.length === 0) {
+  return NextResponse.json({ received: true });
+}
+
+const baselineTotal = baselineMetrics.reduce(
+  (sum, m) => sum + m.amount,
+  0
+);
+
+const baselineAveragePerWindow =
+  baselineTotal / baselineMetrics.length;
+
+    const baselineAmount = baselineAveragePerWindow;
+
 
     if (
       baselineAmount < MIN_BASELINE_REVENUE ||
