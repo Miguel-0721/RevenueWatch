@@ -1,26 +1,34 @@
 import { prisma } from "../src/lib/prisma";
 
-
-async function backfill() {
+async function main() {
+  // Find rows where Phase B fields are missing
   const rows = await prisma.revenueMetric.findMany({
     where: {
-      OR: [
-        { hourOfDay: null },
-        { dayOfWeek: null },
-      ],
+      OR: [{ hourOfDay: null }, { dayOfWeek: null }],
     },
+    select: {
+      id: true,
+      periodEnd: true,
+    },
+    take: 5000, // safety cap
   });
 
   console.log(`Found ${rows.length} rows to backfill`);
 
-  for (const row of rows) {
-    const date = row.periodEnd ?? row.createdAt;
+  if (rows.length === 0) {
+    console.log("✅ Nothing to backfill");
+    return;
+  }
+
+  // Update each row using periodEnd as the reference time
+  for (const r of rows) {
+    const d = new Date(r.periodEnd);
 
     await prisma.revenueMetric.update({
-      where: { id: row.id },
+      where: { id: r.id },
       data: {
-        hourOfDay: date.getHours(),
-        dayOfWeek: date.getDay(),
+        hourOfDay: d.getHours(), // 0–23
+        dayOfWeek: d.getDay(),   // 0–6 (Sun = 0)
       },
     });
   }
@@ -28,9 +36,11 @@ async function backfill() {
   console.log("✅ Backfill complete");
 }
 
-backfill()
+main()
   .catch((e) => {
-    console.error(e);
+    console.error("❌ Backfill failed:", e);
     process.exit(1);
   })
-  .finally(() => process.exit(0));
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

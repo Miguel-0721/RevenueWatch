@@ -5,14 +5,21 @@ async function seedBaseline() {
   const stripeAccountId = "test_account_local";
   const now = new Date();
 
-  const hours = 30;
-  const intervalMinutes = 60;
-  const amountPerHour = 2000; // €20.00 per hour (in cents)
+const HOURS = 168;            // how many hours back
+const SAMPLES_PER_HOUR = 6;  // MUST be >= 5
+const intervalMinutes = 60;
+const amountPerHour = 2000;  // €20.00 per hour (in cents)
 
-  const rows = [];
+const rows = [];
 
-  for (let i = hours; i > 0; i--) {
-    const periodEnd = new Date(now.getTime() - (i - 1) * 60 * 60 * 1000);
+for (let h = HOURS; h > 0; h--) {
+  for (let s = 0; s < SAMPLES_PER_HOUR; s++) {
+    const periodEnd = new Date(
+      now.getTime()
+      - (h - 1) * 60 * 60 * 1000
+      - s * 24 * 60 * 60 * 1000
+    );
+
     const periodStart = new Date(
       periodEnd.getTime() - intervalMinutes * 60 * 1000
     );
@@ -22,12 +29,17 @@ async function seedBaseline() {
       amount: amountPerHour,
       periodStart,
       periodEnd,
+      hourOfDay: periodEnd.getHours(),
+      dayOfWeek: periodEnd.getDay(),
     });
   }
+}
 
-  await prisma.revenueMetric.createMany({
-    data: rows,
-  });
+await prisma.revenueMetric.createMany({
+  data: rows,
+});
+
+
 
   console.log("✅ Seeded baseline revenue metrics");
 }

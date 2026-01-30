@@ -51,7 +51,8 @@ export function DisconnectButton({
         opacity: loading ? 0.6 : 1,
       }}
     >
-      {loading ? "Disconnecting…" : "Disconnect"}
+     {loading ? "Disconnecting..." : "Disconnect"}
+
     </button>
   );
 }

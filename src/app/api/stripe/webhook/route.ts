@@ -99,8 +99,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 
 
-const REVENUE_WINDOW_MINUTES = 2;      // 1 hour sustained window
-const BASELINE_HOURS = 14 * 24;         // 14 days baseline
+const REVENUE_WINDOW_MINUTES = 2;   // DEBUG: 5-minute window
+const BASELINE_HOURS = 14 * 24; // 14 day  // DEBUG: ~30 hours baseline
+
 
 
 /**
@@ -130,8 +131,10 @@ const DROP_THRESHOLD = 0.5;             // 50% sustained drop
 
 
 
-const MIN_BASELINE_REVENUE = 1;    // €500 baseline required
-const MIN_CURRENT_REVENUE = 1;     // €100 current activity required
+const MIN_BASELINE_REVENUE = 50000; // €500
+const MIN_CURRENT_REVENUE = 10000;  // €100
+
+
 
 
 
@@ -173,7 +176,11 @@ function getCooldownUntil(type: string) {
 // ---------------- WEBHOOK ----------------
 
 export async function POST(req: Request) {
-  const sig = req.headers.get("stripe-signature");
+  console.log("🔥 WEBHOOK HIT", new Date().toISOString());
+
+  try {
+    const sig = req.headers.get("stripe-signature");
+
   if (!sig) {
     return NextResponse.json({ error: "Missing signature" }, { status: 400 });
   }
@@ -215,7 +222,7 @@ if (event.account) {
   }
 
   // Dev-only fallback for Stripe CLI
-  stripeAccountId = "dev_test_account";
+  stripeAccountId = "test_account_local";
 }
 
 
@@ -229,9 +236,10 @@ if (!account || account.status !== "active") {
     "⚠️ Ignoring event for inactive or disconnected Stripe account:",
     stripeAccountId
   );
-
   return NextResponse.json({ received: true });
 }
+
+
 
 
 // 1️⃣ Store every event (audit trail) + idempotency guard (retry-safe)
@@ -277,28 +285,34 @@ if (isFirstProcessing) {
       return NextResponse.json({ received: true });
     }
 
-    const now = new Date();
 
-   // 🔒 Idempotency guard: never write revenue twice for the same Stripe event
+
+  const now = new Date();
+
+
+
+
+  const SKIP_REVENUE_WRITE = process.env.SKIP_REVENUE_WRITE === "1";
+
+// 🔒 Idempotency guard: never write revenue twice for the same Stripe event
 if (!isFirstProcessing) {
   console.log("🔁 Retry detected — skipping revenueMetric creation");
+} else if (SKIP_REVENUE_WRITE) {
+  console.log("🧪 TEST MODE — skipping revenueMetric write for separation testing");
 } else {
- await prisma.revenueMetric.create({
-  data: {
-    stripeAccountId,
-    amount: pi.amount_received,
-    periodStart: new Date(
-      now.getTime() - REVENUE_WINDOW_MINUTES * 60 * 1000
-    ),
-    periodEnd: now,
-
-    // Phase B: time context capture
-    hourOfDay: now.getHours(),     // 0–23
-    dayOfWeek: now.getDay(),       // 0–6 (Sun = 0)
-  },
-});
-
+  await prisma.revenueMetric.create({
+    data: {
+      stripeAccountId,
+      amount: pi.amount_received,
+      periodStart: new Date(now.getTime() - REVENUE_WINDOW_MINUTES * 60 * 1000),
+      periodEnd: now,
+      hourOfDay: now.getHours(), // 0–23
+      dayOfWeek: now.getDay(),   // 0–6
+    },
+  });
 }
+
+
 
 
 
@@ -323,6 +337,11 @@ if (!isFirstProcessing) {
 const currentAmount = currentRevenue._sum.amount ?? 0;
 
 
+console.log("🟡 CURRENT WINDOW CHECK");
+console.log("Window start:", currentWindowStart.toISOString());
+console.log("Current amount:", currentAmount);
+
+
 const nowHour = now.getHours();
 const nowDay = now.getDay();
 const isWeekend = nowDay === 0 || nowDay === 6;
@@ -341,9 +360,18 @@ const baselineMetrics = await prisma.revenueMetric.findMany({
   },
 });
 
+
+
+console.log("🔵 BASELINE CHECK");
+console.log("Now hour:", nowHour);
+console.log("Now day:", nowDay);
+console.log("Baseline count:", baselineMetrics.length);
+
+
 if (baselineMetrics.length < 5) {
   return NextResponse.json({ received: true });
 }
+
 
 
 
@@ -369,6 +397,24 @@ const baselineAveragePerWindow =
 
     const dropRatio = 1 - currentAmount / baselineAmount;
 
+console.log("🧪 DEBUG DROP STATE", {
+  baselineAmount,
+  currentAmount,
+  dropRatio,
+  baselineCount: baselineMetrics.length,
+  nowHour,
+  nowDay,
+});
+
+
+
+console.log("🔴 DROP MATH");
+console.log("Baseline amount:", baselineAmount);
+console.log("Current amount:", currentAmount);
+console.log("Drop ratio:", dropRatio);
+
+
+
 let severity: "warning" | "critical" = "warning";
 
 if (dropRatio >= 0.8) {
@@ -380,52 +426,61 @@ if (dropRatio >= 0.8) {
       return NextResponse.json({ received: true });
     }
 
- const allowed = await canTriggerAlert({
+console.log("🟠 CHECKING COOLDOWN");
+
+const allowed = await canTriggerAlert({
   stripeAccountId,
   type: "revenue_drop",
 });
+
+console.log("Allowed to alert:", allowed);
+
 
 
     if (!allowed) {
       return NextResponse.json({ received: true });
     }
 
-const alert = await prisma.alert.create({
-  data: {
-    type: "revenue_drop",
-    severity,
-    stripeEventId: event.id,
-    stripeAccountId,
-message: `Revenue dropped by ${(dropRatio * 100).toFixed(0)}% compared to baseline.
+let alert;
+
+try {
+  alert = await prisma.alert.create({
+    data: {
+      type: "revenue_drop",
+      severity,
+      stripeEventId: event.id,
+      stripeAccountId,
+      message: `Revenue dropped by ${(dropRatio * 100).toFixed(0)}% compared to baseline.
 Baseline (same hour & day type, last ${BASELINE_HOURS}h): €${(baselineAmount / 100).toFixed(2)}
 Current (${REVENUE_WINDOW_MINUTES} min): €${(currentAmount / 100).toFixed(2)}`,
-context: JSON.stringify({
+      context: JSON.stringify({
+        dropRatio,
+        baselineHours: BASELINE_HOURS,
+        baselineAmount,
+        currentWindowMinutes: REVENUE_WINDOW_MINUTES,
+        currentAmount,
+        threshold: DROP_THRESHOLD,
+      }),
+      windowStart: currentWindowStart,
+      windowEnd: new Date(now.getTime() + REVENUE_WINDOW_MINUTES * 60 * 1000),
+      cooldownUntil: getCooldownUntil("revenue_drop"),
+    },
+  });
+} catch (err) {
+  console.error("❌ Alert DB write failed (non-fatal):", err);
+  return NextResponse.json({ received: true });
+}
 
-  dropRatio,
-  baselineHours: BASELINE_HOURS,
-  baselineAmount,
-  currentWindowMinutes: REVENUE_WINDOW_MINUTES,
-  currentAmount,
-  threshold: DROP_THRESHOLD,
-}),
-
-
-    windowStart: currentWindowStart,
-    windowEnd: new Date(now.getTime() + REVENUE_WINDOW_MINUTES * 60 * 1000),
-    cooldownUntil: getCooldownUntil("revenue_drop"),
-  },
-});
 
 
 
-sendAlertEmail({
+void sendAlertEmail({
   type: alert.type,
   message: alert.message,
-}).catch((err) => {
-  console.error("Alert email failed (non-blocking):", err);
 });
 
-  }
+
+  }// ✅ closes payment_intent.succeeded
 
   // ---------------- PAYMENT FAILURES ----------------
 
@@ -440,66 +495,78 @@ sendAlertEmail({
 
 
 
-  if (event.type === "payment_intent.payment_failed") {
+if (event.type === "payment_intent.payment_failed") {
+  console.log("🔴 PAYMENT FAILED EVENT RECEIVED");
 
+  const windowStart = new Date(
+    Date.now() - FAILURE_WINDOW_MINUTES * 60 * 1000
+  );
 
-    const windowStart = new Date(
-      Date.now() - FAILURE_WINDOW_MINUTES * 60 * 1000
-    );
-
-    const failures = await prisma.stripeEvent.count({
-      where: {
-        stripeAccountId,
-        type: "payment_intent.payment_failed",
-        createdAt: { gte: windowStart },
-      },
-    });
-
-   if (failures < FAILURE_THRESHOLD) {
-  return NextResponse.json({ received: true });
-}
-
-
-    const allowed = await canTriggerAlert({
+  const failures = await prisma.stripeEvent.count({
+    where: {
       stripeAccountId,
-      type: "payment_failed",
-    });
+      type: "payment_intent.payment_failed",
+      createdAt: { gte: windowStart },
+    },
+  });
 
-    if (!allowed) {
-      return NextResponse.json({ received: true });
-    }
+  console.log("🔴 FAILURE COUNT:", failures);
 
-const alert = await prisma.alert.create({
-  data: {
-    type: "payment_failed",
-    severity: "warning",
-    stripeEventId: event.id,
-    stripeAccountId,
-    message: `Multiple payment failures detected in the last ${FAILURE_WINDOW_MINUTES} minutes`,
- context: JSON.stringify({
-  failureWindowMinutes: FAILURE_WINDOW_MINUTES,
-  failureThreshold: FAILURE_THRESHOLD,
-  failuresCounted: failures,
-}),
-
-
-    windowStart,
-    windowEnd: new Date(
-      Date.now() + FAILURE_WINDOW_MINUTES * 60 * 1000
-    ),
-    cooldownUntil: getCooldownUntil("payment_failed"),
-  },
-});
-
-
-  sendAlertEmail({
-  type: alert.type,
-  message: alert.message,
-}).catch((err) => {
-  console.error("Alert email failed (non-blocking):", err);
-});
-
+  if (failures < FAILURE_THRESHOLD) {
+    console.log("⏭️ BELOW FAILURE THRESHOLD");
+    return NextResponse.json({ received: true });
   }
 
+  console.log("🟠 FAILURE THRESHOLD REACHED");
+
+  const allowed = await canTriggerAlert({
+    stripeAccountId,
+    type: "payment_failed",
+  });
+
+  console.log("Allowed to alert:", allowed);
+
+  if (!allowed) {
+    return NextResponse.json({ received: true });
+  }
+
+  let alert;
+
+  try {
+    alert = await prisma.alert.create({
+      data: {
+        type: "payment_failed",
+        severity: "warning",
+        stripeEventId: event.id,
+        stripeAccountId,
+        message: `Multiple payment failures detected in the last ${FAILURE_WINDOW_MINUTES} minutes`,
+        context: JSON.stringify({
+          failureWindowMinutes: FAILURE_WINDOW_MINUTES,
+          failureThreshold: FAILURE_THRESHOLD,
+          failuresCounted: failures,
+        }),
+        windowStart,
+        windowEnd: new Date(
+          Date.now() + FAILURE_WINDOW_MINUTES * 60 * 1000
+        ),
+        cooldownUntil: getCooldownUntil("payment_failed"),
+      },
+    });
+  } catch (err) {
+    console.error("❌ Alert DB write failed (non-fatal):", err);
+    return NextResponse.json({ received: true });
+  }
+
+  void sendAlertEmail({
+    type: alert.type,
+    message: alert.message,
+  });
+}
+
+  return NextResponse.json({ received: true });
+} catch (err) {
+  console.error("🔥 Webhook processing failed (non-fatal):", err);
   return NextResponse.json({ received: true });
 }
+}
+

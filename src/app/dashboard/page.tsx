@@ -32,11 +32,12 @@ function severityBadge(severity: string) {
 function systemStatus(activeCount: number) {
   return activeCount > 0
     ? {
-        label: "Attention required",
+        label: "Active alerts",
         background: "#fee2e2",
         color: "#991b1b",
         border: "1px solid #fecaca",
       }
+
     : {
         label: "All systems healthy",
         background: "#ecfdf5",
@@ -94,9 +95,7 @@ export default async function DashboardPage() {
   const activeAlerts = alerts.filter((a) => a.windowEnd > now);
   const status = systemStatus(activeAlerts.length);
 
-  const oauthEnabled =
-    Boolean(process.env.STRIPE_CONNECT_CLIENT_ID) &&
-    stripeAccounts.every((a) => a.status !== "active");
+
 
   const envLabel =
     process.env.NODE_ENV === "production" ? "Production" : "Development";
@@ -137,7 +136,8 @@ export default async function DashboardPage() {
                 RevenueWatch
               </h1>
               <p style={{ color: "#6b7280", marginTop: 6, marginBottom: 0 }}>
-                Stripe monitoring & alerting · Read-only · No money movement
+           Stripe monitoring & alerting - Read-only - No money movement
+
               </p>
             </div>
 
@@ -152,71 +152,34 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              gap: 12,
-              flexWrap: "wrap",
-              alignItems: "center",
-              marginTop: 18,
-            }}
-          >
-            {oauthEnabled ? (
-              <a
-                href="/api/stripe/connect"
-                style={{
-                  padding: "9px 12px",
-                  background: "#635bff",
-                  color: "#fff",
-                  borderRadius: 8,
-                  textDecoration: "none",
-                  fontSize: 14,
-                  fontWeight: 600,
-                }}
-              >
-                Connect Stripe account
-              </a>
-            ) : (
-              <button
-                type="button"
-                disabled
-                title="Stripe Connect OAuth is disabled until KVK + Stripe activation."
-                style={{
-                  padding: "9px 12px",
-                  background: "#e5e7eb",
-                  color: "#6b7280",
-                  borderRadius: 8,
-                  border: "1px solid #e5e7eb",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: "not-allowed",
-                }}
-              >
-                Connect Stripe account (locked)
-              </button>
-            )}
-
-          
-          </div>
-
-          {!oauthEnabled && (
-            <div
-              style={{
-                marginTop: 14,
-                padding: 12,
-                borderRadius: 10,
-                background: "#f9fafb",
-                border: "1px solid #e5e7eb",
-                color: "#6b7280",
-                fontSize: 13,
-                lineHeight: 1.4,
-              }}
-            >
-              Connect is currently locked. After KVK + Stripe activation you will enable OAuth,
-              add redirect URIs, and set STRIPE_CONNECT_CLIENT_ID.
-            </div>
-          )}
-        </div>
+       <div
+  style={{
+    display: "flex",
+    gap: 12,
+    flexWrap: "wrap",
+    alignItems: "center",
+    marginTop: 18,
+  }}
+>
+  <button
+    type="button"
+    disabled
+    title="Stripe Connect OAuth is disabled until KVK + Stripe activation."
+    style={{
+      padding: "9px 12px",
+      background: "#e5e7eb",
+      color: "#6b7280",
+      borderRadius: 8,
+      border: "1px solid #e5e7eb",
+      fontSize: 14,
+      fontWeight: 600,
+      cursor: "not-allowed",
+    }}
+  >
+    Connect Stripe account (locked)
+  </button>
+</div>
+</div>
 
         {/* Stats Row */}
         <div
@@ -233,7 +196,8 @@ export default async function DashboardPage() {
 />
 
 <StatCard label="Alerts currently active" value={activeAlerts.length} />
-<StatCard label="Alerts (all time)" value={alerts.length} />
+<StatCard label="Alerts (last 50)" value={alerts.length} />
+
 
 
         </div>

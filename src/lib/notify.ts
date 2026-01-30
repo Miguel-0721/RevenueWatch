@@ -25,12 +25,26 @@ export async function sendAlertEmail({
     await resend.emails.send({
       from: "RevenueWatch <alerts@revenuewatch.app>",
       to: [process.env.ALERT_EMAIL_TO],
-      subject: `RevenueWatch notification: ${type.replace("_", " ")}`,
-      text: `This is an informational notification from RevenueWatch.
+    subject: `RevenueWatch alert: ${type.replace("_", " ")}`,
+text: `RevenueWatch monitoring update
+
+This is an automated, informational alert from RevenueWatch.
 
 ${message}
 
-No action is required. This alert is provided for awareness only.`,
+Why you are receiving this:
+• RevenueWatch observed a sustained deviation from recent normal patterns.
+• The detection is based on historical behavior, not a single event.
+
+Important notes:
+• This alert is informational only.
+• It does not predict future performance.
+• It does not recommend any action.
+• Temporary fluctuations can be normal.
+
+Monitoring remains active and will continue automatically.`,
+
+
     });
   } catch (err) {
     console.error("Email send failed:", err);
