@@ -17,8 +17,8 @@ export default function LoginPage() {
 
       <div className="container login-container">
         <div className="login-card">
-        <p className="login-eyebrow">RevenueWatch</p>
-<h1 className="login-title">Sign in to RevenueWatch</h1>
+    <p className="login-eyebrow">RevenueWatch</p>
+<h1 className="login-title">Dashboard access</h1>
 
 <p className="login-text">
   RevenueWatch is currently in setup and Stripe activation. Full account access

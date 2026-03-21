@@ -97,8 +97,7 @@ export default async function DashboardPage() {
 
 
 
-  const envLabel =
-    process.env.NODE_ENV === "production" ? "Production" : "Preview";
+  const envLabel = "Preview";
 
    return (
    <main

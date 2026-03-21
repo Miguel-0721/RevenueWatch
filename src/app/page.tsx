@@ -116,8 +116,8 @@ export default function HomePage() {
     </a>
 
     <p className="hero-note">
-      No setup required • Connect in under 1 minute
-    </p>
+  Stripe connection available after activation • Read-only access
+</p>
   </div>
 </section>
 
