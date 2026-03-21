@@ -99,8 +99,7 @@ export default function HomePage() {
         <div className="container narrow">
           <h2 className="section-title">Who it’s for</h2>
           <p className="section-text">
-            RevenueWatch is designed for agencies and teams managing multiple Stripe
-            accounts who need simple, reliable alerts when something goes wrong.
+            RevenueWatch is built for agencies and teams managing Stripe accounts who need immediate alerts when revenue drops or payment failures increase.
           </p>
         </div>
       </section>
@@ -109,14 +108,21 @@ export default function HomePage() {
         <div className="container cta-box">
           <h2 className="section-title">Start monitoring your Stripe accounts</h2>
           <a href="/dashboard" className="btn btn-primary">
-            Go to dashboard
+            Start monitoring
           </a>
+
+<p className="hero-note">
+      No setup required • Connect in under 1 minute
+    </p>
+
         </div>
       </section>
 
       <footer className="site-footer">
         <div className="container footer-inner">
-          <div>© RevenueWatch</div>
+        <div>
+  © RevenueWatch • contact@revenuewatch.app
+</div>
           <div className="footer-links">
             <a href="/privacy">Privacy</a>
             <a href="/terms">Terms</a>
