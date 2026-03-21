@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-
+import Navbar from "@/components/Navbar";
 export const dynamic = "force-dynamic";
 import { DisconnectButton } from "./DisconnectButton";
 
@@ -98,20 +98,25 @@ export default async function DashboardPage() {
 
 
   const envLabel =
-    process.env.NODE_ENV === "production" ? "Production" : "Development";
+    process.env.NODE_ENV === "production" ? "Production" : "Preview";
 
-  return (
+   return (
+   <main
+  style={{
+    minHeight: "100vh",
+    background: "#f9fafb",
+    color: "#111827",
+  }}
+>
+           <Navbar />
 
-    <main
-      style={{
-        minHeight: "100vh",
-        background: "#f9fafb",
-        padding: "40px 16px",
-        fontFamily: "system-ui, -apple-system, sans-serif",
-        color: "#111827",
-      }}
-    >
-      <div style={{ maxWidth: 980, margin: "0 auto" }}>
+          <div
+        style={{
+          maxWidth: 980,
+          margin: "0 auto",
+          padding: "104px 16px 72px",
+        }}
+      >
         {/* Top Card */}
         <div
           style={{
@@ -131,15 +136,14 @@ export default async function DashboardPage() {
               alignItems: "flex-start",
             }}
           >
-            <div>
-              <h1 style={{ fontSize: 28, fontWeight: 650, margin: 0 }}>
-                RevenueWatch
-              </h1>
-              <p style={{ color: "#6b7280", marginTop: 6, marginBottom: 0 }}>
-           Stripe monitoring & alerting - Read-only - No money movement
-
-              </p>
-            </div>
+          <div>
+  <h1 style={{ fontSize: 28, fontWeight: 650, margin: 0 }}>
+    Dashboard preview
+  </h1>
+  <p style={{ color: "#6b7280", marginTop: 6, marginBottom: 0 }}>
+    Stripe monitoring & alerting - Read-only - No money movement
+  </p>
+</div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <Pill
@@ -176,7 +180,7 @@ export default async function DashboardPage() {
       cursor: "not-allowed",
     }}
   >
-    Connect Stripe account (locked)
+      Connect Stripe account (coming soon)
   </button>
 </div>
 </div>
@@ -207,7 +211,7 @@ export default async function DashboardPage() {
           {stripeAccounts.length === 0 ? (
             <Muted>
   No Stripe accounts connected yet. Connect an account to start monitoring
-  for payment failures and revenue anomalies.
+  for payment failures and revenue drops.
 </Muted>
 
           ) : (

@@ -6,11 +6,11 @@ export default function HomePage() {
   <div className="container navbar-inner">
     <a href="/" className="logo">RevenueWatch</a>
 
-    <div className="nav-actions">
-      <a href="/dashboard" className="btn btn-primary">
-        Open dashboard
-      </a>
-    </div>
+  <div className="nav-actions">
+  <a href="/login" className="btn btn-primary">
+    Open dashboard
+  </a>
+</div>
   </div>
 </header>
 
@@ -25,9 +25,9 @@ export default function HomePage() {
             across connected Stripe accounts with simple, read-only alerts.
           </p>
 
-        <div className="hero-actions">
-  <a href="/dashboard" className="btn btn-primary">
-    Get Started
+     <div className="hero-actions">
+  <a href="/login" className="btn btn-primary">
+    Start monitoring
   </a>
   <a href="#how-it-works" className="btn btn-secondary">
     How it works
@@ -108,19 +108,18 @@ export default function HomePage() {
   </div>
 </section>
 
-      <section className="section cta-section">
-        <div className="container cta-box">
-          <h2 className="section-title">Start monitoring your Stripe accounts</h2>
-          <a href="/dashboard" className="btn btn-primary">
-            Start monitoring
-          </a>
+    <section className="section cta-section">
+  <div className="container cta-box">
+    <h2 className="section-title">Start monitoring your Stripe accounts</h2>
+    <a href="/login" className="btn btn-primary">
+      Start monitoring
+    </a>
 
-<p className="hero-note">
+    <p className="hero-note">
       No setup required • Connect in under 1 minute
     </p>
-
-        </div>
-      </section>
+  </div>
+</section>
 
       <footer className="site-footer">
         <div className="container footer-inner">

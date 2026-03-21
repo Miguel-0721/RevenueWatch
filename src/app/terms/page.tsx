@@ -8,9 +8,9 @@ export default function TermsPage() {
           </a>
 
           <div className="nav-actions">
-            <a href="/dashboard" className="btn btn-primary">
-              Open dashboard
-            </a>
+           <a href="/login" className="btn btn-primary">
+  Open dashboard
+</a>
           </div>
         </div>
       </header>
