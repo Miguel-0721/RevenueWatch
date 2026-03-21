@@ -20,10 +20,9 @@ export default function HomePage() {
             Monitor Stripe revenue issues before clients notice
           </h1>
 
-          <p className="hero-subtitle">
-            RevenueWatch helps agencies detect payment failure spikes and revenue drops
-            across connected Stripe accounts with simple, read-only alerts.
-          </p>
+         <p className="hero-subtitle">
+  RevenueWatch helps agencies and online businesses detect payment failure spikes and revenue drops across Stripe accounts with simple, read-only alerts.
+</p>
 
      <div className="hero-actions">
   <a href="/login" className="btn btn-primary">
@@ -104,6 +103,16 @@ export default function HomePage() {
 
     <p className="section-text who-followup">
       Get immediate alerts when revenue drops or payment failures spike.
+    </p>
+  </div>
+</section>
+
+
+<section className="section">
+  <div className="container narrow">
+    <h2 className="section-title">About RevenueWatch</h2>
+    <p className="section-text">
+      RevenueWatch is an independent software tool built to help businesses monitor Stripe activity and detect issues early.
     </p>
   </div>
 </section>
