@@ -54,7 +54,7 @@ a {
 }
 
 .hero {
-  padding: 72px 0 64px;
+  padding: 88px 0 88px;
   background: linear-gradient(to bottom, #ffffff, #f8fafc);
   border-bottom: 1px solid var(--border);
 }
@@ -123,8 +123,8 @@ a {
   display: flex;
   gap: 16px;
   flex-wrap: wrap;
-  padding-top: 22px;
-  padding-bottom: 22px;
+  padding-top: 20px;
+  padding-bottom: 20px;
 }
 
 .trust-item {
@@ -137,7 +137,7 @@ a {
 }
 
 .section {
-  padding: 72px 0;
+  padding: 80px 0;
   border-bottom: 1px solid var(--border);
 }
 
@@ -150,7 +150,7 @@ a {
   line-height: 1.15;
   font-weight: 700;
   letter-spacing: -0.02em;
-  margin-bottom: 28px;
+  margin-bottom: 20px;
 }
 
 .section-text {
@@ -158,6 +158,11 @@ a {
   line-height: 1.8;
   color: var(--muted);
 }
+
+.who-followup {
+  margin-top: 12px;
+}
+
 
 .grid {
   display: grid;
@@ -196,9 +201,9 @@ a {
 }
 
 .cta-section {
-  background: #ffffff;
+  background: #f8fafc;
+  padding: 80px 0;
 }
-
 .cta-box {
   text-align: center;
   padding: 28px 0;
@@ -210,6 +215,7 @@ a {
 
 .site-footer {
   background: #ffffff;
+  margin-top: 20px;
 }
 
 .footer-inner {
@@ -246,10 +252,6 @@ a {
   .grid-3 {
     grid-template-columns: 1fr;
   }
-
-  .section-title {
-  margin-bottom: 20px;
-}
 }
 
 @media (max-width: 640px) {
@@ -292,10 +294,85 @@ a {
 .logo {
   font-weight: 700;
   font-size: 18px;
+  display: inline-block;
+}
+
+.logo:hover {
+  opacity: 0.85;
 }
 
 .hero-note {
-  margin-top: 18px;
+  margin-top: 20px;
   font-size: 13px;
   color: var(--muted);
+}
+.legal-page {
+  min-height: 100vh;
+  background: #ffffff;
+}
+
+.legal-container {
+  max-width: 840px;
+  padding-top: 100px;
+  padding-bottom: 72px;
+}
+
+.legal-title {
+  font-size: 44px;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 12px;
+}
+
+.legal-updated {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 40px;
+}
+
+.legal-section {
+  margin-bottom: 36px;
+}
+
+.legal-section h2 {
+  font-size: 22px;
+  line-height: 1.25;
+  margin-bottom: 14px;
+}
+
+.legal-section p,
+.legal-section li {
+  font-size: 17px;
+  line-height: 1.8;
+  color: var(--muted);
+}
+
+.legal-section ul {
+  padding-left: 22px;
+}
+
+.legal-section a {
+  color: var(--foreground);
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .legal-container {
+    padding-top: 56px;
+    padding-bottom: 56px;
+  }
+
+  .legal-title {
+    font-size: 34px;
+  }
+
+  .legal-section h2 {
+    font-size: 20px;
+  }
+
+  .legal-section p,
+  .legal-section li {
+    font-size: 16px;
+  }
 }

@@ -4,7 +4,7 @@ export default function HomePage() {
 
 <header className="navbar">
   <div className="container navbar-inner">
-    <div className="logo">RevenueWatch</div>
+    <a href="/" className="logo">RevenueWatch</a>
 
     <div className="nav-actions">
       <a href="/dashboard" className="btn btn-primary">
@@ -94,15 +94,19 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+<section className="section">
+  <div className="container narrow">
+    <h2 className="section-title">Who it’s for</h2>
 
-      <section className="section">
-        <div className="container narrow">
-          <h2 className="section-title">Who it’s for</h2>
-          <p className="section-text">
-            RevenueWatch is built for agencies and teams managing Stripe accounts who need immediate alerts when revenue drops or payment failures increase.
-          </p>
-        </div>
-      </section>
+    <p className="section-text">
+      Built for agencies and teams managing multiple Stripe accounts.
+    </p>
+
+    <p className="section-text who-followup">
+      Get immediate alerts when revenue drops or payment failures spike.
+    </p>
+  </div>
+</section>
 
       <section className="section cta-section">
         <div className="container cta-box">
