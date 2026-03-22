@@ -111,7 +111,7 @@ export default async function DashboardPage() {
 
           <div
         style={{
-          maxWidth: 980,
+          maxWidth: 1040,
           margin: "0 auto",
           padding: "104px 16px 72px",
         }}
@@ -124,6 +124,7 @@ export default async function DashboardPage() {
             borderRadius: 12,
             padding: 24,
             marginBottom: 24,
+            boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
           }}
         >
           <div
@@ -136,12 +137,19 @@ export default async function DashboardPage() {
             }}
           >
           <div>
-  <h1 style={{ fontSize: 28, fontWeight: 650, margin: 0 }}>
-    Dashboard preview
-  </h1>
+ <h1
+  style={{
+    fontSize: 30,
+    fontWeight: 700,
+    letterSpacing: "-0.02em",
+    margin: 0,
+  }}
+>
+  Dashboard
+</h1>
   <p style={{ color: "#6b7280", marginTop: 6, marginBottom: 0 }}>
-    Stripe monitoring & alerting - Read-only - No money movement
-  </p>
+  Stripe monitoring and alerts only • Read-only • No money movement
+</p>
 </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -155,13 +163,14 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-       <div
+ <div
   style={{
     display: "flex",
     gap: 12,
     flexWrap: "wrap",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginTop: 18,
+    flexDirection: "column",
   }}
 >
   <button
@@ -179,12 +188,27 @@ export default async function DashboardPage() {
       cursor: "not-allowed",
     }}
   >
-      Connect Stripe account (coming soon)
+    Stripe connection coming soon
   </button>
+
+  <p
+    style={{
+      color: "#6b7280",
+      fontSize: 13,
+      margin: 0,
+    }}
+  >
+    Stripe connection will be available after account activation.
+  </p>
 </div>
 </div>
 
         {/* Stats Row */}
+
+<p style={{ color: "#6b7280", fontSize: 13, marginBottom: 20 }}>
+  RevenueWatch monitors your Stripe accounts continuously and alerts you when something unusual happens.
+</p>
+
         <div
           style={{
             display: "grid",
@@ -193,40 +217,73 @@ export default async function DashboardPage() {
             marginBottom: 24,
           }}
         >
-          <StatCard
+     <StatCard
   label="Connected Stripe accounts"
   value={stripeAccounts.filter((a) => a.status === "active").length}
 />
 
-<StatCard label="Alerts currently active" value={activeAlerts.length} />
-<StatCard label="Alerts (last 50)" value={alerts.length} />
+<StatCard
+  label="Alerts currently active"
+  value={activeAlerts.length}
+/>
+
+<StatCard
+  label="Alerts (last 50)"
+  value={alerts.length}
+/>
 
 
 
         </div>
 
         {/* Connected Accounts */}
-        <Section title="Connected Stripe accounts" subtitle="Accounts RevenueWatch is monitoring.">
-          {stripeAccounts.length === 0 ? (
-            <Muted>
-  No Stripe accounts connected yet. Connect an account to start monitoring
-  for payment failures and revenue drops.
-</Muted>
+       <Section title="Your Stripe accounts" subtitle="Accounts RevenueWatch is monitoring.">
+      {stripeAccounts.length === 0 ? (
+  <div>
+    <Muted>
+      No Stripe accounts connected yet.
+      <br />
+      Once connected, each account will appear here with its monitoring status,
+      recent activity, and alerts.
+    </Muted>
 
-          ) : (
+  <div
+  style={{
+    marginTop: 12,
+    padding: 16,
+    background: "#f9fafb",
+    border: "1px dashed #e5e7eb",
+    borderRadius: 10,
+    fontSize: 13,
+    color: "#6b7280",
+  }}
+>
+  RevenueWatch will:
+  <ul style={{ marginTop: 8, paddingLeft: 18 }}>
+    <li>Monitor payment failures</li>
+    <li>Detect revenue drops</li>
+    <li>Send alerts when something changes</li>
+  </ul>
+</div>
+  </div>
+) : (
           <Table
- headers={[
-  "Name",
-  "Stripe account ID",
+headers={[
+  "Account",
   "Status",
-  "Last event",
+  "Last activity",
   "Monitoring",
 ]}
 
 rows={stripeAccounts.map((a) => [
-  a.name ?? "Unnamed account",
-
-  shortId(a.stripeAccountId),
+  <div key={`${a.id}-account`}>
+    <div style={{ fontWeight: 600 }}>
+      {a.name ?? "Unnamed Stripe account"}
+    </div>
+    <div style={{ fontSize: 12, color: "#6b7280" }}>
+      {shortId(a.stripeAccountId)}
+    </div>
+  </div>,
 
   <span
     key={`${a.id}-status`}
@@ -241,7 +298,7 @@ rows={stripeAccounts.map((a) => [
 
   lastEventByAccount.get(a.stripeAccountId)
     ? fmtDate(lastEventByAccount.get(a.stripeAccountId)!)
-    : "No events yet",
+    : "No activity yet",
 
   a.status === "active" ? (
     <DisconnectButton
@@ -262,56 +319,96 @@ rows={stripeAccounts.map((a) => [
         </Section>
 
         {/* Active Alerts */}
-        <Section
-          title="Active alerts"
-          subtitle="These alerts are still within their active window."
-        >
-          {activeAlerts.length === 0 ? (
-            <Muted>No active alerts. RevenueWatch is monitoring normally.</Muted>
-          ) : (
-            <div style={{ display: "grid", gap: 10 }}>
-              {activeAlerts.map((a) => (
-                <AlertRow
-                  key={a.id}
-                  type={a.type}
-                  severity={a.severity}
-                  message={a.message}
-                  stripeAccountId={a.stripeAccountId}
-                  createdAt={a.createdAt}
-                  windowEnd={a.windowEnd}
-                  context={a.context}
-                  isActive
-                />
-              ))}
-            </div>
-          )}
-        </Section>
+      <Section
+  title="Current alerts"
+  subtitle="These alerts are still within their active window."
+>
+  <div
+    style={{
+      background: "#ffffff",
+      border: "1px solid #e5e7eb",
+      borderRadius: 12,
+      padding: 16,
+    }}
+  >
+  {activeAlerts.length === 0 ? (
+  <div
+    style={{
+      padding: 16,
+     background: "#fafafa",
+border: "1px solid #f1f5f9",
+      borderRadius: 10,
+      fontSize: 13,
+      color: "#6b7280",
+    }}
+  >
+    No active alerts. RevenueWatch is monitoring normally.
+  </div>
+) : (
+      <div style={{ display: "grid", gap: 10 }}>
+        {activeAlerts.map((a) => (
+          <AlertRow
+            key={a.id}
+            type={a.type}
+            severity={a.severity}
+            message={a.message}
+            stripeAccountId={a.stripeAccountId}
+            createdAt={a.createdAt}
+            windowEnd={a.windowEnd}
+            context={a.context}
+            isActive
+          />
+        ))}
+      </div>
+    )}
+  </div>
+</Section>
 
         {/* Alert History */}
-        <Section
-          title="Alert history"
-          subtitle="Most recent alerts (including active ones)."
-          subtle
-        >
-          {alerts.length === 0 ? (
-            <Muted>No alerts yet.</Muted>
-          ) : (
-            <div style={{ display: "grid", gap: 10 }}>
-              {alerts.map((a) => (
-                <AlertRow
-                  key={a.id}
-                  type={a.type}
-                  severity={a.severity}
-                  message={a.message}
-                  stripeAccountId={a.stripeAccountId}
-                  createdAt={a.createdAt}
-                  windowEnd={a.windowEnd}
-                  context={a.context}
-                />
-              ))}
-            </div>
-          )}
-        </Section>
+      <Section
+  title="Alert history"
+  subtitle="Most recent alerts (including active ones)."
+  subtle
+>
+  <div
+    style={{
+      background: "#ffffff",
+      border: "1px solid #e5e7eb",
+      borderRadius: 12,
+      padding: 16,
+    }}
+  >
+   {alerts.length === 0 ? (
+  <div
+    style={{
+      padding: 16,
+     background: "#fafafa",
+border: "1px solid #f1f5f9",
+      borderRadius: 10,
+      fontSize: 13,
+      color: "#6b7280",
+    }}
+  >
+    No alerts yet.
+  </div>
+) : (
+      <div style={{ display: "grid", gap: 10 }}>
+        {alerts.map((a) => (
+          <AlertRow
+            key={a.id}
+            type={a.type}
+            severity={a.severity}
+            message={a.message}
+            stripeAccountId={a.stripeAccountId}
+            createdAt={a.createdAt}
+            windowEnd={a.windowEnd}
+            context={a.context}
+          />
+        ))}
+      </div>
+    )}
+  </div>
+</Section>
       </div>
     </main>
   );
@@ -362,7 +459,12 @@ function Section({
   subtle?: boolean;
 }) {
   return (
-    <section style={{ marginBottom: 26 }}>
+   <section
+  style={{
+    marginBottom: 28,
+    paddingTop: 8,
+  }}
+>
       <div style={{ marginBottom: 10 }}>
         <h2
           style={{
@@ -385,19 +487,28 @@ function Section({
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({ label, value }: { label: string; value: number | string }) {
   return (
-    <div
-      style={{
-        background: "#ffffff",
-        border: "1px solid #e5e7eb",
-        borderRadius: 12,
-        padding: 16,
-      }}
-    >
-      <div style={{ fontSize: 24, fontWeight: 750, lineHeight: 1.1 }}>
-        {value}
-      </div>
+   <div
+  style={{
+    background: "#ffffff",
+    border: "1px solid #e5e7eb",
+    borderRadius: 14,
+    padding: 18,
+    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+  }}
+>
+   <div
+  style={{
+    fontSize: 30,
+    fontWeight: 700,
+    letterSpacing: "-0.015em",
+    lineHeight: 1.1,
+    color: "#0f172a",
+  }}
+>
+  {value}
+</div>
       <div style={{ color: "#6b7280", marginTop: 6, fontSize: 13 }}>
         {label}
       </div>
