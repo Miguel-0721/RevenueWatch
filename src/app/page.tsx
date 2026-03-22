@@ -100,64 +100,72 @@ export default function HomePage() {
   </div>
 </section>
 
-
 <section id="how-it-works" className="section section-tinted">
-        <div className="container">
-          <h2 className="section-title">How it works</h2>
+  <div className="container">
+    <h2 className="section-title">How it works</h2>
 
-          <div className="grid grid-3">
-            <div className="card">
-              <h3>1. Connect Stripe</h3>
-              <p>Securely connect your Stripe accounts using read-only access.</p>
-            </div>
+    <div className="grid grid-3">
+      <div className="card">
+        <h3>1. Connect Stripe</h3>
+        <p>Securely connect your Stripe accounts using read-only access.</p>
+      </div>
 
-            <div className="card">
-              <h3>2. We monitor activity</h3>
-              <p>
-                RevenueWatch tracks payment failures and revenue changes in real time.
-              </p>
-            </div>
+      <div className="card">
+        <h3>2. We monitor activity</h3>
+        <p>
+          RevenueWatch tracks payment failures and revenue changes in real time.
+        </p>
+      </div>
 
-            <div className="card">
-              <h3>3. Get alerts</h3>
-              <p>Receive email alerts when something unusual happens.</p>
-            </div>
-          </div>
-        </div>
-      </section>
+      <div className="card">
+        <h3>3. Get alerts</h3>
+        <p>Receive email alerts when something unusual happens.</p>
+      </div>
+    </div>
+  </div>
+</section>
 
-      <section className="section section-muted">
-        <div className="container">
-          <h2 className="section-title">What we monitor</h2>
+<section className="section section-muted">
+  <div className="container">
+    <h2 className="section-title">What we monitor</h2>
 
-          <div className="grid grid-2">
-            <div className="card feature-card">
-              <h3>Payment failure spikes</h3>
-              <p>
-                Detect unusual increases in failed payments across your Stripe accounts.
-              </p>
-            </div>
+    <div className="grid grid-2">
+      <div className="card feature-card">
+        <h3>Payment failure spikes</h3>
+        <p>
+          Detect unusual increases in failed payments across your Stripe accounts.
+        </p>
+      </div>
 
-            <div className="card feature-card">
-              <h3>Revenue drops</h3>
-              <p>
-                Identify sustained drops in revenue compared to normal patterns.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+      <div className="card feature-card">
+        <h3>Revenue drops</h3>
+        <p>
+          Identify sustained drops in revenue compared to normal patterns.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
 <section className="section section-tinted">
-  <div className="container narrow">
+  <div className="container">
     <h2 className="section-title">Who it’s for</h2>
 
-    <p className="section-text">
-      Built for agencies and teams managing multiple Stripe accounts.
-    </p>
+    <div className="grid grid-3">
+      <div className="card">
+        <h3>Agencies</h3>
+        <p>Monitor multiple client Stripe accounts and catch issues early.</p>
+      </div>
 
-    <p className="section-text who-followup">
-      Get immediate alerts when revenue drops or payment failures spike.
-    </p>
+      <div className="card">
+        <h3>SaaS teams</h3>
+        <p>Spot payment failures and revenue drops before customers notice.</p>
+      </div>
+
+      <div className="card">
+        <h3>Small businesses</h3>
+        <p>Stay informed when Stripe activity changes unexpectedly.</p>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -165,8 +173,13 @@ export default function HomePage() {
 <section className="section">
   <div className="container narrow">
     <h2 className="section-title">About RevenueWatch</h2>
+
     <p className="section-text">
       RevenueWatch is an independent software tool built to help businesses monitor Stripe activity and detect issues early.
+    </p>
+
+    <p className="section-text who-followup">
+      It does not move money, does not change billing, and does not interfere with your operations. It simply watches activity and sends clear alerts when something looks wrong.
     </p>
   </div>
 </section>
