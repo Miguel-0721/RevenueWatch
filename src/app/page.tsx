@@ -187,21 +187,81 @@ export default function HomePage() {
 
 <section className="section section-muted">
   <div className="container">
-    <h2 className="section-title">What we monitor</h2>
+<h2 className="section-title">What we monitor</h2>
+<p className="section-text section-intro">
+  Two core alerts help you spot unusual Stripe activity early.
+</p>
+    <div className="monitor-grid">
+      <div className="monitor-card">
+        <div className="monitor-card-top">
+       <div>
+  <h3>Payment failure spikes</h3>
+</div>
+<span className="monitor-pill monitor-pill-danger">Failure monitoring</span>
+        </div>
 
-    <div className="grid grid-2">
-      <div className="card feature-card">
-        <h3>Payment failure spikes</h3>
-        <p>
-          Detect unusual increases in failed payments across your Stripe accounts.
+        <p className="monitor-text">
+          Detect sudden increases in failed payments before they start affecting
+          revenue and customer experience.
         </p>
+
+        <div className="monitor-ui">
+          <div className="monitor-ui-header">
+            <span className="status-dot" />
+            <strong>Failure spike detected</strong>
+          </div>
+
+          <div className="monitor-ui-list">
+         <div className="monitor-ui-row">
+  <span>Card declines increasing</span>
+  <strong>Above normal</strong>
+</div>
+            <div className="monitor-ui-row">
+              <span>Payment failures</span>
+<strong>Spike detected</strong>
+            </div>
+            <div className="monitor-ui-row">
+              <span>Checkout errors</span>
+<strong>Unusual increase</strong>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="card feature-card">
-        <h3>Revenue drops</h3>
-        <p>
-          Identify sustained drops in revenue compared to normal patterns.
+      <div className="monitor-card">
+        <div className="monitor-card-top">
+         <div>
+  <h3>Revenue drops</h3>
+</div>
+<span className="monitor-pill">Revenue monitoring</span>
+        </div>
+
+        <p className="monitor-text">
+          Identify sustained revenue declines compared to normal account
+          patterns, so issues are noticed early.
         </p>
+
+        <div className="monitor-ui">
+         <div className="monitor-ui-header">
+ <span className="status-dot" />
+  <strong>Revenue drop detected</strong>
+</div>
+
+          <div className="monitor-ui-list">
+            <div className="monitor-ui-row">
+              <span>Revenue vs normal</span>
+<strong>Below expected</strong>
+            </div>
+            <div className="monitor-ui-row">
+             <span>Successful payments</span>
+<strong>Decreasing</strong>
+            </div>
+            <div className="monitor-ui-row">
+              <span>Recent activity</span>
+<strong>Lower than normal</strong>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
