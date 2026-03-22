@@ -14,40 +14,94 @@ export default function HomePage() {
   </div>
 </header>
 
-      <section className="hero">
-        <div className="container">
-          <h1 className="hero-title">
-            Monitor Stripe revenue issues before clients notice
-          </h1>
+       <section className="hero">
+        <div className="container hero-grid">
+          <div className="hero-copy">
+            <h1 className="hero-title">
+              Catch Stripe revenue issues before your clients do
+            </h1>
 
-         <p className="hero-subtitle">
-  RevenueWatch helps agencies and online businesses detect payment failure spikes and revenue drops across Stripe accounts with simple, read-only alerts.
-</p>
+            <p className="hero-subtitle">
+              Get notified when payments fail or revenue drops across your Stripe
+              accounts. Read-only monitoring, clear alerts, and no money movement.
+            </p>
 
-     <div className="hero-actions">
-  <a href="/login" className="btn btn-primary">
-    Start monitoring
-  </a>
-  <a href="#how-it-works" className="btn btn-secondary">
-    How it works
-  </a>
-</div>
+            <div className="hero-actions">
+              <a href="/login" className="btn btn-primary">
+                Start monitoring
+              </a>
+              <a href="#how-it-works" className="btn btn-secondary">
+                How it works
+              </a>
+            </div>
 
-<p className="hero-note">
-  Built for Stripe-based businesses • Read-only access • No money movement
-</p>
+        
+          </div>
+
+          <div className="hero-visual">
+            <div className="alert-preview">
+              <div className="alert-preview-header">
+                <span className="alert-badge">Live alert example</span>
+                <span className="alert-time">2 min ago</span>
+              </div>
+
+              <div className="alert-preview-card">
+                <div className="alert-preview-top">
+                  <div>
+                    <p className="alert-label">Revenue drop</p>
+                    <h3>Client account revenue down 42%</h3>
+                  </div>
+                  <span className="severity-pill severity-high">High</span>
+                </div>
+
+                <div className="alert-preview-details">
+                  <div className="detail-row">
+                    <span>Stripe account</span>
+                    <strong>Client A</strong>
+                  </div>
+                  <div className="detail-row">
+                    <span>Window</span>
+                    <strong>Last 2 hours</strong>
+                  </div>
+                  <div className="detail-row">
+                    <span>Status</span>
+                    <strong>Email alert sent</strong>
+                  </div>
+                </div>
+              </div>
+
+              <p className="alert-preview-note">
+                RevenueWatch surfaces issues like this quickly with calm,
+                read-only alerts.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="trust-bar">
-        <div className="container trust-items">
-          <div className="trust-item">Read-only Stripe access</div>
-          <div className="trust-item">No money movement or billing changes</div>
-          <div className="trust-item">Monitoring and alerting only</div>
-        </div>
-      </section>
+    <section className="hero-trust-section">
+  <div className="container">
+    <div className="hero-trust-grid">
+      <div className="hero-trust-card">
+        <h3>Read-only access</h3>
+        <p>We monitor Stripe data without changing billing, payouts, or account settings.</p>
+      </div>
 
-      <section id="how-it-works" className="section">
+      <div className="hero-trust-card">
+        <h3>No money movement</h3>
+        <p>RevenueWatch does not move funds, edit payouts, or perform financial actions.</p>
+      </div>
+
+      <div className="hero-trust-card">
+        <h3>Monitoring and alerts only</h3>
+        <p>Get clear alerts when payment failures spike or revenue drops unexpectedly.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section id="how-it-works" className="section section-tinted">
         <div className="container">
           <h2 className="section-title">How it works</h2>
 
@@ -93,7 +147,7 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-<section className="section">
+<section className="section section-tinted">
   <div className="container narrow">
     <h2 className="section-title">Who it’s for</h2>
 
