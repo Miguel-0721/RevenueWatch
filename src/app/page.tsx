@@ -8,7 +8,7 @@ export default function HomePage() {
 
   <div className="nav-actions">
   <a href="/login" className="btn btn-primary">
-    Open dashboard
+    Get started
   </a>
 </div>
   </div>
@@ -17,9 +17,9 @@ export default function HomePage() {
        <section className="hero">
         <div className="container hero-grid">
           <div className="hero-copy">
-            <h1 className="hero-title">
-              Catch Stripe revenue issues before your clients do
-            </h1>
+           <h1 className="hero-title">
+  Catch payment failures and revenue drops before your clients do
+</h1>
 
             <p className="hero-subtitle">
               Get notified when payments fail or revenue drops across your Stripe
@@ -27,9 +27,9 @@ export default function HomePage() {
             </p>
 
             <div className="hero-actions">
-              <a href="/login" className="btn btn-primary">
-                Start monitoring
-              </a>
+             <a href="/login" className="btn btn-primary">
+  Connect Stripe &amp; start monitoring
+</a>
               <a href="#how-it-works" className="btn btn-secondary">
                 How it works
               </a>
@@ -41,7 +41,7 @@ export default function HomePage() {
           <div className="hero-visual">
             <div className="alert-preview">
               <div className="alert-preview-header">
-                <span className="alert-badge">Live alert example</span>
+                <span className="alert-badge">Example alert</span>
                 <span className="alert-time">2 min ago</span>
               </div>
 
@@ -130,12 +130,12 @@ export default function HomePage() {
         <div className="timeline-line" />
 
         <div className="timeline-item">
-          <div className="timeline-marker">3</div>
-          <div className="timeline-content">
-            <h3>Get alerts</h3>
-            <p>Receive email alerts when something unusual happens.</p>
-          </div>
-        </div>
+  <div className="timeline-marker">3</div>
+  <div className="timeline-content">
+    <h3>Get notified instantly</h3>
+    <p>Receive a clear email when something needs your attention.</p>
+  </div>
+</div>
       </div>
     </div>
 
@@ -158,7 +158,7 @@ export default function HomePage() {
       <div className="how-visual-card">
         <div className="how-visual-kicker">Step 2</div>
         <h3>Monitoring in the background</h3>
-        <p>RevenueWatch checks activity and compares it to normal patterns.</p>
+<p>RevenueWatch watches your Stripe activity and flags anything unusual.</p>
 
         <div className="mock-monitor-box">
           <div className="mock-bar mock-bar-1" />
@@ -170,8 +170,8 @@ export default function HomePage() {
 
       <div className="how-visual-card">
         <div className="how-visual-kicker">Step 3</div>
-        <h3>Email alert sent</h3>
-        <p>Clear alerts when something looks unusual.</p>
+       <h3>Get notified instantly</h3>
+<p>Receive a clear email when something needs your attention.</p>
 
         <div className="mock-alert-mini">
           <div className="mock-alert-row">
@@ -233,7 +233,7 @@ export default function HomePage() {
          <div>
   <h3>Revenue drops</h3>
 </div>
-<span className="monitor-pill">Revenue monitoring</span>
+<span className="monitor-pill monitor-pill-danger">Revenue monitoring</span>
         </div>
 
         <p className="monitor-text">
@@ -247,20 +247,20 @@ export default function HomePage() {
   <strong>Revenue drop detected</strong>
 </div>
 
-          <div className="monitor-ui-list">
-            <div className="monitor-ui-row">
-              <span>Revenue vs normal</span>
-<strong>Below expected</strong>
-            </div>
-            <div className="monitor-ui-row">
-             <span>Successful payments</span>
-<strong>Decreasing</strong>
-            </div>
-            <div className="monitor-ui-row">
-              <span>Recent activity</span>
-<strong>Lower than normal</strong>
-            </div>
-          </div>
+         <div className="monitor-ui-list">
+  <div className="monitor-ui-row">
+    <span>Revenue compared to normal</span>
+    <strong>Below expected</strong>
+  </div>
+  <div className="monitor-ui-row">
+    <span>Completed payments</span>
+    <strong>Decreasing</strong>
+  </div>
+  <div className="monitor-ui-row">
+    <span>Recent payments</span>
+    <strong>Lower than normal</strong>
+  </div>
+</div>
         </div>
       </div>
     </div>
@@ -273,7 +273,7 @@ export default function HomePage() {
     <div className="grid grid-3">
       <div className="card">
         <h3>Agencies</h3>
-        <p>Monitor multiple client Stripe accounts and catch issues early.</p>
+      <p>Monitor multiple client Stripe accounts and catch issues before clients notice.</p>
       </div>
 
       <div className="card">
@@ -295,32 +295,32 @@ export default function HomePage() {
     <h2 className="section-title">About RevenueWatch</h2>
 
     <p className="section-text">
-      RevenueWatch is an independent software tool built to help businesses monitor Stripe activity and detect issues early.
-    </p>
+  RevenueWatch is a monitoring tool built specifically for Stripe-based businesses to detect payment and revenue issues early.
+</p>
 
     <p className="section-text who-followup">
-      It does not move money, does not change billing, and does not interfere with your operations. It simply watches activity and sends clear alerts when something looks wrong.
-    </p>
+  It does not move money, change billing, or interfere with your operations. It simply watches activity and sends clear alerts when something looks wrong.
+</p>
   </div>
 </section>
 
     <section className="section cta-section">
   <div className="container cta-box">
     <h2 className="section-title">Start monitoring your Stripe accounts</h2>
-    <a href="/login" className="btn btn-primary">
-      Start monitoring
-    </a>
+   <a href="/login" className="btn btn-primary">
+  Connect Stripe &amp; start monitoring
+</a>
 
     <p className="hero-note">
-  Stripe connection available after activation • Read-only access
+  Read-only Stripe connection • No money movement
 </p>
   </div>
 </section>
 
       <footer className="site-footer">
         <div className="container footer-inner">
-        <div>
-  © RevenueWatch • contact@revenuewatch.app
+    <div>
+  © RevenueWatch • <a href="mailto:contact@revenuewatch.app">contact@revenuewatch.app</a>
 </div>
           <div className="footer-links">
             <a href="/privacy">Privacy</a>
