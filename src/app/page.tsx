@@ -101,25 +101,85 @@ export default function HomePage() {
 </section>
 
 <section id="how-it-works" className="section section-tinted">
-  <div className="container">
-    <h2 className="section-title">How it works</h2>
+  <div className="container how-it-works-layout">
+    <div className="how-it-works-left">
+      <h2 className="section-title">How it works</h2>
 
-    <div className="grid grid-3">
-      <div className="card">
-        <h3>1. Connect Stripe</h3>
-        <p>Securely connect your Stripe accounts using read-only access.</p>
+      <div className="timeline">
+        <div className="timeline-item">
+          <div className="timeline-marker">1</div>
+          <div className="timeline-content">
+            <h3>Connect Stripe</h3>
+            <p>Securely connect your Stripe accounts using read-only access.</p>
+          </div>
+        </div>
+
+        <div className="timeline-line" />
+
+        <div className="timeline-item">
+          <div className="timeline-marker">2</div>
+          <div className="timeline-content">
+            <h3>We monitor activity</h3>
+            <p>
+              RevenueWatch tracks payment failures and revenue changes in real
+              time.
+            </p>
+          </div>
+        </div>
+
+        <div className="timeline-line" />
+
+        <div className="timeline-item">
+          <div className="timeline-marker">3</div>
+          <div className="timeline-content">
+            <h3>Get alerts</h3>
+            <p>Receive email alerts when something unusual happens.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div className="how-it-works-right">
+      <div className="how-visual-card">
+        <div className="how-visual-kicker">Step 1</div>
+        <h3>Connect with Stripe</h3>
+        <p>Read-only connection for monitoring only.</p>
+
+        <div className="mock-connect-box">
+          <div className="mock-connect-top">
+            <span className="mock-dot" />
+            <span className="mock-dot" />
+            <span className="mock-dot" />
+          </div>
+          <div className="mock-connect-button">Connect Stripe account</div>
+        </div>
       </div>
 
-      <div className="card">
-        <h3>2. We monitor activity</h3>
-        <p>
-          RevenueWatch tracks payment failures and revenue changes in real time.
-        </p>
+      <div className="how-visual-card">
+        <div className="how-visual-kicker">Step 2</div>
+        <h3>Monitoring in the background</h3>
+        <p>RevenueWatch checks activity and compares it to normal patterns.</p>
+
+        <div className="mock-monitor-box">
+          <div className="mock-bar mock-bar-1" />
+          <div className="mock-bar mock-bar-2" />
+          <div className="mock-bar mock-bar-3" />
+          <div className="mock-bar mock-bar-4" />
+        </div>
       </div>
 
-      <div className="card">
-        <h3>3. Get alerts</h3>
-        <p>Receive email alerts when something unusual happens.</p>
+      <div className="how-visual-card">
+        <div className="how-visual-kicker">Step 3</div>
+        <h3>Email alert sent</h3>
+        <p>Clear alerts when something looks unusual.</p>
+
+        <div className="mock-alert-mini">
+          <div className="mock-alert-row">
+            <span>Revenue drop detected</span>
+            <strong>High</strong>
+          </div>
+          <div className="mock-alert-sub">Client A • Last 2 hours</div>
+        </div>
       </div>
     </div>
   </div>
