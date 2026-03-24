@@ -50,12 +50,17 @@ export default function PrivacyPage() {
         </section>
 
         <section className="legal-section">
-          <h2>Stripe data access</h2>
-          <p>
-            RevenueWatch is designed as a read-only monitoring tool. We do not move
-            money, modify billing settings, or process customer payments on your behalf.
-          </p>
-        </section>
+  <h2>Stripe data access</h2>
+  <p>
+    RevenueWatch is designed as a read-only monitoring tool. We do not move
+    money, modify billing settings, or process customer payments on your behalf.
+  </p>
+  <p>
+    Data accessed from Stripe is used solely for monitoring purposes and is not
+    shared with third parties beyond operational service providers needed to run
+    RevenueWatch.
+  </p>
+</section>
 
         <section className="legal-section">
           <h2>Data retention</h2>
@@ -91,6 +96,16 @@ export default function PrivacyPage() {
             your data. Disconnecting a Stripe account pauses monitoring for that account.
           </p>
         </section>
+
+
+<section className="legal-section">
+  <h2>GDPR and data rights</h2>
+  <p>
+    We comply with applicable data protection laws, including the General Data
+    Protection Regulation (GDPR). Users in the European Union may request access
+    to, correction of, or deletion of their personal data by contacting us.
+  </p>
+</section>
 
         <section className="legal-section">
           <h2>Contact</h2>

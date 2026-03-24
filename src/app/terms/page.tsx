@@ -80,13 +80,17 @@ export default function TermsPage() {
           </p>
         </section>
 
-        <section className="legal-section">
-          <h2>Termination</h2>
-          <p>
-            We may suspend or terminate access to the service if necessary for security,
-            abuse prevention, legal compliance, or operational reasons.
-          </p>
-        </section>
+       <section className="legal-section">
+  <h2>Termination</h2>
+  <p>
+    We may suspend or terminate access to the service if necessary for security,
+    abuse prevention, legal compliance, or operational reasons.
+  </p>
+  <p>
+    Subscriptions can be cancelled at any time. No refunds are issued for partial
+    billing periods.
+  </p>
+</section>
 
         <section className="legal-section">
           <h2>Changes</h2>

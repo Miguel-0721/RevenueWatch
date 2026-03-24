@@ -290,6 +290,100 @@ export default function HomePage() {
 </section>
 
 
+<section className="section section-muted">
+ <div className="container">
+ <h2 className="section-title">Simple pricing based on how many Stripe accounts you monitor</h2>
+<p className="section-text section-intro">
+  Paid plans are built for teams managing multiple Stripe accounts.
+</p>
+<p className="pricing-early-access">
+  Early access: the Starter plan is free while we onboard initial users.
+</p>
+
+   <div className="pricing-grid">
+  <div className="pricing-card">
+    <div className="pricing-card-body">
+      <div className="pricing-card-top">
+        <div>
+          <h3>Starter</h3>
+          <p className="pricing-subtitle">For individuals monitoring a single Stripe account</p>
+        </div>
+      </div>
+
+      <div className="pricing-price">Free</div>
+      <div className="pricing-limit">1 Stripe account</div>
+
+      <ul className="pricing-list">
+        <li>Payment failure alerts</li>
+        <li>Revenue drop alerts</li>
+        <li>Read-only monitoring</li>
+      </ul>
+    </div>
+
+    <a href="/login" className="btn btn-secondary">
+      Start free
+    </a>
+  </div>
+
+  <div className="pricing-card pricing-card-featured">
+    <div className="pricing-card-body">
+      <div className="pricing-badge">Most popular</div>
+
+      <div className="pricing-card-top">
+        <div>
+          <h3>Growth</h3>
+          <p className="pricing-subtitle">Monitor multiple Stripe accounts across clients in one place.</p>
+        </div>
+      </div>
+
+      <div className="pricing-price">€79/mo</div>
+      <div className="pricing-limit">Up to 10 Stripe accounts</div>
+
+      <ul className="pricing-list">
+        <li>Monitor up to 10 Stripe accounts</li>
+        <li>Payment failure + revenue alerts</li>
+        <li>Multi-account monitoring</li>
+        <li>Instant email alerts</li>
+      </ul>
+    </div>
+
+    <a href="/login" className="btn btn-primary">
+      Start monitoring
+    </a>
+  </div>
+
+  <div className="pricing-card">
+    <div className="pricing-card-body">
+      <div className="pricing-card-top">
+        <div>
+          <h3>Pro</h3>
+          <p className="pricing-subtitle">For teams managing a larger number of Stripe accounts</p>
+        </div>
+      </div>
+
+      <div className="pricing-price">€149/mo</div>
+      <div className="pricing-limit">Up to 25 Stripe accounts</div>
+
+      <ul className="pricing-list">
+        <li>Monitor up to 25 Stripe accounts</li>
+        <li>All alerts across connected accounts</li>
+        <li>Higher account capacity</li>
+        <li>Designed for larger teams</li>
+      </ul>
+    </div>
+
+    <a href="/contact" className="btn btn-secondary">
+      Contact us
+    </a>
+  </div>
+</div>
+
+   <p className="pricing-note">
+  All plans use read-only Stripe access. RevenueWatch never moves money or modifies your account.
+</p>
+  </div>
+</section>
+
 <section className="section">
   <div className="container narrow">
     <h2 className="section-title">About RevenueWatch</h2>

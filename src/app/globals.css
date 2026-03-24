@@ -49,6 +49,7 @@ a {
   padding: 0 24px;
 }
 
+
 .hero-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(320px, 420px);
@@ -236,6 +237,123 @@ a {
   line-height: 1.7;
   color: var(--muted);
 }
+
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px;
+}
+
+.pricing-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #dde5ee;
+  border-radius: 18px;
+  padding: 30px;
+  box-shadow: 0 14px 34px rgba(17, 24, 39, 0.045);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+
+.pricing-card-body {
+  flex: 1;
+}
+
+
+
+.pricing-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 40px rgba(17, 24, 39, 0.08);
+  border-color: #d9e3f0;
+}
+
+.pricing-card .btn {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+.pricing-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: #eef2ff;
+  border: 1px solid #e0e7ff;
+  color: #3730a3;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pricing-card-top h3 {
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+}
+
+.pricing-subtitle {
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--muted);
+  margin-bottom: 24px;
+}
+
+.pricing-price {
+  font-size: 36px;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-top: 12px;
+  margin-bottom: 6px;
+  color: var(--foreground);
+}
+
+.pricing-limit {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #475569;
+  margin-bottom: 20px;
+}
+
+
+.pricing-list {
+  list-style: none;
+  padding: 0;
+  margin: 20px 0 24px;
+  display: grid;
+  gap: 12px;
+}
+
+.pricing-list li {
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--muted);
+  position: relative;
+  padding-left: 18px;
+}
+
+.pricing-list li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: #94a3b8;
+}
+
+.pricing-note {
+  margin-top: 28px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--muted);
+  text-align: center;
+}
+
 
 .monitor-grid {
   display: grid;
@@ -426,6 +544,14 @@ a {
 
 .monitor-grid {
   grid-template-columns: 1fr;
+}
+
+.pricing-grid {
+  grid-template-columns: 1fr;
+}
+
+.pricing-card-featured {
+  transform: none;
 }
 
   .how-it-works-layout {
@@ -1037,5 +1163,13 @@ a {
 
 .section-intro {
   max-width: 720px;
+  margin-bottom: 36px;
+}
+
+.pricing-early-access {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--muted);
+  margin-top: -18px;
   margin-bottom: 36px;
 }
