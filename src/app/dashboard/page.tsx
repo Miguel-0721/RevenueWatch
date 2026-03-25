@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import Navbar from "@/components/Navbar";
-export const dynamic = "force-dynamic";
 import { DisconnectButton } from "./DisconnectButton";
 
-/* ---------------- UI HELPERS ---------------- */
+export const dynamic = "force-dynamic";
+
+/* ---------------- HELPERS ---------------- */
 
 function alertLabel(type: string) {
   if (type === "revenue_drop") return "Revenue drop";
@@ -11,40 +12,67 @@ function alertLabel(type: string) {
   return type;
 }
 
-function severityBadge(severity: string) {
+function severityMeta(severity: string) {
   if (severity === "critical") {
     return {
       label: "Critical",
-      background: "#fee2e2",
-      color: "#991b1b",
+      dot: "#dc2626",
+      text: "#991b1b",
+      bg: "#fef2f2",
       border: "1px solid #fecaca",
+      soft: "#fff7f7",
     };
   }
 
   return {
     label: "Warning",
-    background: "#fef3c7",
-    color: "#92400e",
+    dot: "#d97706",
+    text: "#92400e",
+    bg: "#fffbeb",
     border: "1px solid #fde68a",
+    soft: "#fffdf7",
   };
 }
 
-function systemStatus(activeCount: number) {
-  return activeCount > 0
-    ? {
-        label: "Active alerts",
-        background: "#fee2e2",
-        color: "#991b1b",
-        border: "1px solid #fecaca",
-      }
+function systemMeta(activeAlertsCount: number) {
+  if (activeAlertsCount > 0) {
+    return {
+      label: "Attention needed",
+      dot: "#dc2626",
+      text: "#991b1b",
+      bg: "#fef2f2",
+      border: "1px solid #fecaca",
+    };
+  }
 
-    : {
-        label: "All systems healthy",
-        background: "#ecfdf5",
-        color: "#065f46",
-        border: "1px solid #a7f3d0",
-      };
+  return {
+    label: "Healthy",
+    dot: "#16a34a",
+    text: "#166534",
+    bg: "#f0fdf4",
+    border: "1px solid #bbf7d0",
+  };
 }
+
+
+function headerIssueLabel(activeAlerts: Array<{ severity: string }>) {
+  const criticalCount = activeAlerts.filter(
+    (alert) => alert.severity === "critical"
+  ).length;
+
+  if (criticalCount > 0) {
+    return `${criticalCount} critical issue${criticalCount === 1 ? "" : "s"}`;
+  }
+
+  const issueCount = activeAlerts.length;
+
+  if (issueCount > 0) {
+    return `${issueCount} issue${issueCount === 1 ? "" : "s"} needing attention`;
+  }
+
+  return "No active issues";
+}
+
 
 function fmtDate(d: Date) {
   return new Date(d).toLocaleString();
@@ -56,19 +84,175 @@ function shortId(id?: string | null) {
   return `${id.slice(0, 8)}…${id.slice(-6)}`;
 }
 
-function safeJsonPreview(input?: string | null) {
+
+function formatMoneyAmount(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function safeParseContext(input?: string | null) {
   if (!input) return null;
+
   try {
-    const obj = JSON.parse(input);
-    // Keep this short and calm: only show 2-3 key fields if present
-    const keys = Object.keys(obj).slice(0, 3);
-    const preview: Record<string, any> = {};
-    for (const k of keys) preview[k] = obj[k];
-    return JSON.stringify(preview);
+    return JSON.parse(input);
   } catch {
     return null;
   }
 }
+
+function buildReadableAlertMessage(alert: {
+  type: string;
+  message: string;
+  context?: string | null;
+}) {
+  const parsed = safeParseContext(alert.context);
+
+  if (!parsed) return alert.message;
+
+ if (
+  alert.type === "payment_failed" &&
+  typeof parsed.failedPayments === "number" &&
+  typeof parsed.baseline === "number"
+) {
+  const ratio =
+    parsed.baseline > 0
+      ? (parsed.failedPayments / parsed.baseline).toFixed(1)
+      : null;
+
+  const windowLabel =
+    typeof parsed.window === "string" ? parsed.window : "recent window";
+
+  if (ratio) {
+    return `Payment failures are ${ratio}× higher than normal (${parsed.failedPayments} vs ${parsed.baseline}) in the ${windowLabel}.`;
+  }
+
+  return `Payment failures increased to ${parsed.failedPayments} in the ${windowLabel}.`;
+}
+
+if (
+  alert.type === "revenue_drop" &&
+  typeof parsed.currentRevenue === "number" &&
+  typeof parsed.expectedRevenue === "number" &&
+  parsed.expectedRevenue > 0
+) {
+  const dropPercent = Math.round(
+    ((parsed.expectedRevenue - parsed.currentRevenue) /
+      parsed.expectedRevenue) *
+      100
+  );
+
+  const windowLabel =
+    typeof parsed.window === "string" ? parsed.window : "recent window";
+
+  return `Revenue is down ${dropPercent}% vs expected (${formatMoneyAmount(
+    parsed.currentRevenue
+  )} vs ${formatMoneyAmount(parsed.expectedRevenue)}) in the ${windowLabel}.`;
+}
+
+  return alert.message;
+}
+
+
+/* ---------------- DEMO DATA ---------------- */
+
+const DEMO_NOW = new Date("2026-03-24T10:30:00Z");
+
+const demoStripeAccounts = [
+  {
+    id: "demo-1",
+    name: "BrightGrowth Studio",
+    stripeAccountId: "acct_demo_brightgrowth",
+    status: "active",
+    createdAt: DEMO_NOW,
+  },
+  {
+    id: "demo-2",
+    name: "Northlane SaaS",
+    stripeAccountId: "acct_demo_northlane",
+    status: "active",
+    createdAt: DEMO_NOW,
+  },
+  {
+    id: "demo-3",
+    name: "Studio Meridian",
+    stripeAccountId: "acct_demo_meridian",
+    status: "active",
+    createdAt: DEMO_NOW,
+  },
+];
+
+const demoLastEventByAccount = new Map<string, Date>([
+  ["acct_demo_brightgrowth", new Date("2026-03-24T09:42:00Z")],
+  ["acct_demo_northlane", new Date("2026-03-24T09:18:00Z")],
+  ["acct_demo_meridian", new Date("2026-03-24T08:57:00Z")],
+]);
+
+const demoAlerts = [
+  {
+    id: "demo-alert-1",
+    type: "revenue_drop",
+    severity: "warning",
+    message: "Revenue is 38% below expected levels for this account.",
+    stripeAccountId: "acct_demo_brightgrowth",
+    accountName: "BrightGrowth Studio",
+    createdAt: new Date("2026-03-24T06:40:00Z"),
+    windowEnd: new Date("2026-03-24T08:40:00Z"),
+    context: JSON.stringify({
+      expectedRevenue: 1240,
+      currentRevenue: 768,
+      window: "last 2 hours",
+    }),
+  },
+  {
+    id: "demo-alert-2",
+    type: "payment_failed",
+    severity: "critical",
+    message: "Payment failures spiked above normal levels in the last 30 minutes.",
+    stripeAccountId: "acct_demo_northlane",
+    accountName: "Northlane SaaS",
+    createdAt: new Date("2026-03-24T09:12:00Z"),
+    windowEnd: new Date("2026-03-24T13:12:00Z"),
+    context: JSON.stringify({
+      failedPayments: 11,
+      baseline: 3,
+      window: "last 30 minutes",
+    }),
+  },
+  {
+    id: "demo-alert-3",
+    type: "payment_failed",
+    severity: "warning",
+    message: "Payment failures increased for this account and should be reviewed.",
+    stripeAccountId: "acct_demo_meridian",
+    accountName: "Studio Meridian",
+    createdAt: new Date("2026-03-24T05:55:00Z"),
+    windowEnd: new Date("2026-03-24T07:55:00Z"),
+    context: JSON.stringify({
+      failedPayments: 6,
+      baseline: 2,
+      window: "last 30 minutes",
+    }),
+  },
+  {
+    id: "demo-alert-4",
+    type: "revenue_drop",
+    severity: "warning",
+    message:
+      "Revenue dipped below normal weekday levels during the current monitoring window.",
+    stripeAccountId: "acct_demo_meridian",
+    accountName: "Studio Meridian",
+    createdAt: new Date("2026-03-23T16:20:00Z"),
+    windowEnd: new Date("2026-03-23T22:20:00Z"),
+    context: JSON.stringify({
+      expectedRevenue: 940,
+      currentRevenue: 610,
+      window: "last 2 hours",
+    }),
+  },
+];
 
 /* ---------------- PAGE ---------------- */
 
@@ -87,359 +271,842 @@ export default async function DashboardPage() {
     }),
   ]);
 
-  const lastEventByAccount = new Map(
-    lastEvents.map((e) => [e.stripeAccountId, e._max.createdAt])
+  const hasRealData = stripeAccounts.length > 0;
+
+  const displayStripeAccounts = hasRealData ? stripeAccounts : demoStripeAccounts;
+  const displayAlerts = hasRealData ? alerts : demoAlerts;
+
+  const lastEventByAccount = hasRealData
+    ? new Map(lastEvents.map((e) => [e.stripeAccountId, e._max.createdAt]))
+    : demoLastEventByAccount;
+
+  const accountNameById = new Map(
+    displayStripeAccounts.map((account) => [
+      account.stripeAccountId,
+      account.name ?? "Unnamed Stripe account",
+    ])
   );
 
-  const now = new Date();
-  const activeAlerts = alerts.filter((a) => a.windowEnd > now);
-  const status = systemStatus(activeAlerts.length);
+  const now = hasRealData ? new Date() : DEMO_NOW;
+  const activeAlerts = displayAlerts.filter((a) => a.windowEnd > now);
+  const historicalAlerts = displayAlerts.filter((a) => a.windowEnd <= now);
+  const activeAccounts = displayStripeAccounts.filter((a) => a.status === "active");
+  const status = systemMeta(activeAlerts.length);
+  const envLabel = hasRealData ? "Live" : "Preview";
 
+  const topIssueLabel = headerIssueLabel(activeAlerts);
 
+  const alertsByAccount = new Map<string, (typeof displayAlerts)[number][]>();
+  for (const account of displayStripeAccounts) {
+    const accountAlerts = activeAlerts.filter(
+      (alert) => alert.stripeAccountId === account.stripeAccountId
+    );
+    alertsByAccount.set(account.stripeAccountId, accountAlerts);
+  }
 
-  const envLabel = "Preview";
+ const monitoredAccounts = displayStripeAccounts
+  .map((account) => {
+    const accountAlerts = alertsByAccount.get(account.stripeAccountId) ?? [];
+    const lastActivity = lastEventByAccount.get(account.stripeAccountId) ?? null;
+    const topAlert = accountAlerts[0] ?? null;
+    const hasCritical = accountAlerts.some((a) => a.severity === "critical");
+    const readableIssue = topAlert ? buildReadableAlertMessage(topAlert) : null;
 
-   return (
-   <main
-  style={{
-    minHeight: "100vh",
-    background: "#f9fafb",
-    color: "#111827",
-  }}
->
-           <Navbar />
+    return {
+      ...account,
+      lastActivity,
+      topAlert,
+      hasCritical,
+      readableIssue,
+    };
+  })
+    .sort((a, b) => {
+      if (a.hasCritical && !b.hasCritical) return -1;
+      if (!a.hasCritical && b.hasCritical) return 1;
+      if (a.topAlert && !b.topAlert) return -1;
+      if (!a.topAlert && b.topAlert) return 1;
+      return 0;
+    });
 
-          <div
+ const activeIncidents = activeAlerts
+  .slice()
+  .sort((a, b) => {
+    const aCritical = a.severity === "critical" ? 1 : 0;
+    const bCritical = b.severity === "critical" ? 1 : 0;
+
+    if (aCritical !== bCritical) return bCritical - aCritical;
+
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+
+  return (
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "#f5f7fb",
+        color: "#0f172a",
+      }}
+    >
+      <Navbar />
+
+      <div
         style={{
-          maxWidth: 1040,
+          maxWidth: 1460,
           margin: "0 auto",
-          padding: "104px 16px 72px",
+          padding: "104px 20px 72px",
         }}
       >
-        {/* Top Card */}
-        <div
-          style={{
-            background: "#ffffff",
-            border: "1px solid #e5e7eb",
-            borderRadius: 12,
-            padding: 24,
-            marginBottom: 24,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 16,
-              flexWrap: "wrap",
-              alignItems: "flex-start",
-            }}
-          >
-          <div>
- <h1
-  style={{
-    fontSize: 30,
-    fontWeight: 700,
-    letterSpacing: "-0.02em",
-    margin: 0,
-  }}
->
-  Dashboard
-</h1>
-  <p style={{ color: "#6b7280", marginTop: 6, marginBottom: 0 }}>
-  Stripe monitoring and alerts only • Read-only • No money movement
-</p>
-</div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <Pill
-                label={envLabel}
-                background="#f3f4f6"
-                color="#374151"
-                border="1px solid #e5e7eb"
-              />
-              <Pill {...status} />
-            </div>
-          </div>
-
- <div
-  style={{
-    display: "flex",
-    gap: 12,
-    flexWrap: "wrap",
-    alignItems: "flex-start",
-    marginTop: 18,
-    flexDirection: "column",
-  }}
->
-  <button
-    type="button"
-    disabled
-    title="Stripe Connect OAuth is disabled until KVK + Stripe activation."
-    style={{
-      padding: "9px 12px",
-      background: "#e5e7eb",
-      color: "#6b7280",
-      borderRadius: 8,
-      border: "1px solid #e5e7eb",
-      fontSize: 14,
-      fontWeight: 600,
-      cursor: "not-allowed",
-    }}
-  >
-    Stripe connection coming soon
-  </button>
-
-  <p
-    style={{
-      color: "#6b7280",
-      fontSize: 13,
-      margin: 0,
-    }}
-  >
-    Stripe connection will be available after account activation.
-  </p>
-</div>
-</div>
-
-        {/* Stats Row */}
-
-<p style={{ color: "#6b7280", fontSize: 13, marginBottom: 20 }}>
-  RevenueWatch monitors your Stripe accounts continuously and alerts you when something unusual happens.
-</p>
-
+      <TopMonitorBar
+  envLabel={envLabel}
+  status={status}
+  accountsCount={activeAccounts.length}
+  topIssueLabel={topIssueLabel}
+/>
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-            gap: 12,
-            marginBottom: 24,
+            gridTemplateColumns: "minmax(0, 1fr) 320px",
+            gap: 18,
+            alignItems: "start",
           }}
         >
-     <StatCard
-  label="Connected Stripe accounts"
-  value={stripeAccounts.filter((a) => a.status === "active").length}
-/>
+          <div style={{ display: "grid", gap: 18 }}>
+            <Panel>
+              <PanelHeader
+                title="Monitored accounts"
+    subtitle="Problem accounts appear first. Healthy accounts remain visible for quick scanning."
+              />
 
-<StatCard
-  label="Alerts currently active"
-  value={activeAlerts.length}
-/>
-
-<StatCard
-  label="Alerts (last 50)"
-  value={alerts.length}
-/>
-
-
-
-        </div>
-
-        {/* Connected Accounts */}
-       <Section title="Your Stripe accounts" subtitle="Accounts RevenueWatch is monitoring.">
-      {stripeAccounts.length === 0 ? (
-  <div>
-    <Muted>
-      No Stripe accounts connected yet.
-      <br />
-      Once connected, each account will appear here with its monitoring status,
-      recent activity, and alerts.
-    </Muted>
-
-  <div
+              <div
+                style={{
+                  border: "1px solid #e7edf5",
+                  borderRadius: 16,
+                  overflow: "hidden",
+                }}
+              >
+              <div
   style={{
-    marginTop: 12,
-    padding: 16,
-    background: "#f9fafb",
-    border: "1px dashed #e5e7eb",
-    borderRadius: 10,
-    fontSize: 13,
-    color: "#6b7280",
+    display: "grid",
+    gridTemplateColumns:
+      "minmax(320px, 1.4fr) 120px 170px 120px 150px",
+    padding: "12px 14px",
+    background: "#f8fafc",
+    borderBottom: "1px solid #e7edf5",
+    fontSize: 12,
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+    color: "#64748b",
   }}
 >
-  RevenueWatch will:
-  <ul style={{ marginTop: 8, paddingLeft: 18 }}>
-    <li>Monitor payment failures</li>
-    <li>Detect revenue drops</li>
-    <li>Send alerts when something changes</li>
-  </ul>
+  <div>Account</div>
+  <div>Status</div>
+  <div>Last activity</div>
+  <div>Severity</div>
+  <div>Action</div>
 </div>
-  </div>
-) : (
-          <Table
-headers={[
-  "Account",
-  "Status",
-  "Last activity",
-  "Monitoring",
-]}
 
-rows={stripeAccounts.map((a) => [
-  <div key={`${a.id}-account`}>
-    <div style={{ fontWeight: 600 }}>
-      {a.name ?? "Unnamed Stripe account"}
-    </div>
-    <div style={{ fontSize: 12, color: "#6b7280" }}>
-      {shortId(a.stripeAccountId)}
-    </div>
-  </div>,
-
-  <span
-    key={`${a.id}-status`}
-    style={{
-      fontSize: 12,
-      fontWeight: 600,
-      color: a.status === "active" ? "#065f46" : "#6b7280",
-    }}
-  >
-    {a.status}
-  </span>,
-
-  lastEventByAccount.get(a.stripeAccountId)
-    ? fmtDate(lastEventByAccount.get(a.stripeAccountId)!)
-    : "No activity yet",
-
-  a.status === "active" ? (
-    <DisconnectButton
-      key={`${a.id}-disconnect`}
-      stripeAccountId={a.stripeAccountId}
-    />
-  ) : (
-    <span key={`${a.id}-disconnected`} style={{ color: "#6b7280", fontSize: 12 }}>
-      Disconnected
-    </span>
-  ),
-])}
-
-
+                {monitoredAccounts.length === 0 ? (
+                  <div style={{ padding: 14 }}>
+                    <SoftEmpty>No Stripe accounts connected yet.</SoftEmpty>
+                  </div>
+                ) : (
+                  monitoredAccounts.map((account, index) => (
+                 <AccountRow
+  key={account.id}
+  isLast={index === monitoredAccounts.length - 1}
+  name={account.name ?? "Unnamed Stripe account"}
+  stripeAccountId={account.stripeAccountId}
+  status={account.status}
+  lastActivity={account.lastActivity}
+  topAlert={account.topAlert}
+  readableIssue={account.readableIssue}
+  hasRealData={hasRealData}
 />
+                  ))
+                )}
+              </div>
+            </Panel>
 
-          )}
-        </Section>
+            <Panel>
+              <PanelHeader
+                title="Resolved alerts"
+                subtitle="Past alerts only. Historical review stays separate from live monitoring."
+              />
 
-        {/* Active Alerts */}
-      <Section
-  title="Current alerts"
-  subtitle="These alerts are still within their active window."
->
-  <div
-    style={{
-      background: "#ffffff",
-      border: "1px solid #e5e7eb",
-      borderRadius: 12,
-      padding: 16,
-    }}
-  >
-  {activeAlerts.length === 0 ? (
-  <div
-    style={{
-      padding: 16,
-     background: "#fafafa",
-border: "1px solid #f1f5f9",
-      borderRadius: 10,
-      fontSize: 13,
-      color: "#6b7280",
-    }}
-  >
-    No active alerts. RevenueWatch is monitoring normally.
-  </div>
-) : (
-      <div style={{ display: "grid", gap: 10 }}>
-        {activeAlerts.map((a) => (
-          <AlertRow
-            key={a.id}
-            type={a.type}
-            severity={a.severity}
-            message={a.message}
-            stripeAccountId={a.stripeAccountId}
-            createdAt={a.createdAt}
-            windowEnd={a.windowEnd}
-            context={a.context}
-            isActive
-          />
-        ))}
-      </div>
-    )}
-  </div>
-</Section>
+              <div style={{ display: "grid", gap: 10 }}>
+                {historicalAlerts.length === 0 ? (
+                  <SoftEmpty>No past alerts yet.</SoftEmpty>
+                ) : (
+                  historicalAlerts.map((alert) => (
+                    <HistoryCard
+                      key={alert.id}
+                      accountName={
+                        "accountName" in alert && alert.accountName
+                          ? alert.accountName
+                          : accountNameById.get(alert.stripeAccountId ?? "") ??
+                            "Unnamed account"
+                      }
+                      type={alert.type}
+                      severity={alert.severity}
+                      message={alert.message}
+                      context={alert.context}
+                      createdAt={alert.createdAt}
+                      windowEnd={alert.windowEnd}
+                    />
+                  ))
+                )}
+              </div>
+            </Panel>
+          </div>
 
-        {/* Alert History */}
-      <Section
-  title="Alert history"
-  subtitle="Most recent alerts (including active ones)."
-  subtle
->
+       <div style={{ display: "grid", gap: 18 }}>
+  <Panel>
+    <PanelEyebrow>Connection</PanelEyebrow>
+    <PanelTitle>Stripe Connect</PanelTitle>
+    <PanelText>
+      {hasRealData
+        ? "Stripe Connect will be enabled after account activation."
+        : "Preview mode is showing example accounts and example alerts before live Stripe activation."}
+    </PanelText>
+
+    <div style={{ marginTop: 14 }}>
+      <StatusChip
+        status={{
+          dot: "#64748b",
+          text: "#475569",
+          bg: "#f8fafc",
+          border: "1px solid #e2e8f0",
+        }}
+        label="Coming soon"
+      />
+    </div>
+  </Panel>
+
+ <Panel>
+  <PanelHeader
+    title="Active incidents"
+    subtitle="All currently active issues across monitored accounts."
+  />
+
+{activeIncidents.length > 0 ? (
   <div
     style={{
-      background: "#ffffff",
-      border: "1px solid #e5e7eb",
-      borderRadius: 12,
-      padding: 16,
+      display: "grid",
+      gap: 10,
+      maxHeight: 420,
+      overflowY: "auto",
+      scrollbarWidth: "thin",
+      paddingRight: 4,
     }}
   >
-   {alerts.length === 0 ? (
-  <div
-    style={{
-      padding: 16,
-     background: "#fafafa",
-border: "1px solid #f1f5f9",
-      borderRadius: 10,
-      fontSize: 13,
-      color: "#6b7280",
-    }}
-  >
-    No alerts yet.
-  </div>
-) : (
-      <div style={{ display: "grid", gap: 10 }}>
-        {alerts.map((a) => (
-          <AlertRow
-            key={a.id}
-            type={a.type}
-            severity={a.severity}
-            message={a.message}
-            stripeAccountId={a.stripeAccountId}
-            createdAt={a.createdAt}
-            windowEnd={a.windowEnd}
-            context={a.context}
-          />
-        ))}
-      </div>
-    )}
-  </div>
-</Section>
+    {activeIncidents.map((incident) => {
+        const accountName =
+          "accountName" in incident && incident.accountName
+            ? incident.accountName
+            : accountNameById.get(incident.stripeAccountId ?? "") ??
+              "Unnamed account";
+
+        return (
+        <CompactIncidentCard
+  key={incident.id}
+  accountName={accountName}
+  type={incident.type}
+  severity={incident.severity}
+  message={buildReadableAlertMessage(incident)}
+  createdAt={incident.createdAt}
+  windowEnd={incident.windowEnd}
+/>
+        );
+      })}
+    </div>
+  ) : (
+    <SoftEmpty>No active incidents right now.</SoftEmpty>
+  )}
+</Panel>
+</div>
+        </div>
       </div>
     </main>
   );
 }
 
-/* ---------------- SMALL COMPONENTS ---------------- */
+/* ---------------- COMPONENTS ---------------- */
 
-function Pill({
-  label,
-  background,
-  color,
-  border,
+function TopMonitorBar({
+  envLabel,
+  status,
+  accountsCount,
+  topIssueLabel,
 }: {
-  label: string;
-  background: string;
-  color: string;
-  border: string;
+  envLabel: string;
+  status: ReturnType<typeof systemMeta>;
+  accountsCount: number;
+  topIssueLabel: string;
 }) {
+  return (
+    <section
+      style={{
+        marginBottom: 18,
+        background: "#ffffff",
+        border: "1px solid #e7edf5",
+        borderRadius: 22,
+        padding: 18,
+        boxShadow: "0 10px 30px rgba(15,23,42,0.04)",
+      }}
+    >
+      <div
+        style={{
+          display: "grid",
+         gridTemplateColumns: "minmax(0, 1fr)",
+          gap: 20,
+          alignItems: "center",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              marginBottom: 12,
+            }}
+          >
+       <Chip label={envLabel} />
+<StatusChip
+  status={{
+    dot: status.dot,
+    text: status.text,
+    bg: status.bg,
+    border: status.border,
+  }}
+  label={topIssueLabel}
+/>
+<Chip label={`${accountsCount} account${accountsCount === 1 ? "" : "s"} monitored`} />
+          </div>
+
+          <h1
+            style={{
+              margin: 0,
+              fontSize: 28,
+              lineHeight: 1.08,
+              fontWeight: 800,
+              letterSpacing: "-0.04em",
+              color: "#0f172a",
+            }}
+          >
+            RevenueWatch monitoring console
+          </h1>
+
+          <p
+            style={{
+              margin: "8px 0 0",
+              fontSize: 14,
+              lineHeight: 1.75,
+              color: "#64748b",
+              maxWidth: 780,
+            }}
+          >
+         See which accounts are healthy, which account needs attention, and what issue is active right now.
+          </p>
+        </div>
+
+      
+      </div>
+    </section>
+  );
+}
+
+function Panel({ children }: { children: React.ReactNode }) {
+  return (
+    <section
+      style={{
+        background: "#ffffff",
+        border: "1px solid #e7edf5",
+        borderRadius: 22,
+        padding: 16,
+        boxShadow: "0 10px 30px rgba(15,23,42,0.04)",
+      }}
+    >
+      {children}
+    </section>
+  );
+}
+
+function PanelEyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: 12,
+        fontWeight: 800,
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+        color: "#64748b",
+        marginBottom: 8,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function PanelTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: 18,
+        fontWeight: 800,
+        lineHeight: 1.12,
+        letterSpacing: "-0.03em",
+        color: "#0f172a",
+        marginBottom: 8,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function PanelText({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: 14,
+        lineHeight: 1.75,
+        color: "#64748b",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function PanelHeader({
+  title,
+  subtitle,
+}: {
+  title: string;
+  subtitle?: string;
+}) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div
+        style={{
+          fontSize: 18,
+          fontWeight: 800,
+          lineHeight: 1.1,
+          letterSpacing: "-0.03em",
+          color: "#0f172a",
+          marginBottom: 6,
+        }}
+      >
+        {title}
+      </div>
+
+      {subtitle && (
+        <div
+          style={{
+            fontSize: 13,
+            color: "#64748b",
+            lineHeight: 1.7,
+          }}
+        >
+          {subtitle}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
+function AccountRow({
+  isLast,
+  name,
+  stripeAccountId,
+  status,
+  lastActivity,
+  topAlert,
+  readableIssue,
+  hasRealData,
+}: {
+  isLast?: boolean;
+  name: string;
+  stripeAccountId: string;
+  status: string;
+  lastActivity: Date | null;
+  topAlert:
+    | {
+        id: string;
+        type: string;
+        severity: string;
+        message: string;
+        stripeAccountId: string | null;
+        createdAt: Date;
+        windowEnd: Date;
+        context?: string | null;
+      }
+    | null;
+  readableIssue: string | null;
+  hasRealData: boolean;
+}) {
+  const active = status === "active";
+  const hasIssue = !!topAlert;
+  const sev = topAlert ? severityMeta(topAlert.severity) : null;
+
+  return (
+   <div
+  style={{
+    display: "grid",
+    gridTemplateColumns:
+      "minmax(320px, 1.4fr) 120px 170px 120px 150px",
+    padding: "14px",
+    background: hasIssue ? "#fff7f7" : "#ffffff",
+    borderLeft: hasIssue ? "3px solid #dc2626" : "3px solid transparent",
+    borderBottom: isLast ? "none" : "1px solid #eef2f7",
+    alignItems: "center",
+  }}
+>
+      <div style={{ paddingRight: 12 }}>
+        <div
+          style={{
+            fontSize: 16,
+            fontWeight: 750,
+            color: "#0f172a",
+            lineHeight: 1.25,
+            marginBottom: 5,
+          }}
+        >
+          {name}
+        </div>
+
+       <div
+  style={{
+    fontSize: 12,
+    color: "#94a3b8",
+  }}
+>
+  {hasRealData ? shortId(stripeAccountId) : "Demo account"}
+</div>
+
+{readableIssue && (
+  <div
+    style={{
+      marginTop: 8,
+      fontSize: 13,
+      lineHeight: 1.55,
+      color: "#475569",
+      maxWidth: 320,
+    }}
+  >
+    {readableIssue}
+  </div>
+)}
+
+
+      </div>
+
+      <TableValue
+        value={active ? "Active" : "Paused"}
+        accent={active ? "#166534" : "#64748b"}
+      />
+
+      <TableValue value={lastActivity ? fmtDate(lastActivity) : "No activity yet"} />
+
+      
+
+      <div>
+        {topAlert && sev ? (
+          <StatusChip
+            status={{
+              dot: sev.dot,
+              text: sev.text,
+              bg: sev.bg,
+              border: sev.border,
+            }}
+            label={sev.label}
+          />
+        ) : (
+          <span
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: "#166534",
+            }}
+          >
+            Healthy
+          </span>
+        )}
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+        }}
+      >
+        {active ? (
+          hasRealData ? (
+            <DisconnectButton stripeAccountId={stripeAccountId} />
+          ) : (
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: "#166534",
+              }}
+            >
+              Monitoring active
+            </span>
+          )
+        ) : (
+          <span
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: "#64748b",
+            }}
+          >
+            Disconnected
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CurrentIncidentCard({
+  accountName,
+  type,
+  severity,
+  message,
+  createdAt,
+  windowEnd,
+}: {
+  accountName: string;
+  type: string;
+  severity: string;
+  message: string;
+  createdAt: Date;
+  windowEnd: Date;
+}) {
+  const sev = severityMeta(severity);
+
+  return (
+    <div
+      style={{
+        borderRadius: 16,
+        background: sev.soft,
+        border: sev.border,
+        padding: 14,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 10,
+          alignItems: "flex-start",
+          marginBottom: 10,
+        }}
+      >
+        <div
+          style={{
+            fontSize: 15,
+            fontWeight: 700,
+            color: "#0f172a",
+          }}
+        >
+          {accountName}
+        </div>
+
+        <StatusChip
+          status={{
+            dot: sev.dot,
+            text: sev.text,
+            bg: sev.bg,
+            border: sev.border,
+          }}
+          label={sev.label}
+        />
+      </div>
+
+      <div style={{ marginBottom: 10 }}>
+        <Chip label={alertLabel(type)} />
+      </div>
+
+      <div
+        style={{
+          fontSize: 15,
+          lineHeight: 1.7,
+          fontWeight: 650,
+          color: "#0f172a",
+          marginBottom: 10,
+        }}
+      >
+        {message}
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gap: 6,
+          fontSize: 12,
+          lineHeight: 1.6,
+          color: "#64748b",
+        }}
+      >
+        <div>
+          Triggered <strong style={{ color: "#0f172a" }}>{fmtDate(createdAt)}</strong>
+        </div>
+        <div>
+          Active until <strong style={{ color: "#0f172a" }}>{fmtDate(windowEnd)}</strong>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HistoryCard({
+  accountName,
+  type,
+  severity,
+  message,
+  context,
+  createdAt,
+  windowEnd,
+}: {
+  accountName: string;
+  type: string;
+  severity: string;
+  message: string;
+  context?: string | null;
+  createdAt: Date;
+  windowEnd: Date;
+}) {
+  const sev = severityMeta(severity);
+
+  return (
+   <div
+  style={{
+    borderRadius: 16,
+    border: "1px solid #edf2f7",
+    background: "#fbfcfe",
+    padding: 14,
+  }}
+>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 12,
+          alignItems: "flex-start",
+          marginBottom: 10,
+          flexWrap: "wrap",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 15,
+              fontWeight: 700,
+              color: "#0f172a",
+            }}
+          >
+            {accountName}
+          </div>
+
+          <Chip label={alertLabel(type)} />
+          <StatusChip
+            status={{
+              dot: sev.dot,
+              text: sev.text,
+              bg: sev.bg,
+              border: sev.border,
+            }}
+            label={sev.label}
+          />
+        </div>
+      </div>
+
+   <div
+  style={{
+    fontSize: 15,
+    lineHeight: 1.7,
+    fontWeight: 600,
+    color: "#334155",
+    marginBottom: 10,
+  }}
+>
+{buildReadableAlertMessage({ type, message, context })}
+</div>
+
+      <div
+        style={{
+          display: "flex",
+          gap: 18,
+          flexWrap: "wrap",
+          fontSize: 12,
+          lineHeight: 1.6,
+          color: "#64748b",
+        }}
+      >
+        <span>
+          Triggered <strong style={{ color: "#0f172a" }}>{fmtDate(createdAt)}</strong>
+        </span>
+        <span>
+          Ended <strong style={{ color: "#0f172a" }}>{fmtDate(windowEnd)}</strong>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function TableValue({
+  value,
+  accent,
+}: {
+  value: React.ReactNode;
+  accent?: string;
+}) {
+  return (
+    <div
+      style={{
+        fontSize: 13,
+        lineHeight: 1.6,
+        fontWeight: 700,
+        color: accent ?? "#0f172a",
+        paddingRight: 10,
+      }}
+    >
+      {value}
+    </div>
+  );
+}
+
+
+
+function Chip({ label }: { label: string }) {
   return (
     <span
       style={{
-        padding: "6px 10px",
-        borderRadius: 999,
-        fontSize: 13,
-        fontWeight: 600,
-        background,
-        color,
-        border,
         display: "inline-flex",
         alignItems: "center",
-        gap: 8,
+        padding: "7px 10px",
+        borderRadius: 999,
+        background: "#f8fafc",
+        border: "1px solid #e7edf5",
+        color: "#334155",
+        fontSize: 12,
+        fontWeight: 700,
+        lineHeight: 1,
       }}
     >
       {label}
@@ -447,251 +1114,145 @@ function Pill({
   );
 }
 
-function Section({
-  title,
-  subtitle,
-  children,
-  subtle,
+function StatusChip({
+  status,
+  label,
 }: {
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-  subtle?: boolean;
+  status: {
+    dot: string;
+    text: string;
+    bg: string;
+    border: string;
+  };
+  label: string;
 }) {
   return (
-   <section
-  style={{
-    marginBottom: 28,
-    paddingTop: 8,
-  }}
->
-      <div style={{ marginBottom: 10 }}>
-        <h2
-          style={{
-            fontSize: subtle ? 16 : 18,
-            fontWeight: subtle ? 600 : 700,
-            color: subtle ? "#374151" : "#111827",
-            margin: 0,
-          }}
-        >
-          {title}
-        </h2>
-        {subtitle && (
-          <p style={{ color: "#6b7280", margin: "6px 0 0", fontSize: 13 }}>
-            {subtitle}
-          </p>
-        )}
-      </div>
-      {children}
-    </section>
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "7px 10px",
+        borderRadius: 999,
+        background: status.bg,
+        border: status.border,
+        color: status.text,
+        fontSize: 12,
+        fontWeight: 800,
+        lineHeight: 1,
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: 999,
+          background: status.dot,
+          flexShrink: 0,
+        }}
+      />
+      {label}
+    </span>
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number | string }) {
-  return (
-   <div
-  style={{
-    background: "#ffffff",
-    border: "1px solid #e5e7eb",
-    borderRadius: 14,
-    padding: 18,
-    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-  }}
->
-   <div
-  style={{
-    fontSize: 30,
-    fontWeight: 700,
-    letterSpacing: "-0.015em",
-    lineHeight: 1.1,
-    color: "#0f172a",
-  }}
->
-  {value}
-</div>
-      <div style={{ color: "#6b7280", marginTop: 6, fontSize: 13 }}>
-        {label}
-      </div>
-    </div>
-  );
-}
-
-
-function Table({
-  headers,
-  rows,
-}: {
-  headers: string[];
-  rows: Array<Array<React.ReactNode>>
-
-}) {
+function SoftEmpty({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        background: "#ffffff",
-        border: "1px solid #e5e7eb",
-        borderRadius: 12,
-        overflow: "hidden",
+        background: "#f8fafc",
+        border: "1px solid #e7edf5",
+        borderRadius: 14,
+        padding: 14,
+        fontSize: 14,
+        lineHeight: 1.75,
+        color: "#64748b",
       }}
     >
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-        <thead>
-          <tr style={{ background: "#f9fafb" }}>
-            {headers.map((h) => (
-              <th
-                key={h}
-                style={{
-                  textAlign: "left",
-                  padding: "12px 12px",
-                  borderBottom: "1px solid #e5e7eb",
-                  color: "#374151",
-                  fontWeight: 700,
-                }}
-              >
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, idx) => (
-            <tr key={idx} style={{ borderBottom: "1px solid #f3f4f6" }}>
-              {r.map((cell, i) => (
-                <td key={i} style={{ padding: "12px 12px", color: "#111827" }}>
-                  {cell}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {children}
     </div>
   );
 }
 
-function AlertRow({
+function CompactIncidentCard({
+  accountName,
   type,
   severity,
   message,
-  stripeAccountId,
   createdAt,
   windowEnd,
-  context,
-  isActive,
 }: {
+  accountName: string;
   type: string;
   severity: string;
   message: string;
-  stripeAccountId: string | null;
   createdAt: Date;
   windowEnd: Date;
-  context?: string | null;
-  isActive?: boolean;
 }) {
-  const sev = severityBadge(severity);
-  const preview = safeJsonPreview(context);
+  const sev = severityMeta(severity);
 
   return (
     <div
       style={{
-        background: "#ffffff",
-        border: "1px solid #e5e7eb",
-        borderRadius: 12,
-        padding: 14,
-        opacity: isActive ? 1 : 0.96,
+        borderRadius: 14,
+        border: sev.border,
+        background: sev.soft,
+        padding: 12,
       }}
     >
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
-          gap: 12,
-          flexWrap: "wrap",
-          alignItems: "center",
-          marginBottom: 8,
+          gap: 8,
+          marginBottom: 6,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span
-            style={{
-              fontSize: 12,
-              fontWeight: 800,
-              padding: "3px 10px",
-              borderRadius: 999,
-              background: "#f3f4f6",
-              color: "#111827",
-              border: "1px solid #e5e7eb",
-            }}
-          >
-            {alertLabel(type)}
-          </span>
-
-          <span
-            style={{
-              fontSize: 12,
-              fontWeight: 800,
-              padding: "3px 10px",
-              borderRadius: 999,
-              background: sev.background,
-              color: sev.color,
-              border: sev.border,
-            }}
-          >
-            {sev.label}
-          </span>
-
-          <span style={{ fontSize: 12, color: "#6b7280" }}>
-            Account: <strong style={{ color: "#111827" }}>{shortId(stripeAccountId)}</strong>
-          </span>
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 700,
+            color: "#0f172a",
+          }}
+        >
+          {accountName}
         </div>
 
-        <div style={{ fontSize: 12, color: "#6b7280" }}>
-          Triggered: <strong style={{ color: "#111827" }}>{fmtDate(createdAt)}</strong>
-        </div>
+        <StatusChip
+          status={{
+            dot: sev.dot,
+            text: sev.text,
+            bg: sev.bg,
+            border: sev.border,
+          }}
+          label={sev.label}
+        />
       </div>
 
-      <div style={{ fontSize: 14, fontWeight: 650, marginBottom: 8 }}>
+      <div style={{ marginBottom: 6 }}>
+        <Chip label={alertLabel(type)} />
+      </div>
+
+      <div
+        style={{
+          fontSize: 13,
+          lineHeight: 1.6,
+          color: "#0f172a",
+          marginBottom: 6,
+        }}
+      >
         {message}
       </div>
 
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12, color: "#6b7280" }}>
-        <div>
-          Active until: <strong style={{ color: "#111827" }}>{fmtDate(windowEnd)}</strong>
-        </div>
-
-     {preview && (
-  <details style={{ marginTop: 6 }}>
-    <summary
-      style={{
-        fontSize: 12,
-        color: "#6b7280",
-        cursor: "pointer",
-      }}
-    >
-      View technical context
-    </summary>
-    <pre
-      style={{
-        marginTop: 6,
-        fontSize: 12,
-        background: "#f3f4f6",
-        padding: 8,
-        borderRadius: 8,
-        overflowX: "auto",
-        color: "#111827",
-      }}
-    >
-      {preview}
-    </pre>
-  </details>
-)}
-
-
+      <div
+        style={{
+          fontSize: 11,
+          color: "#64748b",
+        }}
+      >
+        Active until <strong>{fmtDate(windowEnd)}</strong>
       </div>
     </div>
   );
-}
-
-function Muted({ children }: { children: React.ReactNode }) {
-  return <p style={{ color: "#6b7280", fontSize: 13, margin: 0 }}>{children}</p>;
 }

@@ -1173,3 +1173,10 @@ a {
   margin-top: -18px;
   margin-bottom: 36px;
 }
+
+@media (max-width: 900px) {
+  table {
+    display: block;
+    overflow-x: auto;
+  }
+}

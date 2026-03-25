@@ -320,9 +320,9 @@ export default function HomePage() {
       </ul>
     </div>
 
-    <a href="/login" className="btn btn-secondary">
-      Start free
-    </a>
+   <a href="/login?plan=starter" className="btn btn-secondary">
+  Start free
+</a>
   </div>
 
   <div className="pricing-card pricing-card-featured">
@@ -347,9 +347,9 @@ export default function HomePage() {
       </ul>
     </div>
 
-    <a href="/login" className="btn btn-primary">
-      Start monitoring
-    </a>
+    <a href="/login?plan=growth" className="btn btn-primary">
+  Start monitoring
+</a>
   </div>
 
   <div className="pricing-card">
@@ -372,9 +372,9 @@ export default function HomePage() {
       </ul>
     </div>
 
-    <a href="/contact" className="btn btn-secondary">
-      Contact us
-    </a>
+   <a href="/login?plan=pro" className="btn btn-secondary">
+  Contact us
+</a>
   </div>
 </div>
 
