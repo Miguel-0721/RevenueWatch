@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import Navbar from "@/components/Navbar";
+import Link from "next/link";
 import { DisconnectButton } from "./DisconnectButton";
+
 
 export const dynamic = "force-dynamic";
 
@@ -163,15 +165,15 @@ const DEMO_NOW = new Date("2026-03-24T10:30:00Z");
 const demoStripeAccounts = [
   {
     id: "demo-1",
-    name: "BrightGrowth Studio",
-    stripeAccountId: "acct_demo_brightgrowth",
+    name: "Northlane SaaS",
+    stripeAccountId: "acct_demo_northlane",
     status: "active",
     createdAt: DEMO_NOW,
   },
   {
     id: "demo-2",
-    name: "Northlane SaaS",
-    stripeAccountId: "acct_demo_northlane",
+    name: "BrightGrowth Studio",
+    stripeAccountId: "acct_demo_brightgrowth",
     status: "active",
     createdAt: DEMO_NOW,
   },
@@ -182,32 +184,72 @@ const demoStripeAccounts = [
     status: "active",
     createdAt: DEMO_NOW,
   },
+  {
+    id: "demo-4",
+    name: "Atlas Commerce",
+    stripeAccountId: "acct_demo_atlas",
+    status: "active",
+    createdAt: DEMO_NOW,
+  },
+  {
+    id: "demo-5",
+    name: "Pixel Harbor",
+    stripeAccountId: "acct_demo_pixelharbor",
+    status: "active",
+    createdAt: DEMO_NOW,
+  },
+  {
+    id: "demo-6",
+    name: "BluePeak Media",
+    stripeAccountId: "acct_demo_bluepeak",
+    status: "active",
+    createdAt: DEMO_NOW,
+  },
+  {
+    id: "demo-7",
+    name: "Luma Health Co",
+    stripeAccountId: "acct_demo_luma",
+    status: "active",
+    createdAt: DEMO_NOW,
+  },
+  {
+    id: "demo-8",
+    name: "Forge Analytics",
+    stripeAccountId: "acct_demo_forge",
+    status: "active",
+    createdAt: DEMO_NOW,
+  },
+  {
+    id: "demo-9",
+    name: "Cedar Creative",
+    stripeAccountId: "acct_demo_cedar",
+    status: "active",
+    createdAt: DEMO_NOW,
+  },
+  {
+    id: "demo-10",
+    name: "Nova Ops",
+    stripeAccountId: "acct_demo_novaops",
+    status: "active",
+    createdAt: DEMO_NOW,
+  },
 ];
-
 const demoLastEventByAccount = new Map<string, Date>([
-  ["acct_demo_brightgrowth", new Date("2026-03-24T09:42:00Z")],
   ["acct_demo_northlane", new Date("2026-03-24T09:18:00Z")],
+  ["acct_demo_brightgrowth", new Date("2026-03-24T09:42:00Z")],
   ["acct_demo_meridian", new Date("2026-03-24T08:57:00Z")],
+  ["acct_demo_atlas", new Date("2026-03-24T09:36:00Z")],
+  ["acct_demo_pixelharbor", new Date("2026-03-24T09:28:00Z")],
+  ["acct_demo_bluepeak", new Date("2026-03-24T09:10:00Z")],
+  ["acct_demo_luma", new Date("2026-03-24T09:49:00Z")],
+  ["acct_demo_forge", new Date("2026-03-24T09:04:00Z")],
+  ["acct_demo_cedar", new Date("2026-03-24T09:33:00Z")],
+  ["acct_demo_novaops", new Date("2026-03-24T09:21:00Z")],
 ]);
 
 const demoAlerts = [
   {
     id: "demo-alert-1",
-    type: "revenue_drop",
-    severity: "warning",
-    message: "Revenue is 38% below expected levels for this account.",
-    stripeAccountId: "acct_demo_brightgrowth",
-    accountName: "BrightGrowth Studio",
-    createdAt: new Date("2026-03-24T06:40:00Z"),
-    windowEnd: new Date("2026-03-24T08:40:00Z"),
-    context: JSON.stringify({
-      expectedRevenue: 1240,
-      currentRevenue: 768,
-      window: "last 2 hours",
-    }),
-  },
-  {
-    id: "demo-alert-2",
     type: "payment_failed",
     severity: "critical",
     message: "Payment failures spiked above normal levels in the last 30 minutes.",
@@ -222,14 +264,29 @@ const demoAlerts = [
     }),
   },
   {
+    id: "demo-alert-2",
+    type: "revenue_drop",
+    severity: "critical",
+    message: "Revenue is significantly below expected levels for this account.",
+    stripeAccountId: "acct_demo_atlas",
+    accountName: "Atlas Commerce",
+    createdAt: new Date("2026-03-24T09:05:00Z"),
+    windowEnd: new Date("2026-03-24T13:05:00Z"),
+    context: JSON.stringify({
+      expectedRevenue: 4200,
+      currentRevenue: 1900,
+      window: "last 2 hours",
+    }),
+  },
+  {
     id: "demo-alert-3",
     type: "payment_failed",
     severity: "warning",
     message: "Payment failures increased for this account and should be reviewed.",
     stripeAccountId: "acct_demo_meridian",
     accountName: "Studio Meridian",
-    createdAt: new Date("2026-03-24T05:55:00Z"),
-    windowEnd: new Date("2026-03-24T07:55:00Z"),
+    createdAt: new Date("2026-03-24T08:20:00Z"),
+    windowEnd: new Date("2026-03-24T11:20:00Z"),
     context: JSON.stringify({
       failedPayments: 6,
       baseline: 2,
@@ -240,16 +297,60 @@ const demoAlerts = [
     id: "demo-alert-4",
     type: "revenue_drop",
     severity: "warning",
-    message:
-      "Revenue dipped below normal weekday levels during the current monitoring window.",
-    stripeAccountId: "acct_demo_meridian",
-    accountName: "Studio Meridian",
+    message: "Revenue dipped below normal weekday levels during the current monitoring window.",
+    stripeAccountId: "acct_demo_brightgrowth",
+    accountName: "BrightGrowth Studio",
+    createdAt: new Date("2026-03-24T06:40:00Z"),
+    windowEnd: new Date("2026-03-24T08:40:00Z"),
+    context: JSON.stringify({
+      expectedRevenue: 1240,
+      currentRevenue: 768,
+      window: "last 2 hours",
+    }),
+  },
+  {
+    id: "demo-alert-5",
+    type: "payment_failed",
+    severity: "warning",
+    message: "Payment failures increased for this account and should be reviewed.",
+    stripeAccountId: "acct_demo_pixelharbor",
+    accountName: "Pixel Harbor",
+    createdAt: new Date("2026-03-24T05:55:00Z"),
+    windowEnd: new Date("2026-03-24T07:55:00Z"),
+    context: JSON.stringify({
+      failedPayments: 5,
+      baseline: 2,
+      window: "last 30 minutes",
+    }),
+  },
+  {
+    id: "demo-alert-6",
+    type: "revenue_drop",
+    severity: "warning",
+    message: "Revenue dipped below normal weekday levels during the current monitoring window.",
+    stripeAccountId: "acct_demo_cedar",
+    accountName: "Cedar Creative",
     createdAt: new Date("2026-03-23T16:20:00Z"),
     windowEnd: new Date("2026-03-23T22:20:00Z"),
     context: JSON.stringify({
       expectedRevenue: 940,
       currentRevenue: 610,
       window: "last 2 hours",
+    }),
+  },
+  {
+    id: "demo-alert-7",
+    type: "payment_failed",
+    severity: "warning",
+    message: "Payment failures increased for this account and should be reviewed.",
+    stripeAccountId: "acct_demo_forge",
+    accountName: "Forge Analytics",
+    createdAt: new Date("2026-03-23T14:15:00Z"),
+    windowEnd: new Date("2026-03-23T16:15:00Z"),
+    context: JSON.stringify({
+      failedPayments: 4,
+      baseline: 2,
+      window: "last 30 minutes",
     }),
   },
 ];
@@ -328,6 +429,15 @@ export default async function DashboardPage() {
       return 0;
     });
 
+
+const problemAccounts = monitoredAccounts.filter(
+  (a) => a.topAlert !== null
+);
+
+const healthyAccounts = monitoredAccounts.filter(
+  (a) => a.topAlert === null
+);
+
  const activeIncidents = activeAlerts
   .slice()
   .sort((a, b) => {
@@ -371,24 +481,24 @@ export default async function DashboardPage() {
           }}
         >
           <div style={{ display: "grid", gap: 18 }}>
-            <Panel>
-              <PanelHeader
-                title="Monitored accounts"
-    subtitle="Problem accounts appear first. Healthy accounts remain visible for quick scanning."
-              />
+         <Panel>
+  <PanelHeader
+    title="Accounts needing attention"
+    subtitle="Only accounts with active issues are shown here."
+  />
 
-              <div
-                style={{
-                  border: "1px solid #e7edf5",
-                  borderRadius: 16,
-                  overflow: "hidden",
-                }}
-              >
-              <div
+  <div
+    style={{
+      border: "1px solid #e7edf5",
+      borderRadius: 16,
+      overflow: "hidden",
+    }}
+  >
+    <div
   style={{
     display: "grid",
     gridTemplateColumns:
-      "minmax(320px, 1.4fr) 120px 170px 120px 150px",
+ "minmax(320px, 1.4fr) 170px 120px",
     padding: "12px 14px",
     background: "#f8fafc",
     borderBottom: "1px solid #e7edf5",
@@ -400,33 +510,88 @@ export default async function DashboardPage() {
   }}
 >
   <div>Account</div>
-  <div>Status</div>
   <div>Last activity</div>
   <div>Severity</div>
-  <div>Action</div>
 </div>
 
-                {monitoredAccounts.length === 0 ? (
-                  <div style={{ padding: 14 }}>
-                    <SoftEmpty>No Stripe accounts connected yet.</SoftEmpty>
-                  </div>
-                ) : (
-                  monitoredAccounts.map((account, index) => (
-                 <AccountRow
-  key={account.id}
-  isLast={index === monitoredAccounts.length - 1}
-  name={account.name ?? "Unnamed Stripe account"}
-  stripeAccountId={account.stripeAccountId}
-  status={account.status}
-  lastActivity={account.lastActivity}
-  topAlert={account.topAlert}
-  readableIssue={account.readableIssue}
-  hasRealData={hasRealData}
-/>
-                  ))
-                )}
-              </div>
-            </Panel>
+    {problemAccounts.length === 0 ? (
+      <div style={{ padding: 14 }}>
+        <SoftEmpty>No accounts need attention right now.</SoftEmpty>
+      </div>
+    ) : (
+     problemAccounts.map((account, index) => (
+  <AccountRow
+    key={account.id}
+    href={`/dashboard/accounts/${encodeURIComponent(account.stripeAccountId)}`}
+    isLast={index === problemAccounts.length - 1}
+    name={account.name ?? "Unnamed Stripe account"}
+    stripeAccountId={account.stripeAccountId}
+    status={account.status}
+    lastActivity={account.lastActivity}
+    topAlert={account.topAlert}
+    readableIssue={account.readableIssue}
+    hasRealData={hasRealData}
+  />
+))
+    )}
+  </div>
+</Panel>
+
+<Panel style={{ opacity: 0.92 }}>
+  <PanelHeader
+    title="All monitored accounts"
+    subtitle="Full list of connected accounts and their current status."
+  />
+
+  <div
+    style={{
+      border: "1px solid #e7edf5",
+      borderRadius: 16,
+      overflow: "hidden",
+    }}
+  >
+   <div
+  style={{
+    display: "grid",
+   gridTemplateColumns:
+ "minmax(320px, 1.4fr) 170px 120px",
+    padding: "12px 14px",
+    background: "#f8fafc",
+    borderBottom: "1px solid #e7edf5",
+    fontSize: 12,
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+    color: "#64748b",
+  }}
+>
+  <div>Account</div>
+  <div>Last activity</div>
+  <div>Severity</div>
+</div>
+
+    {healthyAccounts.length === 0 ? (
+      <div style={{ padding: 14 }}>
+        <SoftEmpty>No additional healthy accounts right now.</SoftEmpty>
+      </div>
+    ) : (
+      healthyAccounts.map((account, index) => (
+  <AccountRow
+    key={account.id}
+    href={`/dashboard/accounts/${encodeURIComponent(account.stripeAccountId)}`}
+    isLast={index === healthyAccounts.length - 1}
+    name={account.name ?? "Unnamed Stripe account"}
+    stripeAccountId={account.stripeAccountId}
+    status={account.status}
+    lastActivity={account.lastActivity}
+    topAlert={account.topAlert}
+    readableIssue={account.readableIssue}
+    hasRealData={hasRealData}
+  />
+))
+    )}
+  </div>
+</Panel>
 
             <Panel>
               <PanelHeader
@@ -531,6 +696,10 @@ export default async function DashboardPage() {
   );
 }
 
+
+
+
+
 /* ---------------- COMPONENTS ---------------- */
 
 function TopMonitorBar({
@@ -617,16 +786,23 @@ function TopMonitorBar({
   );
 }
 
-function Panel({ children }: { children: React.ReactNode }) {
+function Panel({
+  children,
+  style,
+}: {
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+}) {
   return (
     <section
-      style={{
-        background: "#ffffff",
-        border: "1px solid #e7edf5",
-        borderRadius: 22,
-        padding: 16,
-        boxShadow: "0 10px 30px rgba(15,23,42,0.04)",
-      }}
+     style={{
+  background: "#ffffff",
+  border: "1px solid #e7edf5",
+  borderRadius: 22,
+  padding: 16,
+  boxShadow: "0 10px 30px rgba(15,23,42,0.04)",
+  ...style,
+}}
     >
       {children}
     </section>
@@ -721,6 +897,7 @@ function PanelHeader({
 
 
 function AccountRow({
+  href,
   isLast,
   name,
   stripeAccountId,
@@ -730,6 +907,7 @@ function AccountRow({
   readableIssue,
   hasRealData,
 }: {
+  href: string;
   isLast?: boolean;
   name: string;
   stripeAccountId: string;
@@ -750,104 +928,97 @@ function AccountRow({
   readableIssue: string | null;
   hasRealData: boolean;
 }) {
-  const active = status === "active";
-  const hasIssue = !!topAlert;
-  const sev = topAlert ? severityMeta(topAlert.severity) : null;
+const hasIssue = !!topAlert;
+const sev = topAlert ? severityMeta(topAlert.severity) : null;
 
-  return (
+const rowAccent = topAlert
+  ? topAlert.severity === "critical"
+    ? {
+        background: "#fff7f7",
+        borderLeft: "3px solid #dc2626",
+      }
+    : {
+        background: "#fffdf7",
+        borderLeft: "3px solid #d97706",
+      }
+  : {
+      background: "#ffffff",
+      borderLeft: "3px solid transparent",
+    };
+
+   return (
+    <Link
+      href={href}
+      style={{
+        display: "block",
+        textDecoration: "none",
+        color: "inherit",
+      }}
+    >
    <div
+  className="account-row"
   style={{
     display: "grid",
-    gridTemplateColumns:
-      "minmax(320px, 1.4fr) 120px 170px 120px 150px",
+    gridTemplateColumns: "minmax(320px, 1.4fr) 170px 120px",
     padding: "14px",
-    background: hasIssue ? "#fff7f7" : "#ffffff",
-    borderLeft: hasIssue ? "3px solid #dc2626" : "3px solid transparent",
+    background: rowAccent.background,
+    borderLeft: rowAccent.borderLeft,
     borderBottom: isLast ? "none" : "1px solid #eef2f7",
     alignItems: "center",
+    cursor: "pointer",
+    transition: "all 0.15s ease",
   }}
 >
-      <div style={{ paddingRight: 12 }}>
-        <div
-          style={{
-            fontSize: 16,
-            fontWeight: 750,
-            color: "#0f172a",
-            lineHeight: 1.25,
-            marginBottom: 5,
-          }}
-        >
-          {name}
-        </div>
-
-       <div
-  style={{
-    fontSize: 12,
-    color: "#94a3b8",
-  }}
->
-  {hasRealData ? shortId(stripeAccountId) : "Demo account"}
-</div>
-
-{readableIssue && (
-  <div
-    style={{
-      marginTop: 8,
-      fontSize: 13,
-      lineHeight: 1.55,
-      color: "#475569",
-      maxWidth: 320,
-    }}
-  >
-    {readableIssue}
-  </div>
-)}
-
-
-      </div>
-
-      <TableValue
-        value={active ? "Active" : "Paused"}
-        accent={active ? "#166534" : "#64748b"}
-      />
-
-      <TableValue value={lastActivity ? fmtDate(lastActivity) : "No activity yet"} />
-
-      
-
-      <div>
-        {topAlert && sev ? (
-          <StatusChip
-            status={{
-              dot: sev.dot,
-              text: sev.text,
-              bg: sev.bg,
-              border: sev.border,
-            }}
-            label={sev.label}
-          />
-        ) : (
-          <span
+        <div style={{ paddingRight: 12 }}>
+          <div
             style={{
-              fontSize: 13,
-              fontWeight: 700,
-              color: "#166534",
+              fontSize: 16,
+              fontWeight: 750,
+              color: hasIssue ? "#0f172a" : "#334155",
+              lineHeight: 1.25,
+              marginBottom: 5,
             }}
           >
-            Healthy
-          </span>
-        )}
-      </div>
+            {name}
+          </div>
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-        }}
-      >
-        {active ? (
-          hasRealData ? (
-            <DisconnectButton stripeAccountId={stripeAccountId} />
+          <div
+            style={{
+              fontSize: 12,
+              color: "#94a3b8",
+            }}
+          >
+            {hasRealData ? shortId(stripeAccountId) : "Demo account"}
+          </div>
+
+          {readableIssue && (
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 13,
+                lineHeight: 1.55,
+                color: hasIssue ? "#475569" : "#64748b",
+                maxWidth: 320,
+              }}
+            >
+              {readableIssue}
+            </div>
+          )}
+        </div>
+
+        <TableValue value={lastActivity ? fmtDate(lastActivity) : "No activity yet"} />
+
+        <div>
+          {topAlert && sev ? (
+            <StatusChip
+              status={{
+                dot: sev.dot,
+                text: sev.text,
+                bg: sev.bg,
+                border: sev.border,
+              }}
+              label={sev.label}
+            />
           ) : (
             <span
               style={{
@@ -856,22 +1027,12 @@ function AccountRow({
                 color: "#166534",
               }}
             >
-              Monitoring active
+             Monitoring
             </span>
-          )
-        ) : (
-          <span
-            style={{
-              fontSize: 13,
-              fontWeight: 700,
-              color: "#64748b",
-            }}
-          >
-            Disconnected
-          </span>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+    </Link>
   );
 }
 

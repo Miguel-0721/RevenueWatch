@@ -1180,3 +1180,7 @@ a {
     overflow-x: auto;
   }
 }
+.account-row:hover {
+  filter: brightness(0.98);
+  transform: translateY(-1px);
+}
