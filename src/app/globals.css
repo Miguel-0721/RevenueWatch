@@ -1184,3 +1184,10 @@ a {
   filter: brightness(0.98);
   transform: translateY(-1px);
 }
+
+.legal-meta {
+  margin-top: 12px;
+  margin-bottom: 24px;
+  color: #6b7280; /* subtle gray */
+  font-size: 14px;
+}

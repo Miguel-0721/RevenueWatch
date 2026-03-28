@@ -18,7 +18,9 @@ export default function ContactPage() {
       <div className="container legal-container">
        <h1 className="legal-title">Contact</h1>
 <p className="legal-updated">RevenueWatch</p>
-<p>RevenueWatch is operated by Parmora, registered in the Netherlands.</p>
+<p className="legal-meta">
+  RevenueWatch is operated by Parmora, registered in the Netherlands.
+</p>
 
         <section className="legal-section">
           <h2>General inquiries</h2>
