@@ -8,9 +8,9 @@ export default function ContactPage() {
           </a>
 
           <div className="nav-actions">
-          <a href="/login" className="btn btn-primary">
-  Open dashboard
-</a>
+            <a href="/login" className="btn btn-primary">
+              Open dashboard
+            </a>
           </div>
         </div>
       </header>
@@ -23,7 +23,15 @@ export default function ContactPage() {
           <h2>General inquiries</h2>
           <p>
             For support, business inquiries, or general questions, contact us at{" "}
-            <a href="mailto:contact@revenuewatch.app">contact@revenuewatch.app</a>.
+            <a href="mailto:contact@revenuewatch.app">
+              contact@revenuewatch.app
+            </a>.
+          </p>
+
+          {/* ✅ ADDED PHONE + NOTE */}
+          <p>Phone: +31 6 27128476</p>
+          <p>
+            Support is primarily handled via email for faster assistance.
           </p>
         </section>
 
