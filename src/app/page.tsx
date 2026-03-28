@@ -414,7 +414,8 @@ export default function HomePage() {
       <footer className="site-footer">
         <div className="container footer-inner">
     <div>
-  © RevenueWatch • <a href="mailto:contact@revenuewatch.app">contact@revenuewatch.app</a>
+  © RevenueWatch • Operated by Parmora •{" "}
+  <a href="mailto:contact@revenuewatch.app">contact@revenuewatch.app</a>
 </div>
           <div className="footer-links">
             <a href="/privacy">Privacy</a>

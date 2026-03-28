@@ -118,7 +118,7 @@ export default function PrivacyPage() {
 
       <footer className="site-footer">
         <div className="container footer-inner">
-          <div>© RevenueWatch • contact@revenuewatch.app</div>
+         <div>© RevenueWatch • Operated by Parmora • contact@revenuewatch.app</div>
           <div className="footer-links">
             <a href="/privacy">Privacy</a>
             <a href="/terms">Terms</a>

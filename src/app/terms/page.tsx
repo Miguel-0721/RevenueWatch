@@ -22,8 +22,8 @@ export default function TermsPage() {
         <section className="legal-section">
           <h2>Overview</h2>
           <p>
-            These Terms of Service govern your use of RevenueWatch. By accessing or using
-            the service, you agree to these terms.
+           These Terms of Service govern your use of RevenueWatch. RevenueWatch is operated
+    by Parmora. By accessing or using the service, you agree to these terms.
           </p>
         </section>
 
@@ -111,7 +111,7 @@ export default function TermsPage() {
 
       <footer className="site-footer">
         <div className="container footer-inner">
-          <div>© RevenueWatch • contact@revenuewatch.app</div>
+       <div>© RevenueWatch • Operated by Parmora • contact@revenuewatch.app</div>
           <div className="footer-links">
             <a href="/privacy">Privacy</a>
             <a href="/terms">Terms</a>
