@@ -514,10 +514,11 @@ const healthyAccounts = monitoredAccounts.filter(
       overflow: "hidden",
     }}
   >
- <div
+    <div
   style={{
     display: "grid",
-    gridTemplateColumns: "minmax(320px, 1.4fr) 170px 120px 120px",
+    gridTemplateColumns:
+ "minmax(320px, 1.4fr) 170px 120px",
     padding: "12px 14px",
     background: "#f8fafc",
     borderBottom: "1px solid #e7edf5",
@@ -531,7 +532,6 @@ const healthyAccounts = monitoredAccounts.filter(
   <div>Account</div>
   <div>Last activity</div>
   <div>Severity</div>
-  <div>Action</div>
 </div>
 
     {problemAccounts.length === 0 ? (
@@ -569,10 +569,11 @@ const healthyAccounts = monitoredAccounts.filter(
       overflow: "hidden",
     }}
   >
- <div
+   <div
   style={{
     display: "grid",
-    gridTemplateColumns: "minmax(320px, 1.4fr) 170px 120px 120px",
+   gridTemplateColumns:
+ "minmax(320px, 1.4fr) 170px 120px",
     padding: "12px 14px",
     background: "#f8fafc",
     borderBottom: "1px solid #e7edf5",
@@ -586,7 +587,6 @@ const healthyAccounts = monitoredAccounts.filter(
   <div>Account</div>
   <div>Last activity</div>
   <div>Severity</div>
-  <div>Action</div>
 </div>
 
    {monitoredAccounts.length === 0 ? (
@@ -940,6 +940,8 @@ function PanelHeader({
   );
 }
 
+
+
 function AccountRow({
   href,
   isLast,
@@ -970,48 +972,48 @@ function AccountRow({
     | null;
   readableIssue: string | null;
 }) {
-  const hasIssue = !!topAlert;
-  const sev = topAlert ? severityMeta(topAlert.severity) : null;
+const hasIssue = !!topAlert;
+const sev = topAlert ? severityMeta(topAlert.severity) : null;
 
-  const rowAccent = topAlert
-    ? topAlert.severity === "critical"
-      ? {
-          background: "#fff7f7",
-          borderLeft: "3px solid #dc2626",
-        }
-      : {
-          background: "#fffdf7",
-          borderLeft: "3px solid #d97706",
-        }
+const rowAccent = topAlert
+  ? topAlert.severity === "critical"
+    ? {
+        background: "#fff7f7",
+        borderLeft: "3px solid #dc2626",
+      }
     : {
-        background: "#ffffff",
-        borderLeft: "3px solid transparent",
-      };
+        background: "#fffdf7",
+        borderLeft: "3px solid #d97706",
+      }
+  : {
+      background: "#ffffff",
+      borderLeft: "3px solid transparent",
+    };
 
-  return (
-    <div
-      className="account-row"
+   return (
+    <Link
+      href={href}
       style={{
-        display: "grid",
-        gridTemplateColumns: "minmax(320px, 1.4fr) 170px 120px 120px",
-        padding: "14px",
-        background: rowAccent.background,
-        borderLeft: rowAccent.borderLeft,
-        borderBottom: isLast ? "none" : "1px solid #eef2f7",
-        alignItems: "center",
-        transition: "all 0.15s ease",
+        display: "block",
+        textDecoration: "none",
+        color: "inherit",
       }}
     >
-      <Link
-        href={href}
-        style={{
-          display: "block",
-          textDecoration: "none",
-          color: "inherit",
-          paddingRight: 12,
-        }}
-      >
-        <div>
+   <div
+  className="account-row"
+  style={{
+    display: "grid",
+    gridTemplateColumns: "minmax(320px, 1.4fr) 170px 120px",
+    padding: "14px",
+    background: rowAccent.background,
+    borderLeft: rowAccent.borderLeft,
+    borderBottom: isLast ? "none" : "1px solid #eef2f7",
+    alignItems: "center",
+    cursor: "pointer",
+    transition: "all 0.15s ease",
+  }}
+>
+        <div style={{ paddingRight: 12 }}>
           <div
             style={{
               fontSize: 16,
@@ -1030,7 +1032,7 @@ function AccountRow({
               color: "#94a3b8",
             }}
           >
-            {shortId(stripeAccountId)}
+   {shortId(stripeAccountId)}
           </div>
 
           {readableIssue && (
@@ -1047,27 +1049,9 @@ function AccountRow({
             </div>
           )}
         </div>
-      </Link>
 
-      <Link
-        href={href}
-        style={{
-          display: "block",
-          textDecoration: "none",
-          color: "inherit",
-        }}
-      >
         <TableValue value={lastActivity ? fmtDate(lastActivity) : "No activity yet"} />
-      </Link>
 
-      <Link
-        href={href}
-        style={{
-          display: "block",
-          textDecoration: "none",
-          color: "inherit",
-        }}
-      >
         <div>
           {topAlert && sev ? (
             <StatusChip
@@ -1087,19 +1071,12 @@ function AccountRow({
                 color: "#166534",
               }}
             >
-              Monitoring
+             Monitoring
             </span>
           )}
         </div>
-      </Link>
-
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{ display: "flex", justifyContent: "flex-start" }}
-      >
-        <DisconnectButton stripeAccountId={stripeAccountId} />
       </div>
-    </div>
+    </Link>
   );
 }
 
