@@ -2,7 +2,8 @@ import { prisma } from "@/lib/prisma";
 import Navbar from "@/components/Navbar";
 import Link from "next/link";
 import { DisconnectButton } from "./DisconnectButton";
-
+import { auth } from "../../auth";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -375,15 +376,29 @@ const demoAlerts = [
   },
 ];
 
+
+
+
 /* ---------------- PAGE ---------------- */
 
+
+
+
 export default async function DashboardPage() {
+
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
+
   const [alerts, stripeAccounts, lastEvents] = await Promise.all([
     prisma.alert.findMany({
       orderBy: { createdAt: "desc" },
       take: 50,
     }),
-    prisma.stripeAccount.findMany({
+       prisma.stripeAccount.findMany({
+      where: { userId: session.user.id },
       orderBy: { createdAt: "desc" },
     }),
     prisma.stripeEvent.groupBy({

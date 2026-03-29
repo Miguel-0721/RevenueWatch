@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { auth } from "../../../../auth";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -39,6 +40,12 @@ export async function GET(req: Request) {
 
   const redirectUri = `${appUrl}/api/stripe/callback`;
 
+    const session = await auth();
+
+  if (!session?.user?.id) {
+    return NextResponse.redirect(new URL("/login", req.url));
+  }
+
   try {
     const response = await fetch("https://connect.stripe.com/oauth/token", {
       method: "POST",
@@ -74,14 +81,16 @@ export async function GET(req: Request) {
       );
     }
 
-    await prisma.stripeAccount.upsert({
+       await prisma.stripeAccount.upsert({
       where: { stripeAccountId },
       update: {
         status: "active",
+        userId: session.user.id,
       },
       create: {
         stripeAccountId,
         status: "active",
+        userId: session.user.id,
       },
     });
 
