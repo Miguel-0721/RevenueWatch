@@ -57,6 +57,26 @@ function systemMeta(activeAlertsCount: number) {
 }
 
 
+function getAlertAccountName(
+  alert: {
+    stripeAccountId?: string | null;
+    accountName?: string | null;
+  },
+  accountNameById: Map<string, string>
+) {
+  if (typeof alert.accountName === "string" && alert.accountName.trim() !== "") {
+    return alert.accountName;
+  }
+
+  if (alert.stripeAccountId) {
+    return accountNameById.get(alert.stripeAccountId) ?? "Unnamed account";
+  }
+
+  return "Unnamed account";
+}
+
+
+
 function headerIssueLabel(activeAlerts: Array<{ severity: string }>) {
   const criticalCount = activeAlerts.filter(
     (alert) => alert.severity === "critical"
@@ -372,28 +392,28 @@ export default async function DashboardPage() {
     }),
   ]);
 
-  const hasRealData = stripeAccounts.length > 0;
+ const hasRealData = stripeAccounts.length > 0;
 
-  const displayStripeAccounts = hasRealData ? stripeAccounts : demoStripeAccounts;
-  const displayAlerts = hasRealData ? alerts : demoAlerts;
+const displayStripeAccounts = stripeAccounts;
+const displayAlerts = alerts;
 
-  const lastEventByAccount = hasRealData
-    ? new Map(lastEvents.map((e) => [e.stripeAccountId, e._max.createdAt]))
-    : demoLastEventByAccount;
+const lastEventByAccount = new Map(
+  lastEvents.map((e) => [e.stripeAccountId, e._max.createdAt])
+);
 
-  const accountNameById = new Map(
-    displayStripeAccounts.map((account) => [
-      account.stripeAccountId,
-      account.name ?? "Unnamed Stripe account",
-    ])
-  );
+const accountNameById = new Map(
+  displayStripeAccounts.map((account) => [
+    account.stripeAccountId,
+    account.name ?? "Unnamed Stripe account",
+  ])
+);
 
-  const now = hasRealData ? new Date() : DEMO_NOW;
-  const activeAlerts = displayAlerts.filter((a) => a.windowEnd > now);
-  const historicalAlerts = displayAlerts.filter((a) => a.windowEnd <= now);
-  const activeAccounts = displayStripeAccounts.filter((a) => a.status === "active");
-  const status = systemMeta(activeAlerts.length);
-  const envLabel = hasRealData ? "Live" : "Preview";
+const now = new Date();
+const activeAlerts = displayAlerts.filter((a) => a.windowEnd > now);
+const historicalAlerts = displayAlerts.filter((a) => a.windowEnd <= now);
+const activeAccounts = displayStripeAccounts.filter((a) => a.status === "active");
+const status = systemMeta(activeAlerts.length);
+const envLabel = "Live";
 
   const topIssueLabel = headerIssueLabel(activeAlerts);
 
@@ -530,7 +550,6 @@ const healthyAccounts = monitoredAccounts.filter(
     lastActivity={account.lastActivity}
     topAlert={account.topAlert}
     readableIssue={account.readableIssue}
-    hasRealData={hasRealData}
   />
 ))
     )}
@@ -570,11 +589,15 @@ const healthyAccounts = monitoredAccounts.filter(
   <div>Severity</div>
 </div>
 
-    {healthyAccounts.length === 0 ? (
-      <div style={{ padding: 14 }}>
-        <SoftEmpty>No additional healthy accounts right now.</SoftEmpty>
-      </div>
-    ) : (
+   {monitoredAccounts.length === 0 ? (
+  <div style={{ padding: 14 }}>
+    <SoftEmpty>No Stripe accounts connected yet.</SoftEmpty>
+  </div>
+) : healthyAccounts.length === 0 ? (
+  <div style={{ padding: 14 }}>
+    <SoftEmpty>No additional healthy accounts right now.</SoftEmpty>
+  </div>
+) : (
       healthyAccounts.map((account, index) => (
   <AccountRow
     key={account.id}
@@ -586,7 +609,6 @@ const healthyAccounts = monitoredAccounts.filter(
     lastActivity={account.lastActivity}
     topAlert={account.topAlert}
     readableIssue={account.readableIssue}
-    hasRealData={hasRealData}
   />
 ))
     )}
@@ -606,12 +628,7 @@ const healthyAccounts = monitoredAccounts.filter(
                   historicalAlerts.map((alert) => (
                     <HistoryCard
                       key={alert.id}
-                      accountName={
-                        "accountName" in alert && alert.accountName
-                          ? alert.accountName
-                          : accountNameById.get(alert.stripeAccountId ?? "") ??
-                            "Unnamed account"
-                      }
+                    accountName={getAlertAccountName(alert, accountNameById)}
                       type={alert.type}
                       severity={alert.severity}
                       message={alert.message}
@@ -626,27 +643,60 @@ const healthyAccounts = monitoredAccounts.filter(
           </div>
 
        <div style={{ display: "grid", gap: 18 }}>
-  <Panel>
-    <PanelEyebrow>Connection</PanelEyebrow>
-    <PanelTitle>Stripe Connect</PanelTitle>
-    <PanelText>
-      {hasRealData
-        ? "Stripe Connect will be enabled after account activation."
-        : "Preview mode is showing example accounts and example alerts before live Stripe activation."}
-    </PanelText>
 
-    <div style={{ marginTop: 14 }}>
+
+
+<Panel>
+  <PanelEyebrow>Connection</PanelEyebrow>
+  <PanelTitle>Stripe Connect</PanelTitle>
+  <PanelText>
+    {activeAccounts.length > 0
+      ? "Your Stripe account is connected and monitoring is active."
+      : "Connect your Stripe account to start monitoring live payment failures and revenue drops."}
+  </PanelText>
+
+  <div
+    style={{
+      marginTop: 14,
+      display: "flex",
+      gap: 10,
+      flexWrap: "wrap",
+      alignItems: "center",
+    }}
+  >
+    {activeAccounts.length > 0 ? (
       <StatusChip
         status={{
-          dot: "#64748b",
-          text: "#475569",
-          bg: "#f8fafc",
-          border: "1px solid #e2e8f0",
+          dot: "#16a34a",
+          text: "#166534",
+          bg: "#f0fdf4",
+          border: "1px solid #bbf7d0",
         }}
-        label="Coming soon"
+        label="Connected"
       />
-    </div>
-  </Panel>
+    ) : (
+      <a
+        href="/api/stripe/connect"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "10px 14px",
+          borderRadius: 12,
+          background: "#0f172a",
+          color: "#ffffff",
+          textDecoration: "none",
+          fontSize: 14,
+          fontWeight: 700,
+        }}
+      >
+        Connect Stripe
+      </a>
+    )}
+  </div>
+</Panel>
+
+
 
  <Panel>
   <PanelHeader
@@ -666,11 +716,7 @@ const healthyAccounts = monitoredAccounts.filter(
     }}
   >
     {activeIncidents.map((incident) => {
-        const accountName =
-          "accountName" in incident && incident.accountName
-            ? incident.accountName
-            : accountNameById.get(incident.stripeAccountId ?? "") ??
-              "Unnamed account";
+      const accountName = getAlertAccountName(incident, accountNameById);
 
         return (
         <CompactIncidentCard
@@ -905,7 +951,6 @@ function AccountRow({
   lastActivity,
   topAlert,
   readableIssue,
-  hasRealData,
 }: {
   href: string;
   isLast?: boolean;
@@ -926,7 +971,6 @@ function AccountRow({
       }
     | null;
   readableIssue: string | null;
-  hasRealData: boolean;
 }) {
 const hasIssue = !!topAlert;
 const sev = topAlert ? severityMeta(topAlert.severity) : null;
@@ -988,7 +1032,7 @@ const rowAccent = topAlert
               color: "#94a3b8",
             }}
           >
-            {hasRealData ? shortId(stripeAccountId) : "Demo account"}
+   {shortId(stripeAccountId)}
           </div>
 
           {readableIssue && (
