@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import Navbar from "@/components/Navbar";
 import Link from "next/link";
 import { DisconnectButton } from "./DisconnectButton";
-import { auth } from "../../auth";
+import { auth, signOut } from "../../auth";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -501,12 +501,97 @@ const healthyAccounts = monitoredAccounts.filter(
           padding: "104px 20px 72px",
         }}
       >
-      <TopMonitorBar
-  envLabel={envLabel}
-  status={status}
-  accountsCount={activeAccounts.length}
-  topIssueLabel={topIssueLabel}
-/>
+          <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr) auto",
+          gap: 16,
+          alignItems: "start",
+          marginBottom: 18,
+        }}
+      >
+        <TopMonitorBar
+          envLabel={envLabel}
+          status={status}
+          accountsCount={activeAccounts.length}
+          topIssueLabel={topIssueLabel}
+        />
+
+        <section
+          style={{
+            background: "#ffffff",
+            border: "1px solid #e7edf5",
+            borderRadius: 18,
+            padding: 14,
+            boxShadow: "0 10px 30px rgba(15,23,42,0.04)",
+            minWidth: 260,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 800,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: "#64748b",
+              marginBottom: 8,
+            }}
+          >
+            Account
+          </div>
+
+          <div
+            style={{
+              fontSize: 15,
+              fontWeight: 700,
+              color: "#0f172a",
+              lineHeight: 1.3,
+            }}
+          >
+            {session.user.name || "Signed in user"}
+          </div>
+
+          <div
+            style={{
+              fontSize: 13,
+              color: "#64748b",
+              marginTop: 4,
+              lineHeight: 1.5,
+              wordBreak: "break-word",
+            }}
+          >
+            {session.user.email}
+          </div>
+
+          <form
+            action={async () => {
+              "use server";
+              await signOut({ redirectTo: "/login" });
+            }}
+            style={{ marginTop: 12 }}
+          >
+            <button
+              type="submit"
+              style={{
+                width: "100%",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "10px 12px",
+                borderRadius: 12,
+                background: "#0f172a",
+                color: "#ffffff",
+                border: "none",
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Sign out
+            </button>
+          </form>
+        </section>
+      </div>
         <div
           style={{
             display: "grid",
