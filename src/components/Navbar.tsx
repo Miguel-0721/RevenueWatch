@@ -17,56 +17,103 @@ export default async function Navbar() {
             gap: "14px",
           }}
         >
-          <a href="/" className="btn btn-secondary">
-            Back to home
-          </a>
+          <a
+  href="/"
+  style={{
+    fontSize: "13px",
+    color: "#64748b",
+    textDecoration: "none",
+    fontWeight: 600,
+  }}
+>
+  ← Home
+</a>
 
           {session?.user ? (
             <div
               style={{
                 display: "flex",
-                flexDirection: "column",
-                alignItems: "flex-end",
-                lineHeight: 1.2,
+                alignItems: "center",
+                gap: "12px",
+                paddingLeft: "12px",
+                borderLeft: "1px solid #e7edf5",
               }}
             >
-              <span
-                style={{
-                  fontSize: "14px",
-                  fontWeight: 700,
-                  color: "#0f172a",
-                }}
-              >
-                {session.user.name || "Signed in user"}
-              </span>
+              {session.user.image ? (
+                <img
+                  src={session.user.image}
+                  alt={session.user.name || "User"}
+                  style={{
+                    width: "36px",
+                    height: "36px",
+                    borderRadius: "999px",
+                    objectFit: "cover",
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: "36px",
+                    height: "36px",
+                    borderRadius: "999px",
+                    background: "#e2e8f0",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    color: "#334155",
+                  }}
+                >
+                  {(session.user.name?.[0] || session.user.email?.[0] || "U").toUpperCase()}
+                </div>
+              )}
 
-              <span
+              <div
                 style={{
-                  fontSize: "12px",
-                  color: "#64748b",
-                  marginTop: "2px",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-start",
+                  lineHeight: 1.2,
                 }}
               >
-                {session.user.email}
-              </span>
+                <span
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: 700,
+                    color: "#0f172a",
+                  }}
+                >
+                  {session.user.name || "Signed in user"}
+                </span>
+
+                <span
+                  style={{
+                    fontSize: "12px",
+                    color: "#64748b",
+                    marginTop: "2px",
+                  }}
+                >
+                  {session.user.email}
+                </span>
+              </div>
 
               <form
                 action={async () => {
                   "use server";
                   await signOut({ redirectTo: "/login" });
                 }}
-                style={{ marginTop: "4px" }}
               >
                 <button
                   type="submit"
                   style={{
-                    background: "none",
-                    border: "none",
-                    padding: 0,
-                    margin: 0,
+                    background: "#ffffff",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "10px",
+                    padding: "8px 12px",
                     fontSize: "12px",
-                    fontWeight: 600,
-                    color: "#2563eb",
+                    fontWeight: 700,
+                    color: "#334155",
                     cursor: "pointer",
                   }}
                 >

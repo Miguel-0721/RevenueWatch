@@ -493,12 +493,12 @@ const healthyAccounts = monitoredAccounts.filter(
     >
 
       <div
-        style={{
-          maxWidth: 1460,
-          margin: "0 auto",
-padding: "96px 20px 72px",
-        }}
-      >
+  style={{
+    maxWidth: 1160,
+    margin: "0 auto",
+    padding: "96px 20px 72px",
+  }}
+>
           <div
         style={{
           display: "grid",
