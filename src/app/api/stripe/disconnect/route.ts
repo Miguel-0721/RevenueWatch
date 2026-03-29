@@ -11,11 +11,17 @@ export async function POST(req: Request) {
     );
   }
 
- await prisma.stripeAccount.update({
-  where: { stripeAccountId },
-  data: { status: "disconnected" },
-});
+  try {
+    await prisma.stripeAccount.update({
+      where: { stripeAccountId },
+      data: { status: "disconnected" },
+    });
 
-
-  return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Failed to disconnect account" },
+      { status: 500 }
+    );
+  }
 }
