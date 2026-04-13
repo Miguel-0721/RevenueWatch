@@ -1,101 +1,46 @@
+import Link from "next/link";
+import StitchIcon from "./StitchIcon";
 import { auth, signOut } from "../auth";
+
+function Brand() {
+  return (
+    <Link href="/" className="rw-brand">
+      <StitchIcon name="monitoring" className="rw-icon" />
+      <span className="rw-wordmark">RevenueWatch</span>
+    </Link>
+  );
+}
 
 export default async function Navbar() {
   const session = await auth();
 
-  return (
-    <header className="navbar">
-      <div className="container navbar-inner">
-        <a href="/" className="logo">
-          RevenueWatch
-        </a>
+  if (session?.user) {
+    return (
+      <header className="rw-topbar">
+        <div className="rw-shell rw-topbar-inner">
+          <Brand />
 
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "14px",
-          }}
-        >
-          <a
-  href="/"
-  style={{
-    fontSize: "13px",
-    color: "#64748b",
-    textDecoration: "none",
-    fontWeight: 600,
-  }}
->
-  ← Home
-</a>
+          <div className="rw-auth-area">
+            <Link href="/" className="rw-back-link">
+              Home
+            </Link>
 
-          {session?.user ? (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                paddingLeft: "12px",
-                borderLeft: "1px solid #e7edf5",
-              }}
-            >
+            <div className="rw-user-block">
               {session.user.image ? (
                 <img
                   src={session.user.image}
                   alt={session.user.name || "User"}
-                  style={{
-                    width: "36px",
-                    height: "36px",
-                    borderRadius: "999px",
-                    objectFit: "cover",
-                  }}
+                  className="rw-avatar"
                 />
               ) : (
-                <div
-                  style={{
-                    width: "36px",
-                    height: "36px",
-                    borderRadius: "999px",
-                    background: "#e2e8f0",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "13px",
-                    fontWeight: 700,
-                    color: "#334155",
-                  }}
-                >
+                <div className="rw-avatar rw-avatar-fallback">
                   {(session.user.name?.[0] || session.user.email?.[0] || "U").toUpperCase()}
                 </div>
               )}
 
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "flex-start",
-                  lineHeight: 1.2,
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: "14px",
-                    fontWeight: 700,
-                    color: "#0f172a",
-                  }}
-                >
-                  {session.user.name || "Signed in user"}
-                </span>
-
-                <span
-                  style={{
-                    fontSize: "12px",
-                    color: "#64748b",
-                    marginTop: "2px",
-                  }}
-                >
-                  {session.user.email}
-                </span>
+              <div className="rw-user-meta">
+                <span>{session.user.name || "Signed in user"}</span>
+                <small>{session.user.email}</small>
               </div>
 
               <form
@@ -104,25 +49,40 @@ export default async function Navbar() {
                   await signOut({ redirectTo: "/login" });
                 }}
               >
-                <button
-                  type="submit"
-                  style={{
-                    background: "#ffffff",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "10px",
-                    padding: "8px 12px",
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    color: "#334155",
-                    cursor: "pointer",
-                  }}
-                >
+                <button type="submit" className="rw-signout">
                   Sign out
                 </button>
               </form>
             </div>
-          ) : null}
+          </div>
         </div>
+      </header>
+    );
+  }
+
+  return (
+    <header className="rw-topbar">
+      <div className="rw-shell rw-topbar-inner">
+        <Brand />
+
+        <nav className="rw-nav-links" aria-label="Primary">
+          <Link href="/" className="rw-nav-link rw-nav-link-active">
+            Home
+          </Link>
+          <Link href="/#how-it-works" className="rw-nav-link">
+            How it Works
+          </Link>
+          <Link href="/#pricing" className="rw-nav-link">
+            Pricing
+          </Link>
+          <Link href="/contact" className="rw-nav-link">
+            Support
+          </Link>
+        </nav>
+
+        <Link href="/login" className="rw-connect-button">
+          Connect Stripe
+        </Link>
       </div>
     </header>
   );

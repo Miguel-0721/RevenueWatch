@@ -1,30 +1,18 @@
+import MarketingFooter from "@/components/MarketingFooter";
+
 export default function PrivacyPage() {
   return (
     <main className="legal-page">
-      <header className="navbar">
-        <div className="container navbar-inner">
-          <a href="/" className="logo">
-            RevenueWatch
-          </a>
-
-          <div className="nav-actions">
-           <a href="/login" className="btn btn-primary">
-  Open dashboard
-</a>
-          </div>
-        </div>
-      </header>
-
-      <div className="container legal-container">
+      <div className="rw-shell legal-container">
         <h1 className="legal-title">Privacy Policy</h1>
         <p className="legal-updated">Last updated: March 2026</p>
 
         <section className="legal-section">
           <h2>Overview</h2>
           <p>
-            RevenueWatch provides read-only monitoring and alerting for connected Stripe
-            accounts. This Privacy Policy explains what information we collect, how we
-            use it, and how we protect it.
+            RevenueWatch provides read-only monitoring and alerting for connected
+            Stripe accounts. This Privacy Policy explains what information we
+            collect, how we use it, and how we protect it.
           </p>
         </section>
 
@@ -50,62 +38,65 @@ export default function PrivacyPage() {
         </section>
 
         <section className="legal-section">
-  <h2>Stripe data access</h2>
-  <p>
-    RevenueWatch is designed as a read-only monitoring tool. We do not move
-    money, modify billing settings, or process customer payments on your behalf.
-  </p>
-  <p>
-    Data accessed from Stripe is used solely for monitoring purposes and is not
-    shared with third parties beyond operational service providers needed to run
-    RevenueWatch.
-  </p>
-</section>
+          <h2>Stripe data access</h2>
+          <p>
+            RevenueWatch is designed as a read-only monitoring tool. We do not
+            move money, modify billing settings, or process customer payments on
+            your behalf.
+          </p>
+          <p>
+            Data accessed from Stripe is used solely for monitoring purposes and
+            is not shared with third parties beyond operational service providers
+            needed to run RevenueWatch.
+          </p>
+        </section>
 
         <section className="legal-section">
           <h2>Data retention</h2>
           <p>
-            We retain data only as long as reasonably necessary to provide the service,
-            maintain operational records, improve reliability, and comply with legal
-            obligations.
+            We retain data only as long as reasonably necessary to provide the
+            service, maintain operational records, improve reliability, and
+            comply with legal obligations.
           </p>
         </section>
 
         <section className="legal-section">
           <h2>Data sharing</h2>
           <p>
-            We do not sell your data. We may share data only with service providers
-            necessary to operate RevenueWatch, such as hosting, email delivery, database,
-            and infrastructure providers, or when required by law.
+            We do not sell your data. We may share data only with service
+            providers necessary to operate RevenueWatch, such as hosting, email
+            delivery, database, and infrastructure providers, or when required by
+            law.
           </p>
         </section>
 
         <section className="legal-section">
           <h2>Security</h2>
           <p>
-            We take reasonable technical and organizational measures to protect data
-            against unauthorized access, misuse, or disclosure. However, no system can be
-            guaranteed to be completely secure.
+            We take reasonable technical and organizational measures to protect
+            data against unauthorized access, misuse, or disclosure. However, no
+            system can be guaranteed to be completely secure.
           </p>
         </section>
 
         <section className="legal-section">
           <h2>Your choices</h2>
           <p>
-            You may contact us to request account disconnection or ask questions about
-            your data. Disconnecting a Stripe account pauses monitoring for that account.
+            You may contact us to request account disconnection or ask questions
+            about your data. Disconnecting a Stripe account pauses monitoring for
+            that account.
           </p>
         </section>
 
-
-<section className="legal-section">
-  <h2>GDPR and data rights</h2>
-  <p>
-    We comply with applicable data protection laws, including the General Data
-    Protection Regulation (GDPR). Users in the European Union may request access
-    to, correction of, or deletion of their personal data by contacting us.
-  </p>
-</section>
+        <section className="legal-section">
+          <h2>GDPR and data rights</h2>
+          <p>
+            We comply with applicable data protection laws, including the General
+            Data Protection Regulation (GDPR). Users in the European Union may
+            request access to, correction of, or deletion of their personal data
+            by contacting us.
+          </p>
+        </section>
 
         <section className="legal-section">
           <h2>Contact</h2>
@@ -116,16 +107,7 @@ export default function PrivacyPage() {
         </section>
       </div>
 
-      <footer className="site-footer">
-        <div className="container footer-inner">
-         <div>© RevenueWatch • Operated by Parmora • contact@revenuewatch.app</div>
-          <div className="footer-links">
-            <a href="/privacy">Privacy</a>
-            <a href="/terms">Terms</a>
-            <a href="/contact">Contact</a>
-          </div>
-        </div>
-      </footer>
+      <MarketingFooter />
     </main>
   );
 }

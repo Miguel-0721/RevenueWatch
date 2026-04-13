@@ -1,429 +1,435 @@
-export default function HomePage() {
+import Link from "next/link";
+import MarketingFooter from "@/components/MarketingFooter";
+import StitchIcon from "@/components/StitchIcon";
+import type { IconName } from "@/components/StitchIcon";
+import styles from "./page.module.css";
+
+function HeroWidget() {
   return (
-    <main className="landing-page">
-
-<header className="navbar">
-  <div className="container navbar-inner">
-    <a href="/" className="logo">RevenueWatch</a>
-
-  <div className="nav-actions">
-  <a href="/login" className="btn btn-primary">
-    Get started
-  </a>
-</div>
-  </div>
-</header>
-
-       <section className="hero">
-        <div className="container hero-grid">
-          <div className="hero-copy">
-           <h1 className="hero-title">
-  Catch payment failures and revenue drops before your clients do
-</h1>
-
-            <p className="hero-subtitle">
-              Get notified when payments fail or revenue drops across your Stripe
-              accounts. Read-only monitoring, clear alerts, and no money movement.
-            </p>
-
-            <div className="hero-actions">
-             <a href="/login" className="btn btn-primary">
-  Connect Stripe &amp; start monitoring
-</a>
-              <a href="#how-it-works" className="btn btn-secondary">
-                How it works
-              </a>
+    <div className={styles.heroWidgetWrap}>
+      <div className={styles.heroWidget}>
+        <div className={styles.heroWidgetTop}>
+          <div>
+            <p className={styles.overline}>Live Revenue Monitor</p>
+            <div className={styles.heroKpiRow}>
+              <h3>$12,482.00</h3>
+              <StitchIcon name="error" className={styles.errorIcon} />
             </div>
-
-        
           </div>
 
-          <div className="hero-visual">
-            <div className="alert-preview">
-              <div className="alert-preview-header">
-                <span className="alert-badge">Example alert</span>
-                <span className="alert-time">2 min ago</span>
-              </div>
+          <div className={styles.anomalyCard}>
+            <span>Anomaly Detected</span>
+            <p>-42.4% vs Projected</p>
+          </div>
+        </div>
 
-              <div className="alert-preview-card">
-                <div className="alert-preview-top">
-                  <div>
-                    <p className="alert-label">Revenue drop</p>
-                    <h3>Client account revenue down 42%</h3>
-                  </div>
-                  <span className="severity-pill severity-high">High</span>
-                </div>
+        <div className={styles.graphCard}>
+          <svg viewBox="0 0 400 160" className={styles.graphSvg} aria-hidden="true">
+            <defs>
+              <linearGradient id="lineGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#0070eb" stopOpacity="0.08" />
+                <stop offset="100%" stopColor="#0070eb" stopOpacity="0" />
+              </linearGradient>
+            </defs>
 
-                <div className="alert-preview-details">
-                  <div className="detail-row">
-                    <span>Stripe account</span>
-                    <strong>Client A</strong>
-                  </div>
-                  <div className="detail-row">
-                    <span>Window</span>
-                    <strong>Last 2 hours</strong>
-                  </div>
-                  <div className="detail-row">
-                    <span>Status</span>
-                    <strong>Email alert sent</strong>
-                  </div>
-                </div>
-              </div>
+            <g stroke="#e2e8f0" strokeWidth="0.5">
+              <line x1="0" y1="20" x2="400" y2="20" />
+              <line x1="0" y1="40" x2="400" y2="40" />
+              <line x1="0" y1="60" x2="400" y2="60" />
+              <line x1="0" y1="80" x2="400" y2="80" />
+              <line x1="0" y1="100" x2="400" y2="100" />
+              <line x1="0" y1="120" x2="400" y2="120" />
+              <line x1="0" y1="140" x2="400" y2="140" />
+            </g>
 
-              <p className="alert-preview-note">
-                RevenueWatch surfaces issues like this quickly with calm,
-                read-only alerts.
+            <g stroke="#e2e8f0" strokeDasharray="2,2" strokeWidth="0.5">
+              <line x1="100" y1="0" x2="100" y2="160" />
+              <line x1="200" y1="0" x2="200" y2="160" />
+              <line x1="300" y1="0" x2="300" y2="160" />
+            </g>
+
+            <path
+              d="M 0 50 L 50 48 L 100 52 L 150 49 L 200 51 L 250 48 L 300 50 L 350 49 L 400 50"
+              fill="none"
+              stroke="#cbd5e1"
+              strokeDasharray="3,3"
+              strokeWidth="0.75"
+            />
+
+            <path
+              d="M 0 52 L 40 48 L 80 50 L 120 46 L 160 54 L 200 48 L 240 52 L 270 55 L 290 130 L 320 135 L 350 120 L 400 115 L 400 160 L 0 160 Z"
+              fill="url(#lineGradient)"
+            />
+
+            <path
+              d="M 0 52 L 40 48 L 80 50 L 120 46 L 160 54 L 200 48 L 240 52 L 270 55 L 290 130 L 320 135 L 350 120 L 400 115"
+              fill="none"
+              stroke="#0070eb"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="1.5"
+            />
+
+            <path
+              d="M 270 55 L 290 130 L 320 135"
+              fill="none"
+              stroke="#ba1a1a"
+              strokeLinecap="round"
+              strokeWidth="2"
+            />
+
+            <circle cx="0" cy="52" r="1.5" fill="#0070eb" />
+            <circle cx="200" cy="48" r="1.5" fill="#0070eb" />
+            <circle cx="270" cy="55" r="1.5" fill="#0070eb" />
+            <circle cx="290" cy="130" r="5" fill="#ba1a1a" opacity="0.4" />
+            <circle cx="290" cy="130" r="2.5" fill="#ba1a1a" />
+          </svg>
+
+          <div className={styles.overlayTag}>Anomaly Detected</div>
+        </div>
+
+        <div className={styles.graphMeta}>
+          <div className={styles.graphMetaCard}>
+            <p className={styles.overline}>Stripe Account</p>
+            <div className={styles.accountRow}>
+              <span className={styles.accountDot} />
+              <span>Alpha Tech Global</span>
+            </div>
+          </div>
+
+          <div className={styles.graphMetaCard}>
+            <p className={styles.overline}>Alert Priority</p>
+            <span className={styles.criticalText}>Critical Action Required</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TrustCard({
+  icon,
+  title,
+  body,
+}: {
+  icon: IconName;
+  title: string;
+  body: string;
+}) {
+  return (
+    <article className={styles.trustCard}>
+      <div className={styles.trustIconWrap}>
+        <StitchIcon name={icon} className={styles.trustIcon} />
+      </div>
+      <h3>{title}</h3>
+      <p>{body}</p>
+    </article>
+  );
+}
+
+function PricingCard({
+  tier,
+  description,
+  price,
+  suffix,
+  items,
+  cta,
+  featured = false,
+}: {
+  tier: string;
+  description: string;
+  price: string;
+  suffix?: string;
+  items: string[];
+  cta: string;
+  featured?: boolean;
+}) {
+  return (
+    <article className={`${styles.pricingCard} ${featured ? styles.pricingFeatured : ""}`}>
+      {featured ? <span className={styles.popularBadge}>Most Popular</span> : null}
+
+      <p className={`${styles.tierLabel} ${featured ? styles.tierFeatured : ""}`}>{tier}</p>
+      <p className={styles.tierDescription}>{description}</p>
+
+      <div className={styles.priceRow}>
+        <span>{price}</span>
+        {suffix ? <small>{suffix}</small> : null}
+      </div>
+
+      <ul className={styles.pricingList}>
+        {items.map((item) => (
+          <li key={item}>
+            <StitchIcon
+              name="check_circle"
+              filled={featured}
+              className={styles.checkIcon}
+            />
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+
+      <Link
+        href={tier === "Pro" ? "/contact" : "/login"}
+        className={featured ? styles.primaryAction : styles.secondaryAction}
+      >
+        {cta}
+      </Link>
+    </article>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <main className={styles.page}>
+      <section className={styles.heroSection}>
+        <div className={styles.shell}>
+          <div className={styles.heroGrid}>
+            <div className={styles.heroCopy}>
+              <span className={styles.partnerBadge}>
+                <StitchIcon name="verified" filled className={styles.partnerIcon} />
+                Stripe Verified Partner
+              </span>
+
+              <h1>
+                Catch <span>payment failures</span> and <span>revenue drops</span>{" "}
+                before your clients do.
+              </h1>
+
+              <p>
+                Get notified when payments fail or revenue drops across your Stripe
+                accounts. Read-only monitoring, clear alerts, and no money movement.
               </p>
+
+              <div className={styles.heroActions}>
+                <Link href="/login" className={styles.primaryAction}>
+                  Connect Stripe &amp; start monitoring
+                  <StitchIcon name="arrow_forward" className={styles.arrowIcon} />
+                </Link>
+
+                <a href="#how-it-works" className={styles.secondaryAction}>
+                  How it works
+                </a>
+              </div>
+            </div>
+
+            <HeroWidget />
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.trustSection}>
+        <div className={styles.shell}>
+          <div className={styles.centerHeading}>
+            <h2>Secure, calm monitoring.</h2>
+            <p>We focus on your revenue health without ever touching your money.</p>
+          </div>
+
+          <div className={styles.trustGrid}>
+            <TrustCard
+              icon="visibility"
+              title="Read-only access"
+              body="We monitor Stripe data without changing billing, payouts, or account settings."
+            />
+            <TrustCard
+              icon="block"
+              title="No money movement"
+              body="RevenueWatch does not move funds, edit payouts, or perform financial actions."
+            />
+            <TrustCard
+              icon="notifications"
+              title="Monitoring and alerts only"
+              body="Get clear alerts when payment failures spike or revenue drops unexpectedly."
+            />
+          </div>
+        </div>
+      </section>
+
+      <section id="how-it-works" className={styles.workflowSection}>
+        <div className={styles.shell}>
+          <div className={styles.sectionHeading}>
+            <h2>How it works.</h2>
+            <div className={styles.headingBar} />
+          </div>
+
+          <div className={styles.workflowGrid}>
+            <article className={styles.stepOne}>
+              <div>
+                <div className={styles.darkStep}>1</div>
+                <h3>Connect with Stripe.</h3>
+                <p>
+                  Securely connect your Stripe accounts using read-only access.
+                  One-click OAuth integration for monitoring only.
+                </p>
+              </div>
+
+              <div className={styles.integrationCard}>
+                <div className={styles.integrationAvatars} aria-hidden="true">
+                  <span className={styles.avatarMuted} />
+                  <span className={styles.avatarBlue}>
+                    <StitchIcon name="sync" className={styles.syncIcon} />
+                  </span>
+                </div>
+
+                <div>
+                  <strong>Stripe Integrated</strong>
+                  <p>Read-only permissions active</p>
+                </div>
+              </div>
+            </article>
+
+            <article className={styles.stepTwo}>
+              <div className={styles.lightStep}>2</div>
+
+              <div>
+                <h3>Monitoring in the background.</h3>
+                <p>
+                  RevenueWatch tracks <span>payment failures</span> and revenue
+                  changes in real time, looking for anything unusual.
+                </p>
+              </div>
+
+              <div className={styles.queryBubble}>
+                <StitchIcon name="query_stats" className={styles.queryIcon} />
+              </div>
+            </article>
+
+            <article className={styles.stepThree}>
+              <div className={styles.stepThreeCopy}>
+                <div className={styles.darkStep}>3</div>
+                <h3>Get notified instantly.</h3>
+                <p>
+                  Receive a clear email when something needs your attention. Fixed
+                  before the client even notices a drop. No complex dashboards, just
+                  the info you need.
+                </p>
+              </div>
+
+              <div className={styles.noticeCard}>
+                <div className={styles.noticeTop}>
+                  <div className={styles.noticeTitle}>
+                    <div className={styles.noticeIconWrap}>
+                      <StitchIcon name="warning" className={styles.noticeIcon} />
+                    </div>
+                    <span>Significant Revenue Drop Detected</span>
+                  </div>
+
+                  <span className={styles.noticePill}>Critical Alert</span>
+                </div>
+
+                <div className={styles.noticeDetails}>
+                  <p>Alert Details</p>
+                  <h4>
+                    Account <span>Client Alpha</span> revenue dropped <em>45%</em>{" "}
+                    compared to the usual trend in the last 2 hours.
+                  </h4>
+                </div>
+
+                <div className={styles.noticeMeta}>
+                  <div>
+                    <p>Time Window</p>
+                    <div className={styles.noticeMetaRow}>
+                      <StitchIcon name="schedule" className={styles.metaIcon} />
+                      <strong>Last 2 Hours</strong>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p>Impact</p>
+                    <div className={styles.noticeMetaRow}>
+                      <StitchIcon name="trending_down" className={styles.metaIconError} />
+                      <strong className={styles.metaError}>High (-$4,200)</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="pricing" className={styles.pricingSection}>
+        <div className={styles.shell}>
+          <div className={styles.centerHeading}>
+            <h2>Simple pricing based on how many Stripe accounts you monitor</h2>
+            <p>Paid plans are built for teams managing multiple Stripe accounts.</p>
+          </div>
+
+          <div className={styles.pricingGrid}>
+            <PricingCard
+              tier="Starter"
+              description="For individuals monitoring a single Stripe account"
+              price="Free"
+              items={[
+                "1 Stripe account",
+                "Payment failure alerts",
+                "Revenue drop alerts",
+                "Read-only monitoring",
+              ]}
+              cta="Start free"
+            />
+
+            <PricingCard
+              tier="Growth"
+              description="Monitor multiple Stripe accounts across clients in one place."
+              price={"\u20AC79"}
+              suffix="/mo"
+              items={[
+                "Up to 10 Stripe accounts",
+                "Payment failure + revenue alerts",
+                "Multi-account monitoring",
+                "Instant email alerts",
+              ]}
+              cta="Start monitoring"
+              featured
+            />
+
+            <PricingCard
+              tier="Pro"
+              description="For teams managing a larger number of Stripe accounts"
+              price={"\u20AC149"}
+              suffix="/mo"
+              items={[
+                "Up to 25 Stripe accounts",
+                "All alerts across connected",
+                "Higher account capacity",
+                "Designed for larger teams",
+              ]}
+              cta="Contact us"
+            />
+          </div>
+
+          <p className={styles.pricingFootnote}>
+            All plans use read-only Stripe access. RevenueWatch never moves money
+            or modifies your account.
+          </p>
+        </div>
+      </section>
+
+      <section className={styles.assuranceSection}>
+        <div className={styles.shell}>
+          <div className={styles.assuranceBar}>
+            <div>
+              <StitchIcon name="shield_lock" filled className={styles.assuranceIcon} />
+              <span>Read-Only Infrastructure</span>
+            </div>
+            <div>
+              <StitchIcon name="verified_user" filled className={styles.assuranceIcon} />
+              <span>Stripe Verified Partner</span>
+            </div>
+            <div>
+              <StitchIcon name="lock" filled className={styles.assuranceIcon} />
+              <span>No money movement</span>
+            </div>
+            <div>
+              <StitchIcon name="encrypted" filled className={styles.assuranceIcon} />
+              <span>256-bit AES Encryption</span>
             </div>
           </div>
         </div>
       </section>
 
-    <section className="hero-trust-section">
-  <div className="container">
-    <div className="hero-trust-grid">
-      <div className="hero-trust-card">
-        <h3>Read-only access</h3>
-        <p>We monitor Stripe data without changing billing, payouts, or account settings.</p>
-      </div>
-
-      <div className="hero-trust-card">
-        <h3>No money movement</h3>
-        <p>RevenueWatch does not move funds, edit payouts, or perform financial actions.</p>
-      </div>
-
-      <div className="hero-trust-card">
-        <h3>Monitoring and alerts only</h3>
-        <p>Get clear alerts when payment failures spike or revenue drops unexpectedly.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="how-it-works" className="section section-tinted">
-  <div className="container how-it-works-layout">
-    <div className="how-it-works-left">
-      <h2 className="section-title">How it works</h2>
-
-      <div className="timeline">
-        <div className="timeline-item">
-          <div className="timeline-marker">1</div>
-          <div className="timeline-content">
-            <h3>Connect Stripe</h3>
-            <p>Securely connect your Stripe accounts using read-only access.</p>
-          </div>
-        </div>
-
-        <div className="timeline-line" />
-
-        <div className="timeline-item">
-          <div className="timeline-marker">2</div>
-          <div className="timeline-content">
-            <h3>We monitor activity</h3>
-            <p>
-              RevenueWatch tracks payment failures and revenue changes in real
-              time.
-            </p>
-          </div>
-        </div>
-
-        <div className="timeline-line" />
-
-        <div className="timeline-item">
-  <div className="timeline-marker">3</div>
-  <div className="timeline-content">
-    <h3>Get notified instantly</h3>
-    <p>Receive a clear email when something needs your attention.</p>
-  </div>
-</div>
-      </div>
-    </div>
-
-    <div className="how-it-works-right">
-      <div className="how-visual-card">
-        <div className="how-visual-kicker">Step 1</div>
-        <h3>Connect with Stripe</h3>
-        <p>Read-only connection for monitoring only.</p>
-
-        <div className="mock-connect-box">
-          <div className="mock-connect-top">
-            <span className="mock-dot" />
-            <span className="mock-dot" />
-            <span className="mock-dot" />
-          </div>
-          <div className="mock-connect-button">Connect Stripe account</div>
-        </div>
-      </div>
-
-      <div className="how-visual-card">
-        <div className="how-visual-kicker">Step 2</div>
-        <h3>Monitoring in the background</h3>
-<p>RevenueWatch watches your Stripe activity and flags anything unusual.</p>
-
-        <div className="mock-monitor-box">
-          <div className="mock-bar mock-bar-1" />
-          <div className="mock-bar mock-bar-2" />
-          <div className="mock-bar mock-bar-3" />
-          <div className="mock-bar mock-bar-4" />
-        </div>
-      </div>
-
-      <div className="how-visual-card">
-        <div className="how-visual-kicker">Step 3</div>
-       <h3>Get notified instantly</h3>
-<p>Receive a clear email when something needs your attention.</p>
-
-        <div className="mock-alert-mini">
-          <div className="mock-alert-row">
-            <span>Revenue drop detected</span>
-            <strong>High</strong>
-          </div>
-          <div className="mock-alert-sub">Client A • Last 2 hours</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section className="section section-muted">
-  <div className="container">
-<h2 className="section-title">What we monitor</h2>
-<p className="section-text section-intro">
-  Two core alerts help you spot unusual Stripe activity early.
-</p>
-    <div className="monitor-grid">
-      <div className="monitor-card">
-        <div className="monitor-card-top">
-       <div>
-  <h3>Payment failure spikes</h3>
-</div>
-<span className="monitor-pill monitor-pill-danger">Failure monitoring</span>
-        </div>
-
-        <p className="monitor-text">
-          Detect sudden increases in failed payments before they start affecting
-          revenue and customer experience.
-        </p>
-
-        <div className="monitor-ui">
-          <div className="monitor-ui-header">
-            <span className="status-dot" />
-            <strong>Failure spike detected</strong>
-          </div>
-
-          <div className="monitor-ui-list">
-         <div className="monitor-ui-row">
-  <span>Card declines increasing</span>
-  <strong>Above normal</strong>
-</div>
-            <div className="monitor-ui-row">
-              <span>Payment failures</span>
-<strong>Spike detected</strong>
-            </div>
-            <div className="monitor-ui-row">
-              <span>Checkout errors</span>
-<strong>Unusual increase</strong>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="monitor-card">
-        <div className="monitor-card-top">
-         <div>
-  <h3>Revenue drops</h3>
-</div>
-<span className="monitor-pill monitor-pill-danger">Revenue monitoring</span>
-        </div>
-
-        <p className="monitor-text">
-          Identify sustained revenue declines compared to normal account
-          patterns, so issues are noticed early.
-        </p>
-
-        <div className="monitor-ui">
-         <div className="monitor-ui-header">
- <span className="status-dot" />
-  <strong>Revenue drop detected</strong>
-</div>
-
-         <div className="monitor-ui-list">
-  <div className="monitor-ui-row">
-    <span>Revenue compared to normal</span>
-    <strong>Below expected</strong>
-  </div>
-  <div className="monitor-ui-row">
-    <span>Completed payments</span>
-    <strong>Decreasing</strong>
-  </div>
-  <div className="monitor-ui-row">
-    <span>Recent payments</span>
-    <strong>Lower than normal</strong>
-  </div>
-</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-<section className="section section-tinted">
-  <div className="container">
-    <h2 className="section-title">Who it’s for</h2>
-
-    <div className="grid grid-3">
-      <div className="card">
-        <h3>Agencies</h3>
-      <p>Monitor multiple client Stripe accounts and catch issues before clients notice.</p>
-      </div>
-
-      <div className="card">
-        <h3>SaaS teams</h3>
-        <p>Spot payment failures and revenue drops before customers notice.</p>
-      </div>
-
-      <div className="card">
-        <h3>Small businesses</h3>
-        <p>Stay informed when Stripe activity changes unexpectedly.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-
-<section className="section section-muted">
- <div className="container">
- <h2 className="section-title">Simple pricing based on how many Stripe accounts you monitor</h2>
-<p className="section-text section-intro">
-  Paid plans are built for teams managing multiple Stripe accounts.
-</p>
-<p className="pricing-early-access">
-  Early access: the Starter plan is free while we onboard initial users.
-</p>
-
-   <div className="pricing-grid">
-  <div className="pricing-card">
-    <div className="pricing-card-body">
-      <div className="pricing-card-top">
-        <div>
-          <h3>Starter</h3>
-          <p className="pricing-subtitle">For individuals monitoring a single Stripe account</p>
-        </div>
-      </div>
-
-      <div className="pricing-price">Free</div>
-      <div className="pricing-limit">1 Stripe account</div>
-
-      <ul className="pricing-list">
-        <li>Payment failure alerts</li>
-        <li>Revenue drop alerts</li>
-        <li>Read-only monitoring</li>
-      </ul>
-    </div>
-
-   <a href="/login?plan=starter" className="btn btn-secondary">
-  Start free
-</a>
-  </div>
-
-  <div className="pricing-card pricing-card-featured">
-    <div className="pricing-card-body">
-      <div className="pricing-badge">Most popular</div>
-
-      <div className="pricing-card-top">
-        <div>
-          <h3>Growth</h3>
-          <p className="pricing-subtitle">Monitor multiple Stripe accounts across clients in one place.</p>
-        </div>
-      </div>
-
-      <div className="pricing-price">€79/mo</div>
-      <div className="pricing-limit">Up to 10 Stripe accounts</div>
-
-      <ul className="pricing-list">
-        <li>Monitor up to 10 Stripe accounts</li>
-        <li>Payment failure + revenue alerts</li>
-        <li>Multi-account monitoring</li>
-        <li>Instant email alerts</li>
-      </ul>
-    </div>
-
-    <a href="/login?plan=growth" className="btn btn-primary">
-  Start monitoring
-</a>
-  </div>
-
-  <div className="pricing-card">
-    <div className="pricing-card-body">
-      <div className="pricing-card-top">
-        <div>
-          <h3>Pro</h3>
-          <p className="pricing-subtitle">For teams managing a larger number of Stripe accounts</p>
-        </div>
-      </div>
-
-      <div className="pricing-price">€149/mo</div>
-      <div className="pricing-limit">Up to 25 Stripe accounts</div>
-
-      <ul className="pricing-list">
-        <li>Monitor up to 25 Stripe accounts</li>
-        <li>All alerts across connected accounts</li>
-        <li>Higher account capacity</li>
-        <li>Designed for larger teams</li>
-      </ul>
-    </div>
-
-   <a href="/login?plan=pro" className="btn btn-secondary">
-  Contact us
-</a>
-  </div>
-</div>
-
-   <p className="pricing-note">
-  All plans use read-only Stripe access. RevenueWatch never moves money or modifies your account.
-</p>
-  </div>
-</section>
-
-<section className="section">
-  <div className="container narrow">
-    <h2 className="section-title">About RevenueWatch</h2>
-
-    <p className="section-text">
-  RevenueWatch is a monitoring tool built specifically for Stripe-based businesses to detect payment and revenue issues early.
-</p>
-
-    <p className="section-text who-followup">
-  It does not move money, change billing, or interfere with your operations. It simply watches activity and sends clear alerts when something looks wrong.
-</p>
-  </div>
-</section>
-
-    <section className="section cta-section">
-  <div className="container cta-box">
-    <h2 className="section-title">Start monitoring your Stripe accounts</h2>
-   <a href="/login" className="btn btn-primary">
-  Connect Stripe &amp; start monitoring
-</a>
-
-    <p className="hero-note">
-  Read-only Stripe connection • No money movement
-</p>
-  </div>
-</section>
-
-      <footer className="site-footer">
-        <div className="container footer-inner">
-    <div>
-  © RevenueWatch • Operated by Parmora •{" "}
-  <a href="mailto:contact@revenuewatch.app">contact@revenuewatch.app</a>
-</div>
-          <div className="footer-links">
-            <a href="/privacy">Privacy</a>
-            <a href="/terms">Terms</a>
-            <a href="/contact">Contact</a>
-          </div>
-        </div>
-      </footer>
+      <MarketingFooter />
     </main>
   );
 }
