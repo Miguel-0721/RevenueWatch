@@ -59,7 +59,7 @@ img {
 }
 
 .rw-shell {
-  max-width: 1280px;
+  max-width: 1180px;
   margin: 0 auto;
   padding: 0 24px;
 }
@@ -78,10 +78,10 @@ img {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
+  gap: 20px;
   width: 100%;
-  padding-top: 16px;
-  padding-bottom: 16px;
+  padding-top: 14px;
+  padding-bottom: 14px;
 }
 
 .rw-brand,
@@ -93,12 +93,12 @@ img {
 
 .rw-icon {
   color: #007aff;
-  font-size: 22px;
+  font-size: 20px;
 }
 
 .rw-wordmark {
   color: #007aff;
-  font-size: 1.25rem;
+  font-size: 1.15rem;
   font-weight: 700;
   letter-spacing: -0.04em;
 }
@@ -106,12 +106,12 @@ img {
 .rw-nav-links {
   display: flex;
   align-items: center;
-  gap: 32px;
+  gap: 26px;
 }
 
 .rw-nav-link {
   color: #64748b;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 500;
   transition: color 0.18s ease;
 }
@@ -131,12 +131,12 @@ img {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 42px;
-  padding: 0 20px;
-  border-radius: 12px;
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 11px;
   background: var(--primary);
   color: #ffffff;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 500;
   box-shadow: 0 12px 24px rgba(0, 88, 188, 0.2);
 }
@@ -209,7 +209,7 @@ img {
 
 .rw-footer {
   width: 100%;
-  padding: 80px 24px;
+  padding: 64px 24px;
   background: var(--surface-container-lowest);
   color: #64748b;
   font-size: 0.875rem;
