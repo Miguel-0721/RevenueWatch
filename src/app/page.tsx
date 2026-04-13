@@ -183,7 +183,7 @@ export default function HomePage() {
   return (
     <main className={styles.page}>
       <section className={styles.heroSection}>
-        <div className={styles.shell}>
+        <div className={styles.heroShell}>
           <div className={styles.heroGrid}>
             <div className={styles.heroCopy}>
               <span className={styles.partnerBadge}>
@@ -351,14 +351,14 @@ export default function HomePage() {
       <section id="pricing" className={styles.pricingSection}>
         <div className={styles.shell}>
           <div className={styles.centerHeading}>
-            <h2>Simple pricing based on how many Stripe accounts you monitor</h2>
+            <h2>Simple pricing for the number of Stripe accounts you monitor</h2>
             <p>Paid plans are built for teams managing multiple Stripe accounts.</p>
           </div>
 
           <div className={styles.pricingGrid}>
             <PricingCard
               tier="Starter"
-              description="For individuals monitoring a single Stripe account"
+              description="For individuals monitoring one Stripe account"
               price="Free"
               items={[
                 "1 Stripe account",
@@ -386,12 +386,12 @@ export default function HomePage() {
 
             <PricingCard
               tier="Pro"
-              description="For teams managing a larger number of Stripe accounts"
+              description="For teams managing more connected Stripe accounts"
               price={"\u20AC149"}
               suffix="/mo"
               items={[
                 "Up to 25 Stripe accounts",
-                "All alerts across connected",
+                "All alerts across connected accounts",
                 "Higher account capacity",
                 "Designed for larger teams",
               ]}
