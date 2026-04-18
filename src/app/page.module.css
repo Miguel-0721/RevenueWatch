@@ -314,6 +314,10 @@
   background: var(--surface);
 }
 
+.insightSection {
+  background: #f1f4f8;
+}
+
 .insightGrid,
 .valueGrid {
   display: grid;
@@ -327,6 +331,7 @@
   border-radius: 20px;
   background: var(--surface-container-lowest);
   border: 1px solid rgba(193, 198, 215, 0.08);
+  box-shadow: 0 10px 24px rgba(25, 28, 29, 0.025);
 }
 
 .insightIconWrap {
@@ -551,6 +556,7 @@
 
 .valueSection {
   padding: 88px 0;
+  background: #ffffff;
 }
 
 .valueEyebrow {
@@ -581,6 +587,12 @@
   border-radius: 32px;
   background: #f8fafc;
   border: 1px solid rgba(193, 198, 215, 0.1);
+}
+
+.valueVisualRevenue,
+.valueVisualTime,
+.valueVisualTrust {
+  overflow: hidden;
 }
 
 .valueWidget h3 {
@@ -691,6 +703,9 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: 100%;
+  max-width: 15rem;
+  margin-left: auto;
 }
 
 .valueTrustCard {
@@ -744,6 +759,26 @@
   width: 3.5rem;
   height: 6px;
   background: #f1f5f9;
+}
+
+.valueVisualTrust {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding-bottom: 26px;
+}
+
+.valueVisualTrust .valueVisualMetaCenter {
+  position: static;
+  left: auto;
+  right: auto;
+  margin-top: 18px;
+  text-align: left;
+}
+
+.valueVisualTrust .valueVisualMetaCenter strong {
+  display: block;
+  margin-top: 6px;
 }
 
 .workflowSection {
@@ -1067,6 +1102,16 @@
   padding: 68px 0;
   background: var(--surface);
   border-top: 1px solid rgba(193, 198, 215, 0.1);
+}
+
+.pricingSection .centerHeading h2 {
+  max-width: 18ch;
+  margin-inline: auto;
+  font-size: clamp(1.7rem, 2.7vw, 2.2rem);
+}
+
+.pricingSection .centerHeading p {
+  max-width: 34rem;
 }
 
 .pricingGrid {

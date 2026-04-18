@@ -334,7 +334,7 @@ export default function HomePage() {
           <div className={styles.centerHeading}>
             <h2>What happens without RevenueWatch?</h2>
             <p>
-              Stripe issues often stay invisible until they have already cost you
+              Stripe issues can sit quietly until they have already cost you
               revenue, time, or trust.
             </p>
           </div>
@@ -343,83 +343,58 @@ export default function HomePage() {
             <InsightCard
               icon="warning"
               title="Payment failures go unnoticed"
-              body="A failing payment flow can sit quietly in Stripe while revenue drops in the background."
+              body="A broken payment flow can quietly drain revenue while Stripe still looks normal at a glance."
             />
             <InsightCard
               icon="trending_down"
               title="Revenue declines silently"
-              body="Small drops compound fast when nobody is watching the account day to day."
+              body="Small drops can run for hours before anyone notices the trend is turning."
             />
             <InsightCard
               icon="notifications"
               title="You find out too late"
-              body="Many teams only notice a problem after a client complains or monthly numbers look wrong."
+              body="Too many teams only learn about a problem after a client complains or monthly numbers look wrong."
             />
           </div>
         </div>
       </section>
 
-      <section className={styles.trustSection}>
+      <section className={styles.valueSection}>
         <div className={styles.shell}>
           <div className={styles.centerHeading}>
-            <h2>Secure, calm monitoring.</h2>
+            <span className={styles.valueEyebrow}>Value Proposition</span>
+            <h2>What RevenueWatch saves.</h2>
             <p>
-              Built for Stripe OAuth, read-only monitoring, and clear alerting
-              when your revenue needs attention.
+              The payoff is simple: less lost revenue, less manual checking,
+              and fewer unpleasant surprises for clients.
             </p>
           </div>
 
-          <div className={styles.trustBento}>
-            <article className={styles.trustBentoPrimary}>
-              <div className={styles.trustBentoContent}>
-                <div className={styles.trustBentoIconWrap}>
-                  <StitchIcon name="visibility" className={styles.trustIcon} />
-                </div>
-                <h3>Read-only access</h3>
-                <p>
-                  We connect through secure Stripe OAuth and never change billing,
-                  payouts, or account settings. Your data is for eyes only.
-                </p>
-              </div>
-              <div className={styles.trustShield} aria-hidden="true">
-                <StitchIcon name="shield_lock" className={styles.trustShieldIcon} />
-              </div>
-            </article>
-
-            <article className={styles.trustBentoDark}>
-              <div className={styles.trustBentoIconWrapDark}>
-                <StitchIcon name="block" className={styles.trustDarkIcon} />
-              </div>
-              <div>
-                <h3>No money movement</h3>
-                <p>
-                  RevenueWatch never moves funds, edits payouts, or performs
-                  financial actions inside your account.
-                </p>
-              </div>
-            </article>
-
-            <article className={styles.trustBentoWide}>
-              <div className={styles.trustBentoWideCopy}>
-                <div className={styles.trustBentoIconWrap}>
-                  <StitchIcon name="notifications" className={styles.trustIcon} />
-                </div>
-                <h3>Early-warning alerts only</h3>
-                <p>
-                  You get notified when payment failures spike or revenue drops
-                  unexpectedly, before the damage spreads. No complex dashboards,
-                  just the news that matters.
-                </p>
-              </div>
-              <div className={styles.trustNotification} aria-hidden="true">
-                <div className={styles.trustNotificationTop}>
-                  <span className={styles.trustPing} />
-                  <strong>Critical Notification</strong>
-                </div>
-                <div className={styles.trustNotificationLineLong} />
-                <div className={styles.trustNotificationLineShort} />
-              </div>
-            </article>
+          <div className={styles.valueGrid}>
+            <ValueWidget
+              icon="trending_down"
+              label="Revenue Recovery"
+              metric="+$12,400"
+              title="Missed revenue"
+              body="Catch payment issues before they quietly drain MRR or spread across connected accounts."
+              variant="revenue"
+            />
+            <ValueWidget
+              icon="timer"
+              label="Operational Efficiency"
+              metric="10h Saved/mo"
+              title="Manual checking time"
+              body="Replace habitual Stripe spot-checks with passive visibility and only step in when action is required."
+              variant="time"
+            />
+            <ValueWidget
+              icon="verified_user"
+              label="Retention Index"
+              metric="100% Reliability"
+              title="Client trust"
+              body="Spot issues first, respond early, and avoid the awkward 'we just noticed' conversation."
+              variant="trust"
+            />
           </div>
         </div>
       </section>
@@ -526,41 +501,67 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className={styles.valueSection}>
+      <section className={styles.trustSection}>
         <div className={styles.shell}>
           <div className={styles.centerHeading}>
-            <span className={styles.valueEyebrow}>Value Proposition</span>
-            <h2>What RevenueWatch saves.</h2>
+            <h2>Secure, calm monitoring.</h2>
             <p>
-              Quantifiable operational benefits that go beyond simple monitoring.
+              Built for Stripe OAuth, read-only monitoring, and clear alerting
+              when your revenue needs attention.
             </p>
           </div>
 
-          <div className={styles.valueGrid}>
-            <ValueWidget
-              icon="trending_down"
-              label="Revenue Recovery"
-              metric="+$12,400"
-              title="Missed revenue"
-              body="Our anomaly detection identifies technical payment blocks that would otherwise drain your MRR without ever hitting an error log."
-              variant="revenue"
-            />
-            <ValueWidget
-              icon="timer"
-              label="Operational Efficiency"
-              metric="10h Saved/mo"
-              title="Manual checking time"
-              body="Stop the daily Stripe scroll. Replace manual dashboard checks with passive confidence and only step in when action is required."
-              variant="time"
-            />
-            <ValueWidget
-              icon="verified_user"
-              label="Retention Index"
-              metric="100% Reliability"
-              title="Client trust"
-              body="Be the team that spots issues first. Early response protects confidence before customers or clients ever feel the problem."
-              variant="trust"
-            />
+          <div className={styles.trustBento}>
+            <article className={styles.trustBentoPrimary}>
+              <div className={styles.trustBentoContent}>
+                <div className={styles.trustBentoIconWrap}>
+                  <StitchIcon name="visibility" className={styles.trustIcon} />
+                </div>
+                <h3>Read-only access</h3>
+                <p>
+                  We connect through secure Stripe OAuth and never change billing,
+                  payouts, or account settings. Your data is for eyes only.
+                </p>
+              </div>
+              <div className={styles.trustShield} aria-hidden="true">
+                <StitchIcon name="shield_lock" className={styles.trustShieldIcon} />
+              </div>
+            </article>
+
+            <article className={styles.trustBentoDark}>
+              <div className={styles.trustBentoIconWrapDark}>
+                <StitchIcon name="block" className={styles.trustDarkIcon} />
+              </div>
+              <div>
+                <h3>No money movement</h3>
+                <p>
+                  RevenueWatch never moves funds, edits payouts, or performs
+                  financial actions inside your account.
+                </p>
+              </div>
+            </article>
+
+            <article className={styles.trustBentoWide}>
+              <div className={styles.trustBentoWideCopy}>
+                <div className={styles.trustBentoIconWrap}>
+                  <StitchIcon name="notifications" className={styles.trustIcon} />
+                </div>
+                <h3>Early-warning alerts only</h3>
+                <p>
+                  You get notified when payment failures spike or revenue drops
+                  unexpectedly, before the damage spreads. No complex dashboards,
+                  just the news that matters.
+                </p>
+              </div>
+              <div className={styles.trustNotification} aria-hidden="true">
+                <div className={styles.trustNotificationTop}>
+                  <span className={styles.trustPing} />
+                  <strong>Critical Notification</strong>
+                </div>
+                <div className={styles.trustNotificationLineLong} />
+                <div className={styles.trustNotificationLineShort} />
+              </div>
+            </article>
           </div>
         </div>
       </section>
