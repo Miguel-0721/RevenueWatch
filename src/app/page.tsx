@@ -127,6 +127,110 @@ function TrustCard({
   );
 }
 
+function InsightCard({
+  icon,
+  title,
+  body,
+}: {
+  icon: IconName;
+  title: string;
+  body: string;
+}) {
+  return (
+    <article className={styles.insightCard}>
+      <div className={styles.insightIconWrap}>
+        <StitchIcon name={icon} className={styles.insightIcon} />
+      </div>
+      <h3>{title}</h3>
+      <p>{body}</p>
+    </article>
+  );
+}
+
+function ValueWidget({
+  icon,
+  label,
+  metric,
+  title,
+  body,
+  variant,
+}: {
+  icon: IconName;
+  label: string;
+  metric: string;
+  title: string;
+  body: string;
+  variant: "revenue" | "time" | "trust";
+}) {
+  return (
+    <article className={styles.valueWidget}>
+      <div className={`${styles.valueVisual} ${styles[`valueVisual${variant[0].toUpperCase()}${variant.slice(1)}`]}`}>
+        {variant === "revenue" ? (
+          <>
+            <div className={styles.valueBars} aria-hidden="true">
+              <span className={styles.barOne} />
+              <span className={styles.barTwo} />
+              <span className={styles.barThree} />
+              <span className={styles.barFour} />
+              <span className={styles.barFive} />
+            </div>
+            <div className={styles.valueVisualMeta}>
+              <span>{label}</span>
+              <strong>{metric}</strong>
+            </div>
+          </>
+        ) : null}
+
+        {variant === "time" ? (
+          <>
+            <div className={styles.valueDial} aria-hidden="true">
+              <div className={styles.valueDialInner}>
+                <StitchIcon name={icon} className={styles.valueDialIcon} />
+              </div>
+            </div>
+            <div className={styles.valueVisualMetaCenter}>
+              <span>{label}</span>
+              <strong>{metric}</strong>
+            </div>
+          </>
+        ) : null}
+
+        {variant === "trust" ? (
+          <>
+            <div className={styles.valueTrustStack} aria-hidden="true">
+              <div className={styles.valueTrustCard}>
+                <div className={styles.valueTrustAvatar}>
+                  <StitchIcon name="thumb_up" className={styles.valueTrustIcon} />
+                </div>
+                <div className={styles.valueTrustLines}>
+                  <span />
+                  <span />
+                </div>
+              </div>
+              <div className={`${styles.valueTrustCard} ${styles.valueTrustCardOffset}`}>
+                <div className={styles.valueTrustAvatar}>
+                  <StitchIcon name="forum" className={styles.valueTrustIcon} />
+                </div>
+                <div className={styles.valueTrustLines}>
+                  <span />
+                  <span />
+                </div>
+              </div>
+            </div>
+            <div className={styles.valueVisualMetaCenter}>
+              <span>{label}</span>
+              <strong>{metric}</strong>
+            </div>
+          </>
+        ) : null}
+      </div>
+
+      <h3>{title}</h3>
+      <p>{body}</p>
+    </article>
+  );
+}
+
 function PricingCard({
   tier,
   description,
@@ -197,13 +301,20 @@ export default function HomePage() {
               </h1>
 
               <p>
-                Get notified when payments fail or revenue drops across your Stripe
-                accounts. Read-only monitoring, clear alerts, and no money movement.
+                RevenueWatch watches your Stripe accounts in the background and
+                alerts you when something goes wrong, before missed payments or
+                silent revenue drops turn into client-facing problems.
               </p>
+
+              <div className={styles.heroTrustLine}>
+                <span>Read-only access.</span>
+                <span>No money movement.</span>
+                <span>No risk.</span>
+              </div>
 
               <div className={styles.heroActions}>
                 <Link href="/login" className={styles.primaryAction}>
-                  Connect Stripe &amp; start monitoring
+                  Protect your revenue
                   <StitchIcon name="arrow_forward" className={styles.arrowIcon} />
                 </Link>
 
@@ -218,29 +329,97 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className={styles.insightSection}>
+        <div className={styles.shell}>
+          <div className={styles.centerHeading}>
+            <h2>What happens without RevenueWatch?</h2>
+            <p>
+              Stripe issues often stay invisible until they have already cost you
+              revenue, time, or trust.
+            </p>
+          </div>
+
+          <div className={styles.insightGrid}>
+            <InsightCard
+              icon="warning"
+              title="Payment failures go unnoticed"
+              body="A failing payment flow can sit quietly in Stripe while revenue drops in the background."
+            />
+            <InsightCard
+              icon="trending_down"
+              title="Revenue declines silently"
+              body="Small drops compound fast when nobody is watching the account day to day."
+            />
+            <InsightCard
+              icon="notifications"
+              title="You find out too late"
+              body="Many teams only notice a problem after a client complains or monthly numbers look wrong."
+            />
+          </div>
+        </div>
+      </section>
+
       <section className={styles.trustSection}>
         <div className={styles.shell}>
           <div className={styles.centerHeading}>
             <h2>Secure, calm monitoring.</h2>
-            <p>We focus on your revenue health without ever touching your money.</p>
+            <p>
+              Built for Stripe OAuth, read-only monitoring, and clear alerting
+              when your revenue needs attention.
+            </p>
           </div>
 
-          <div className={styles.trustGrid}>
-            <TrustCard
-              icon="visibility"
-              title="Read-only access"
-              body="We monitor Stripe data without changing billing, payouts, or account settings."
-            />
-            <TrustCard
-              icon="block"
-              title="No money movement"
-              body="RevenueWatch does not move funds, edit payouts, or perform financial actions."
-            />
-            <TrustCard
-              icon="notifications"
-              title="Monitoring and alerts only"
-              body="Get clear alerts when payment failures spike or revenue drops unexpectedly."
-            />
+          <div className={styles.trustBento}>
+            <article className={styles.trustBentoPrimary}>
+              <div className={styles.trustBentoContent}>
+                <div className={styles.trustBentoIconWrap}>
+                  <StitchIcon name="visibility" className={styles.trustIcon} />
+                </div>
+                <h3>Read-only access</h3>
+                <p>
+                  We connect through secure Stripe OAuth and never change billing,
+                  payouts, or account settings. Your data is for eyes only.
+                </p>
+              </div>
+              <div className={styles.trustShield} aria-hidden="true">
+                <StitchIcon name="shield_lock" className={styles.trustShieldIcon} />
+              </div>
+            </article>
+
+            <article className={styles.trustBentoDark}>
+              <div className={styles.trustBentoIconWrapDark}>
+                <StitchIcon name="block" className={styles.trustDarkIcon} />
+              </div>
+              <div>
+                <h3>No money movement</h3>
+                <p>
+                  RevenueWatch never moves funds, edits payouts, or performs
+                  financial actions inside your account.
+                </p>
+              </div>
+            </article>
+
+            <article className={styles.trustBentoWide}>
+              <div className={styles.trustBentoWideCopy}>
+                <div className={styles.trustBentoIconWrap}>
+                  <StitchIcon name="notifications" className={styles.trustIcon} />
+                </div>
+                <h3>Early-warning alerts only</h3>
+                <p>
+                  You get notified when payment failures spike or revenue drops
+                  unexpectedly, before the damage spreads. No complex dashboards,
+                  just the news that matters.
+                </p>
+              </div>
+              <div className={styles.trustNotification} aria-hidden="true">
+                <div className={styles.trustNotificationTop}>
+                  <span className={styles.trustPing} />
+                  <strong>Critical Notification</strong>
+                </div>
+                <div className={styles.trustNotificationLineLong} />
+                <div className={styles.trustNotificationLineShort} />
+              </div>
+            </article>
           </div>
         </div>
       </section>
@@ -258,8 +437,8 @@ export default function HomePage() {
                 <div className={styles.darkStep}>1</div>
                 <h3>Connect with Stripe.</h3>
                 <p>
-                  Securely connect your Stripe accounts using read-only access.
-                  One-click OAuth integration for monitoring only.
+                  Connect your Stripe account in about 30 seconds with secure,
+                  read-only OAuth access. We never touch your money.
                 </p>
               </div>
 
@@ -284,8 +463,8 @@ export default function HomePage() {
               <div>
                 <h3>Monitoring in the background.</h3>
                 <p>
-                  RevenueWatch tracks <span>payment failures</span> and revenue
-                  changes in real time, looking for anything unusual.
+                  RevenueWatch watches for <span>payment failures</span>, revenue
+                  drops, and quiet issues that can sit in Stripe unnoticed.
                 </p>
               </div>
 
@@ -299,9 +478,8 @@ export default function HomePage() {
                 <div className={styles.darkStep}>3</div>
                 <h3>Get notified instantly.</h3>
                 <p>
-                  Receive a clear email when something needs your attention. Fixed
-                  before the client even notices a drop. No complex dashboards, just
-                  the info you need.
+                  Get a clear alert as soon as something breaks so you can fix it
+                  before it becomes expensive or client-facing.
                 </p>
               </div>
 
@@ -348,22 +526,64 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className={styles.valueSection}>
+        <div className={styles.shell}>
+          <div className={styles.centerHeading}>
+            <span className={styles.valueEyebrow}>Value Proposition</span>
+            <h2>What RevenueWatch saves.</h2>
+            <p>
+              Quantifiable operational benefits that go beyond simple monitoring.
+            </p>
+          </div>
+
+          <div className={styles.valueGrid}>
+            <ValueWidget
+              icon="trending_down"
+              label="Revenue Recovery"
+              metric="+$12,400"
+              title="Missed revenue"
+              body="Our anomaly detection identifies technical payment blocks that would otherwise drain your MRR without ever hitting an error log."
+              variant="revenue"
+            />
+            <ValueWidget
+              icon="timer"
+              label="Operational Efficiency"
+              metric="10h Saved/mo"
+              title="Manual checking time"
+              body="Stop the daily Stripe scroll. Replace manual dashboard checks with passive confidence and only step in when action is required."
+              variant="time"
+            />
+            <ValueWidget
+              icon="verified_user"
+              label="Retention Index"
+              metric="100% Reliability"
+              title="Client trust"
+              body="Be the team that spots issues first. Early response protects confidence before customers or clients ever feel the problem."
+              variant="trust"
+            />
+          </div>
+        </div>
+      </section>
+
       <section id="pricing" className={styles.pricingSection}>
         <div className={styles.shell}>
           <div className={styles.centerHeading}>
             <h2>Simple pricing for the number of Stripe accounts you monitor</h2>
-            <p>Paid plans are built for teams managing multiple Stripe accounts.</p>
+            <p>
+              Choose the level of coverage you need, from one Stripe account to a
+              larger portfolio of client accounts.
+            </p>
           </div>
 
           <div className={styles.pricingGrid}>
             <PricingCard
               tier="Starter"
-              description="For individuals monitoring one Stripe account"
+              description="For one Stripe account that needs simple early-warning coverage."
               price="Free"
               items={[
                 "1 Stripe account",
-                "Payment failure alerts",
-                "Revenue drop alerts",
+                "Payment failure detection",
+                "Revenue drop detection",
                 "Read-only monitoring",
               ]}
               cta="Start free"
@@ -371,29 +591,29 @@ export default function HomePage() {
 
             <PricingCard
               tier="Growth"
-              description="Monitor multiple Stripe accounts across clients in one place."
+              description="For teams or agencies watching multiple Stripe accounts in one place."
               price={"\u20AC79"}
               suffix="/mo"
               items={[
                 "Up to 10 Stripe accounts",
-                "Payment failure + revenue alerts",
-                "Multi-account monitoring",
+                "Revenue and failure alerts",
+                "Multi-account coverage",
                 "Instant email alerts",
               ]}
-              cta="Start monitoring"
+              cta="Protect your accounts"
               featured
             />
 
             <PricingCard
               tier="Pro"
-              description="For teams managing more connected Stripe accounts"
+              description="For larger teams that need broader account coverage and more alert capacity."
               price={"\u20AC149"}
               suffix="/mo"
               items={[
                 "Up to 25 Stripe accounts",
-                "All alerts across connected accounts",
+                "Alerts across connected accounts",
                 "Higher account capacity",
-                "Designed for larger teams",
+                "Best for larger teams",
               ]}
               cta="Contact us"
             />

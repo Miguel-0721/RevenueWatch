@@ -11,11 +11,14 @@ export type IconName =
   | "schedule"
   | "shield_lock"
   | "sync"
+  | "thumb_up"
+  | "timer"
   | "trending_down"
   | "verified"
   | "verified_user"
   | "visibility"
-  | "warning";
+  | "warning"
+  | "forum";
 
 type StitchIconProps = {
   name: IconName;
@@ -111,6 +114,14 @@ function Path({ name, filled = false }: { name: IconName; filled?: boolean }) {
           <path {...base} d="M12 7.8V12l3 1.8" />
         </>
       );
+    case "timer":
+      return (
+        <>
+          <circle cx="12" cy="13" r="7.5" {...base} />
+          <path {...base} d="M9 3.5h6" />
+          <path {...base} d="M12 9.5v3.9l2.6 1.5" />
+        </>
+      );
     case "trending_down":
       return (
         <>
@@ -154,6 +165,19 @@ function Path({ name, filled = false }: { name: IconName; filled?: boolean }) {
           <path {...base} d="M8 12h8" />
           <path {...base} d="M10 16h4" />
           <path {...base} d="M12 8.5V20" />
+        </>
+      );
+    case "thumb_up":
+      return (
+        <>
+          <path {...base} d="M9.3 10.3V7.6c0-1.6 1-3.1 2.5-3.7l.6-.2v5.1h4a1.8 1.8 0 0 1 1.8 2.1l-.8 5a2.2 2.2 0 0 1-2.2 1.8H9.3" />
+          <path {...base} d="M5.4 10.3h2.9v7.4H5.4z" />
+        </>
+      );
+    case "forum":
+      return (
+        <>
+          <path {...base} d="M5.5 6.2h9a2.3 2.3 0 0 1 2.3 2.3v4.8a2.3 2.3 0 0 1-2.3 2.3H10l-3.3 2v-2H5.5a2.3 2.3 0 0 1-2.3-2.3V8.5a2.3 2.3 0 0 1 2.3-2.3Z" />
         </>
       );
   }
