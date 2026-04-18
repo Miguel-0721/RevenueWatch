@@ -2,6 +2,12 @@ import Link from "next/link";
 import StitchIcon from "./StitchIcon";
 import { auth, signOut } from "../auth";
 
+type NavbarProps = {
+  ctaLabel?: string;
+  ctaHref?: string;
+  hideCta?: boolean;
+};
+
 function Brand() {
   return (
     <Link href="/" className="rw-brand">
@@ -11,7 +17,11 @@ function Brand() {
   );
 }
 
-export default async function Navbar() {
+export default async function Navbar({
+  ctaLabel = "Connect Stripe",
+  ctaHref = "/login",
+  hideCta = false,
+}: NavbarProps) {
   const session = await auth();
 
   if (session?.user) {
@@ -80,9 +90,11 @@ export default async function Navbar() {
           </Link>
         </nav>
 
-        <Link href="/login" className="rw-connect-button">
-          Connect Stripe
-        </Link>
+        {hideCta ? null : (
+          <Link href={ctaHref} className="rw-connect-button">
+            {ctaLabel}
+          </Link>
+        )}
       </div>
     </header>
   );

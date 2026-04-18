@@ -1,0 +1,349 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.main {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  padding: 44px 0 36px;
+  background:
+    radial-gradient(circle at 18% 18%, rgba(0, 112, 235, 0.035), transparent 20%),
+    linear-gradient(180deg, #f8f9fa 0%, #f3f4f5 100%);
+}
+
+.main::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.12),
+    transparent 24%,
+    transparent 76%,
+    rgba(255, 255, 255, 0.1)
+  );
+  pointer-events: none;
+}
+
+.heroShell {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(350px, 420px);
+  gap: 28px;
+  align-items: center;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.copy {
+  max-width: 450px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(0, 112, 235, 0.14);
+  color: #2f5ea8;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.eyebrowIcon {
+  font-size: 0.9rem;
+}
+
+.copy h1 {
+  margin-top: 18px;
+  font-size: clamp(2.35rem, 4vw, 4.25rem);
+  line-height: 0.94;
+  font-weight: 900;
+  letter-spacing: -0.065em;
+  color: #191c1d;
+}
+
+.copy h1 span {
+  color: #0058bc;
+}
+
+.copy p {
+  margin-top: 18px;
+  max-width: 380px;
+  color: #4d5766;
+  font-size: 0.98rem;
+  line-height: 1.5;
+}
+
+.trustLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+  color: #2d3748;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.trustLine span + span::before {
+  content: "\2022";
+  margin-right: 8px;
+  color: #a0aec0;
+}
+
+.side {
+  display: flex;
+  justify-content: center;
+}
+
+.card {
+  width: 100%;
+  border-radius: 26px;
+  background: #ffffff;
+  box-shadow:
+    0 20px 40px rgba(25, 28, 29, 0.055),
+    0 6px 16px rgba(25, 28, 29, 0.025);
+  padding: 28px;
+  border: 1px solid rgba(193, 198, 215, 0.28);
+}
+
+.cardHeader {
+  margin-bottom: 18px;
+}
+
+.cardHeader h2 {
+  font-size: 1.55rem;
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+}
+
+.cardHeader p {
+  margin-top: 8px;
+  color: #5d6675;
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.actions {
+  display: grid;
+  gap: 12px;
+}
+
+.providerForm {
+  width: 100%;
+}
+
+.providerButton {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 58px;
+  padding: 0 18px;
+  border: 1px solid rgba(193, 198, 215, 0.56);
+  border-radius: 20px;
+  background: #ffffff;
+  color: #191c1d;
+  box-shadow: 0 6px 18px rgba(25, 28, 29, 0.04);
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.providerButton:hover {
+  transform: translateY(-1px);
+  border-color: rgba(0, 88, 188, 0.24);
+  box-shadow: 0 12px 24px rgba(25, 28, 29, 0.08);
+}
+
+.providerButtonPrimary {
+  background: linear-gradient(135deg, #0058bc 0%, #0070eb 100%);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 12px 24px rgba(0, 88, 188, 0.16);
+}
+
+.providerButtonPrimary:hover {
+  border-color: transparent;
+}
+
+.providerButtonMuted {
+  background: linear-gradient(180deg, #fbfcfd 0%, #f3f5f8 100%);
+}
+
+.providerButtonMuted:hover {
+  transform: none;
+  border-color: rgba(193, 198, 215, 0.56);
+  box-shadow: 0 6px 18px rgba(25, 28, 29, 0.04);
+}
+
+.providerMeta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+}
+
+.providerCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.providerLabel {
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.providerHint {
+  color: #667085;
+  font-size: 0.76rem;
+  font-weight: 500;
+}
+
+.providerButtonPrimary .providerHint {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.providerArrow {
+  color: inherit;
+  font-size: 1.15rem;
+}
+
+.soonBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(0, 88, 188, 0.1);
+  color: #2f5ea8;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.providerIcon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.supportStrip {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(193, 198, 215, 0.3);
+}
+
+.supportItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #516071;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.supportIcon {
+  font-size: 1rem;
+  color: #0058bc;
+}
+
+.helpText {
+  margin-top: 14px;
+  text-align: center;
+  color: #667085;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.helpText a {
+  color: #0058bc;
+  font-weight: 700;
+}
+
+@media (max-width: 980px) {
+  .main {
+    padding: 52px 0 48px;
+  }
+
+  .heroShell {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .copy {
+    max-width: none;
+    text-align: center;
+  }
+
+  .eyebrow {
+    margin: 0 auto;
+  }
+
+  .copy p {
+    max-width: 520px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .trustLine {
+    justify-content: center;
+  }
+
+  .supportStrip {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .main {
+    padding: 40px 0 36px;
+  }
+
+  .heroShell {
+    padding: 0 18px;
+  }
+
+  .copy h1 {
+    margin-top: 16px;
+    font-size: clamp(2rem, 10vw, 3rem);
+  }
+
+  .copy p {
+    font-size: 0.9rem;
+  }
+
+  .card {
+    padding: 22px;
+    border-radius: 22px;
+  }
+
+  .providerButton {
+    min-height: 52px;
+    padding: 0 16px;
+  }
+
+  .cardHeader h2 {
+    font-size: 1.42rem;
+  }
+}

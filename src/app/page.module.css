@@ -315,7 +315,9 @@
 }
 
 .insightSection {
-  background: #f1f4f8;
+  background: #edf0f2;
+  border-top: 1px solid rgba(193, 198, 215, 0.18);
+  border-bottom: 1px solid rgba(193, 198, 215, 0.14);
 }
 
 .insightGrid,
@@ -557,6 +559,8 @@
 .valueSection {
   padding: 88px 0;
   background: #ffffff;
+  border-top: 1px solid rgba(193, 198, 215, 0.1);
+  border-bottom: 1px solid rgba(193, 198, 215, 0.08);
 }
 
 .valueEyebrow {
