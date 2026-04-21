@@ -791,3 +791,306 @@ This file should be updated whenever:
 - pricing direction changes
 - a new Stitch source of truth is adopted
 - a repeated critique is accepted or rejected" update the current memory file with things we changed since i last told you
+
+---
+
+## Memory Update - 2026-04-21
+
+This section was appended after the dashboard, navbar, webhook calculation, and account-detail work. Do not delete older notes above; treat this section as the current state override where older sections say the dashboard was not implemented yet.
+
+### Current Git / Repo State
+
+- Repo remains `Miguel-0721/RevenueWatch`.
+- Work is still local unless pushed by explicit user request.
+- Current branch used for work: `main`.
+- A previous dashboard redesign commit was pushed earlier: `519e505 Redesign dashboard from Stitch reference`.
+- Current local work after that push includes changes in:
+  - `src/app/api/stripe/webhook/route.ts`
+  - `src/app/dashboard/accounts/[accountId]/page.tsx`
+  - `src/app/globals.css`
+  - `src/components/Navbar.tsx`
+  - `src/components/AppNavLinks.tsx`
+
+### Dashboard Redesign Is Now Implemented
+
+The old note saying dashboard redesign was "not started yet" is outdated.
+
+Dashboard work completed:
+- The dashboard was redesigned from the Stitch dashboard reference.
+- The dashboard now uses the same navbar/footer chrome as the rest of the site.
+- Dashboard width and spacing were adjusted so content is contained like the landing page instead of stretching past the navbar.
+- Temporary test/sample dashboard data was added so the dashboard can be reviewed in a filled state.
+- Temporary sample data includes 10 connected companies/accounts.
+- Some sample accounts are normal; some show critical or review-needed issues.
+- The user explicitly wants this temporary sample data to be removable later.
+
+Important dashboard sample-data note:
+- The temporary dashboard data is for design testing only.
+- Do not treat sample company data as permanent production data.
+- Preserve the ability to remove or disable the sample data later.
+
+Dashboard layout decisions:
+- Left side should prioritize `Accounts Needing Attention`.
+- `Active alert log` can sit lower because it is more operational detail.
+- Right side should show `Connected Accounts` and recent history.
+- `Connected Accounts` supports show-all/collapse behavior.
+- `Add Account` belongs inside the dashboard connected-account area, not necessarily in the global navbar.
+- The connected-account list should not feel compressed; prefer readable spacing and a contained card.
+- Dashboard should feel like a real Stripe-monitoring command center, not a decorative admin template.
+
+### Navbar / App Chrome Changes
+
+Navbar work completed:
+- Logged-out and logged-in navbar treatments were made more consistent.
+- The logged-in app nav now uses app-specific links:
+  - `Dashboard`
+  - `Accounts`
+  - `Alerts`
+- `Add Account` was removed from the global logged-in navbar because the dashboard already has account-management context.
+- The user name is shortened in the navbar to first name only.
+- The sign-out button was softened so it does not compete with primary actions.
+- Active nav underline was restored.
+- Hover underline behavior was added/recommended for other navbar links.
+- Brand link should navigate home when clicking `RevenueWatch`.
+- Logo/wordmark blue was changed to use the same stronger RevenueWatch primary blue used in the text.
+
+Implementation note:
+- `src/components/AppNavLinks.tsx` was added as a client component for route/hash-aware app nav active states.
+- `src/components/Navbar.tsx` uses it for logged-in nav behavior.
+
+Navbar product guidance:
+- Marketing navbar can keep centered navigation because it supports browsing the public site.
+- Logged-in navbar does not need to perfectly mirror public navbar layout; authenticated users need app navigation and account context.
+- Avoid duplicating `Add Account` globally if the dashboard already has the action in the right context.
+
+### RevenueWatch Calculation Specification
+
+RevenueWatch detects anomalies by comparing current behavior against historical behavior.
+
+Core properties:
+- Read-only.
+- Conservative: prefer false negatives over false positives.
+- Event-driven: runs when Stripe events arrive.
+- No predictions.
+- No recommendations.
+- No automated actions.
+- No money movement.
+- No AI decision-making.
+
+Hard rule:
+- Revenue is not uniform across time.
+- Different days behave differently.
+- Different hours behave differently.
+- Do not compare Monday to Sunday.
+- Do not compare Friday to Monday.
+- Do not compare Monday 20:00 to Monday 10:00.
+- Correct comparison starts with same `dayOfWeek` and same `hourOfDay`.
+
+### Revenue Drop Alert Logic
+
+Purpose:
+- Detect when current revenue is significantly lower than expected for the same day/time context.
+
+Stored payment event data:
+- `amount` in cents.
+- `timestamp`.
+- `hourOfDay` from UTC hour.
+- `dayOfWeek` from UTC day.
+
+Current production-oriented constants:
+- `REVENUE_WINDOW_MINUTES = 60`
+- `BASELINE_HOURS = 6 * 7 * 24` (about six weeks)
+- `MIN_SAMPLES = 5`
+- `DROP_THRESHOLD = 0.5`
+
+Current revenue:
+- Sum successful payments where `timestamp >= now - REVENUE_WINDOW_MINUTES`.
+
+Baseline fallback order:
+1. `same_day_and_hour`: same `dayOfWeek` and same `hourOfDay`.
+2. `same_day_type_and_hour`: same weekday/weekend bucket and same `hourOfDay`.
+3. `same_hour`: same `hourOfDay` only.
+4. If still fewer than `MIN_SAMPLES`, do not evaluate and do not trigger.
+
+Important:
+- Never skip directly to broader averages if stricter matches have enough samples.
+- Historical windows must match the same duration as the current window.
+- Baseline is the average of matching historical windows.
+
+Revenue guard conditions:
+- Do not evaluate or trigger if sample count is below `MIN_SAMPLES`.
+- Do not trigger if baseline/current values fail configured minimum guards.
+- Do not trigger if alert is active or within cooldown.
+
+Trigger:
+- `dropRatio = (baselineAmount - currentAmount) / baselineAmount`
+- Trigger revenue alert when `dropRatio >= DROP_THRESHOLD`.
+- Start cooldown.
+
+Known limitation:
+- The system is event-driven.
+- If no Stripe events arrive, no evaluation happens.
+- Full inactivity detection would require a scheduled job later.
+
+### Payment Failure Spike Logic
+
+Purpose:
+- Detect when payment failures suddenly exceed a safe threshold.
+
+Current production-oriented constants:
+- `FAILURE_WINDOW_MINUTES = 30`
+- `FAILURE_THRESHOLD = 5`
+
+Logic:
+- Count failed payment events in the last 30 minutes.
+- Trigger alert when failure count reaches the fixed threshold.
+- Start cooldown.
+- Do not trigger again during cooldown.
+
+Important design decision:
+- Payment failure alerts do not use historical baseline comparison.
+- Reason: failures are rare and inconsistent; a fixed spike threshold is more stable and conservative.
+
+UI wording rule:
+- Do not describe payment failures as "higher than normal baseline" unless backend actually calculates a baseline.
+- Correct wording: fixed spike threshold, threshold reached, failed payments counted in the current window.
+
+### Webhook Implementation Notes
+
+Main backend calculation file:
+- `src/app/api/stripe/webhook/route.ts`
+
+Current implementation state:
+- Revenue current window is now 60 minutes, not the old 2-minute debug value.
+- Payment failure threshold is now 5, not the old debug value of 2.
+- Revenue baseline fallback hierarchy is implemented.
+- Revenue metric bucketing now uses UTC consistently:
+  - `getUTCHours()`
+  - `getUTCDay()`
+- Baseline lookup also uses UTC.
+- Revenue historical summary grouping also uses UTC.
+
+Current revenue alert context shape includes:
+- `dropRatio`
+- `baselineHours`
+- `baselineAmount`
+- `baselineLevel`
+- `baselineLabel`
+- `baselineSampleCount`
+- `currentWindowMinutes`
+- `currentAmount`
+- `threshold`
+- `alertThresholdAmount`
+- `amountUnit: "cents"`
+- `currency: "EUR"`
+- `dayOfWeek`
+- `hourOfDay`
+
+Current payment failure alert context shape includes:
+- `failuresCounted`
+- `failureThreshold`
+- `failureWindowMinutes`
+
+Trust rule:
+- UI must explain alerts using these real backend context keys, not old demo-only keys.
+
+### Account Detail Page Notes
+
+Main account detail UI file:
+- `src/app/dashboard/accounts/[accountId]/page.tsx`
+
+Current state:
+- The account detail page now reads real webhook context keys.
+- Revenue UI supports backend keys like `baselineAmount`, `currentAmount`, `currentWindowMinutes`, `threshold`, `baselineLabel`, and `baselineSampleCount`.
+- Payment failure UI supports backend keys like `failuresCounted`, `failureThreshold`, and `failureWindowMinutes`.
+- Legacy/demo keys are still supported as fallback where useful.
+- The `Measured over` card now uses the parsed revenue/payment window label instead of requiring a legacy `window` key.
+- Payment failure explanation now correctly says it is fixed-threshold based, not baseline based.
+- Revenue threshold display now uses the backend drop threshold.
+- The supporting revenue grid explicitly says it is illustrative supporting context, not a full reconstruction of every historical payment.
+- The highlighted revenue time block now derives from real alert `hourOfDay`:
+  - 6-12 = Morning
+  - 12-18 = Afternoon
+  - 18-22 = Evening
+  - 22-6 = Late night
+
+Important remaining truth:
+- The full-day revenue pattern grid is still illustrative.
+- It is not yet built from real historical payment windows.
+- This is acceptable for now because the wording says it is supporting context, but later a more trustworthy version should derive it from actual `revenueMetric` data.
+
+### Verification Notes
+
+Verification performed after the calculation/UI alignment work:
+- `npx.cmd tsc --noEmit` passes.
+
+Known unrelated lint state:
+- `npm.cmd run lint` still reports pre-existing or unrelated issues unless separately fixed.
+- Known examples include:
+  - `scripts/seedBaseline.ts`
+  - `src/app/api/stripe/disconnect/route.ts`
+  - `src/app/page.tsx`
+  - `src/auth.ts`
+  - `src/components/Navbar.tsx` image warning
+
+Do not treat the lint failures as caused only by the latest RevenueWatch calculation changes without checking.
+
+### Current Product Direction After This Update
+
+Next recommended work:
+1. Review the account detail page visually now that backend explanations are aligned.
+2. Decide whether the account detail page should get a real chart for revenue velocity.
+3. If adding a chart, it should show:
+   - Current revenue line.
+   - Expected/baseline line for the matched day/hour context.
+   - Alert threshold line.
+   - Same-day/same-hour logic in labels.
+4. Eventually replace illustrative revenue pattern grid with real data from stored revenue metrics.
+5. Keep payment failure UI threshold-based unless backend logic changes.
+
+Advisor note:
+- The product should not add "clear history" or "clear active alerts" casually.
+- Alert history is audit/context data.
+- If controls are added later, prefer archive/resolve/acknowledge behavior over destructive clearing.
+
+---
+
+## Memory Update - Account Detail View Started
+
+Account detail work has now started and should be treated as the next major app surface.
+
+Implemented in `src/app/dashboard/accounts/[accountId]/page.tsx`:
+- Added a `RevenueMonitorCard` with an inline SVG chart.
+- The chart shows:
+  - Actual revenue line.
+  - Expected historical baseline line.
+  - Alert threshold line.
+  - Active point for the current alert/hour.
+- The chart language intentionally says historical baseline, not forecast or prediction.
+- Added active alert log for the selected account.
+- Added recent history / previous incidents for the selected account.
+- Account detail sample IDs were aligned with dashboard sample IDs:
+  - `acct_sample_atlas`
+  - `acct_sample_northstar`
+  - `acct_sample_bluepeak`
+  - `acct_sample_meridian`
+  - `acct_sample_luma`
+  - `acct_sample_forge`
+  - `acct_sample_cedar`
+  - `acct_sample_pixel`
+  - `acct_sample_brightgrowth`
+  - `acct_sample_nova`
+- Demo/sample account detail pages now skip unnecessary Prisma reads before falling back to sample data.
+
+Current account detail principle:
+- The page should explain the account state, not just look like analytics.
+- It should answer:
+  - Is this account healthy right now?
+  - What triggered the alert?
+  - What was expected for the matched day/hour?
+  - What actually happened?
+  - What active and past alerts exist?
+
+Remaining account detail improvement:
+- The revenue chart is currently generated from alert context/sample defaults.
+- Later, the chart should be backed by real `RevenueMetric` historical/current data.

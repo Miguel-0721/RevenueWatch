@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AppNavLinks from "./AppNavLinks";
 import StitchIcon from "./StitchIcon";
 import { auth, signOut } from "../auth";
 
@@ -17,12 +18,21 @@ function Brand() {
   );
 }
 
+function getDisplayName(name?: string | null, email?: string | null) {
+  if (name) {
+    return name.trim().split(/\s+/)[0];
+  }
+
+  return email?.split("@")[0] || "Account";
+}
+
 export default async function Navbar({
   ctaLabel = "Connect Stripe",
   ctaHref = "/login",
   hideCta = false,
 }: NavbarProps) {
   const session = await auth();
+  const displayName = getDisplayName(session?.user?.name, session?.user?.email);
 
   if (session?.user) {
     return (
@@ -30,11 +40,9 @@ export default async function Navbar({
         <div className="rw-shell rw-topbar-inner">
           <Brand />
 
-          <div className="rw-auth-area">
-            <Link href="/" className="rw-back-link">
-              Home
-            </Link>
+          <AppNavLinks />
 
+          <div className="rw-auth-area">
             <div className="rw-user-block">
               {session.user.image ? (
                 <img
@@ -49,8 +57,7 @@ export default async function Navbar({
               )}
 
               <div className="rw-user-meta">
-                <span>{session.user.name || "Signed in user"}</span>
-                <small>{session.user.email}</small>
+                <span>{displayName}</span>
               </div>
 
               <form

@@ -32,6 +32,25 @@ type BaselineGrid = {
   }>;
   unit: "currency" | "count";
   currentLabel: string;
+  dropThreshold?: number;
+};
+
+type RevenueChartPoint = {
+  hour: number;
+  expected: number;
+  actual: number;
+};
+
+type RevenueChartModel = {
+  points: RevenueChartPoint[];
+  expectedValue: number;
+  actualValue: number;
+  thresholdValue: number;
+  dropThreshold: number;
+  activeHour: number;
+  baselineLabel: string;
+  windowLabel: string;
+  isAlerting: boolean;
 };
 
 function fmtDate(d?: Date | null) {
@@ -105,76 +124,156 @@ function safeParseContext(input?: string | null) {
   }
 }
 
+function formatContextMoney(parsed: Record<string, unknown> | null, value: number) {
+  const amount = parsed?.amountUnit === "cents" ? value / 100 : value;
+  return formatMoneyAmount(amount);
+}
+
+function getRevenueColumnFromHour(hourOfDay: number) {
+  if (hourOfDay >= 6 && hourOfDay < 12) return 0;
+  if (hourOfDay >= 12 && hourOfDay < 18) return 1;
+  if (hourOfDay >= 18 && hourOfDay < 22) return 2;
+  return 3;
+}
+
+function getRevenueContext(alert: AlertLike) {
+  const parsed = safeParseContext(alert.context) as Record<string, unknown> | null;
+  if (!parsed) return null;
+
+  const baselineAmount =
+    typeof parsed.baselineAmount === "number"
+      ? parsed.baselineAmount
+      : typeof parsed.expectedRevenue === "number"
+        ? parsed.expectedRevenue
+        : null;
+
+  const currentAmount =
+    typeof parsed.currentAmount === "number"
+      ? parsed.currentAmount
+      : typeof parsed.currentRevenue === "number"
+        ? parsed.currentRevenue
+        : null;
+
+  if (baselineAmount === null || currentAmount === null || baselineAmount <= 0) {
+    return null;
+  }
+
+  const currentWindowMinutes =
+    typeof parsed.currentWindowMinutes === "number"
+      ? parsed.currentWindowMinutes
+      : null;
+
+  return {
+    parsed,
+    baselineAmount,
+    currentAmount,
+    dropRatio:
+      typeof parsed.dropRatio === "number"
+        ? parsed.dropRatio
+        : (baselineAmount - currentAmount) / baselineAmount,
+    threshold:
+      typeof parsed.threshold === "number"
+        ? parsed.threshold
+        : 0.5,
+    alertThresholdAmount:
+      typeof parsed.alertThresholdAmount === "number"
+        ? parsed.alertThresholdAmount
+        : Math.round(baselineAmount * 0.5),
+    baselineLabel:
+      typeof parsed.baselineLabel === "string"
+        ? parsed.baselineLabel
+        : "matched historical windows",
+    baselineSampleCount:
+      typeof parsed.baselineSampleCount === "number"
+        ? parsed.baselineSampleCount
+        : null,
+    windowLabel:
+      currentWindowMinutes !== null
+        ? `last ${currentWindowMinutes} minutes`
+        : typeof parsed.window === "string"
+          ? parsed.window
+          : "current window",
+    activeRevenueColumn:
+      typeof parsed.activeRevenueColumn === "number"
+        ? parsed.activeRevenueColumn
+        : null,
+    hourOfDay:
+      typeof parsed.hourOfDay === "number"
+        ? parsed.hourOfDay
+        : null,
+  };
+}
+
+function getPaymentFailureContext(alert: AlertLike) {
+  const parsed = safeParseContext(alert.context) as Record<string, unknown> | null;
+  if (!parsed) return null;
+
+  const failures =
+    typeof parsed.failuresCounted === "number"
+      ? parsed.failuresCounted
+      : typeof parsed.failedPayments === "number"
+        ? parsed.failedPayments
+        : null;
+
+  if (failures === null) return null;
+
+  const failureWindowMinutes =
+    typeof parsed.failureWindowMinutes === "number"
+      ? parsed.failureWindowMinutes
+      : null;
+
+  return {
+    failures,
+    threshold:
+      typeof parsed.failureThreshold === "number"
+        ? parsed.failureThreshold
+        : 5,
+    windowLabel:
+      failureWindowMinutes !== null
+        ? `last ${failureWindowMinutes} minutes`
+        : typeof parsed.window === "string"
+          ? parsed.window
+          : "recent window",
+  };
+}
+
 function buildReadableAlertMessage(alert: AlertLike) {
   const parsed = safeParseContext(alert.context);
 
 if (!parsed) return alert.message ?? "Alert details unavailable.";
 
- if (
-  alert.type === "payment_failed" &&
-  typeof parsed.failedPayments === "number" &&
-  typeof parsed.baseline === "number"
-) {
-  const ratio =
-    parsed.baseline > 0
-      ? (parsed.failedPayments / parsed.baseline).toFixed(1)
-      : null;
-
-  const windowLabel =
-    typeof parsed.window === "string" ? parsed.window : "recent window";
-
-  if (ratio) {
-    return `Payment failures are ${ratio}× higher than normal (${parsed.failedPayments} vs ${parsed.baseline}) in the ${windowLabel}, suggesting multiple customers may be unable to complete payments.`;
-  }
-
-  return `Payment failures increased to ${parsed.failedPayments} in the ${windowLabel}.`;
+ const paymentContext = getPaymentFailureContext(alert);
+ if (alert.type === "payment_failed" && paymentContext) {
+  return `${formatCount(paymentContext.failures)} failed payments were detected in the ${paymentContext.windowLabel}, reaching the alert threshold of ${formatCount(paymentContext.threshold)}.`;
 }
 
-  if (
-    alert.type === "revenue_drop" &&
-    typeof parsed.currentRevenue === "number" &&
-    typeof parsed.expectedRevenue === "number" &&
-    parsed.expectedRevenue > 0
-  ) {
-    const dropPercent = Math.round(
-      ((parsed.expectedRevenue - parsed.currentRevenue) /
-        parsed.expectedRevenue) *
-        100
-    );
-
-    const windowLabel =
-      typeof parsed.window === "string" ? parsed.window : "recent window";
+  const revenueContext = getRevenueContext(alert);
+  if (alert.type === "revenue_drop" && revenueContext) {
+    const dropPercent = Math.round(revenueContext.dropRatio * 100);
 
     return `Revenue is down ${dropPercent}% vs expected (${formatMoneyAmount(
-      parsed.currentRevenue
-    )} vs ${formatMoneyAmount(parsed.expectedRevenue)}) in the ${windowLabel}.`;
+      revenueContext.parsed.amountUnit === "cents"
+        ? revenueContext.currentAmount / 100
+        : revenueContext.currentAmount
+    )} vs ${formatMoneyAmount(
+      revenueContext.parsed.amountUnit === "cents"
+        ? revenueContext.baselineAmount / 100
+        : revenueContext.baselineAmount
+    )}) in the ${revenueContext.windowLabel}.`;
   }
 
   return alert.message ?? "Alert details unavailable.";
 }
 
 function buildMeaningText(alert: AlertLike) {
-  const parsed = safeParseContext(alert.context);
-
   if (alert.type === "payment_failed") {
-  if (
-    parsed &&
-    typeof parsed.failedPayments === "number" &&
-    typeof parsed.baseline === "number"
-  ) {
+  const paymentContext = getPaymentFailureContext(alert);
+  if (paymentContext) {
     if (alert.severity === "critical") {
-      return `Failed payments are usually low for this account (around ${formatCount(
-        parsed.baseline
-      )} in this period), but ${formatCount(
-        parsed.failedPayments
-      )} were observed. This suggests multiple customers may be unable to complete payments, indicating a likely checkout or payment issue rather than normal fluctuation.`;
+      return `${formatCount(paymentContext.failures)} failed payments were observed in the ${paymentContext.windowLabel}. RevenueWatch uses a fixed spike threshold for payment failures, so this indicates a likely checkout or payment issue rather than a normal baseline comparison.`;
     }
 
-    return `Failed payments are usually low for this account (around ${formatCount(
-      parsed.baseline
-    )} in this period), but ${formatCount(
-      parsed.failedPayments
-    )} were observed. This is above normal and may indicate an emerging issue affecting customers.`;
+    return `${formatCount(paymentContext.failures)} failed payments were observed in the ${paymentContext.windowLabel}. This reached the fixed alert threshold and should be reviewed.`;
   }
 
     if (alert.severity === "critical") {
@@ -185,39 +284,34 @@ function buildMeaningText(alert: AlertLike) {
   }
 
   if (alert.type === "revenue_drop") {
-    const currentRevenue =
-      parsed && typeof parsed.currentRevenue === "number"
-        ? parsed.currentRevenue
-        : null;
+    const revenueContext = getRevenueContext(alert);
 
-    const expectedRevenue =
-      parsed && typeof parsed.expectedRevenue === "number"
-        ? parsed.expectedRevenue
-        : null;
-
-    if (
-      currentRevenue !== null &&
-      expectedRevenue !== null &&
-      expectedRevenue > 0
-    ) {
-      const difference = expectedRevenue - currentRevenue;
-
+    if (revenueContext) {
+      const difference = revenueContext.baselineAmount - revenueContext.currentAmount;
       if (alert.severity === "critical") {
         return `This account would normally be expected to generate about ${formatMoneyAmount(
-          expectedRevenue
+          revenueContext.parsed.amountUnit === "cents"
+            ? revenueContext.baselineAmount / 100
+            : revenueContext.baselineAmount
         )} in this kind of period, but it has only generated ${formatMoneyAmount(
-          currentRevenue
+          revenueContext.parsed.amountUnit === "cents"
+            ? revenueContext.currentAmount / 100
+            : revenueContext.currentAmount
         )}. That puts it ${formatMoneyAmount(
-          difference
-        )} below normal, which is large enough to suggest a meaningful drop in performance.`;
+          revenueContext.parsed.amountUnit === "cents" ? difference / 100 : difference
+        )} below normal. The baseline used ${revenueContext.baselineLabel}.`;
       }
 
       return `This account would normally be expected to generate about ${formatMoneyAmount(
-        expectedRevenue
+        revenueContext.parsed.amountUnit === "cents"
+          ? revenueContext.baselineAmount / 100
+          : revenueContext.baselineAmount
       )} in this kind of period, but it has only generated ${formatMoneyAmount(
-        currentRevenue
+        revenueContext.parsed.amountUnit === "cents"
+          ? revenueContext.currentAmount / 100
+          : revenueContext.currentAmount
       )}. That puts it ${formatMoneyAmount(
-        difference
+        revenueContext.parsed.amountUnit === "cents" ? difference / 100 : difference
       )} below normal.`;
     }
 
@@ -231,28 +325,21 @@ function buildMeaningText(alert: AlertLike) {
   return "This issue is outside the normal range for this account and should be reviewed.";
 }
 function buildTriggerReason(alert: AlertLike) {
-  const parsed = safeParseContext(alert.context);
+  const parsed = safeParseContext(alert.context) as Record<string, unknown> | null;
   if (!parsed) return [];
-if (
-  alert.type === "payment_failed" &&
-  typeof parsed.failedPayments === "number" &&
-  typeof parsed.baseline === "number"
-) {
+const paymentContext = getPaymentFailureContext(alert);
+if (alert.type === "payment_failed" && paymentContext) {
   const reasons = [
-    `RevenueWatch expected only a small number of failed payments in this window (around ${formatCount(
-      parsed.baseline
-    )}).`,
     `It observed ${formatCount(
-      parsed.failedPayments
-    )} failed payments instead, significantly above the normal level.`,
+      paymentContext.failures
+    )} failed payments in the ${paymentContext.windowLabel}.`,
+    `The configured alert threshold is ${formatCount(
+      paymentContext.threshold
+    )} failed payments.`,
   ];
 
-  if (typeof parsed.window === "string") {
-    reasons.push(`This was measured over the ${parsed.window}.`);
-  }
-
   reasons.push(
-    "This pattern typically indicates a broader checkout or payment issue rather than isolated customer errors."
+    "Payment failure alerts use a fixed spike threshold, not a historical baseline, because failures are rare and inconsistent."
   );
 
   reasons.push(
@@ -267,23 +354,29 @@ if (
 
 
 
-  if (
-    alert.type === "revenue_drop" &&
-    typeof parsed.currentRevenue === "number" &&
-    typeof parsed.expectedRevenue === "number"
-  ) {
-    const shortfall = parsed.expectedRevenue - parsed.currentRevenue;
+  const revenueContext = getRevenueContext(alert);
+  if (alert.type === "revenue_drop" && revenueContext) {
+    const shortfall = revenueContext.baselineAmount - revenueContext.currentAmount;
 
     const reasons = [
-      `RevenueWatch expected about ${formatMoneyAmount(
-        parsed.expectedRevenue
-      )} for this kind of window.`,
-      `It observed ${formatMoneyAmount(parsed.currentRevenue)} instead.`,
-      `That created a shortfall of ${formatMoneyAmount(shortfall)}.`,
+      `RevenueWatch compared this account against ${revenueContext.baselineLabel}.`,
+      `It expected about ${formatContextMoney(
+        revenueContext.parsed,
+        revenueContext.baselineAmount
+      )} for the ${revenueContext.windowLabel}.`,
+      `It observed ${formatContextMoney(
+        revenueContext.parsed,
+        revenueContext.currentAmount
+      )} instead.`,
+      `That created a shortfall of ${formatContextMoney(revenueContext.parsed, shortfall)}.`,
     ];
 
-    if (typeof parsed.window === "string") {
-      reasons.push(`This was measured over the ${parsed.window}.`);
+    if (revenueContext.baselineSampleCount !== null) {
+      reasons.push(
+        `The selected baseline used ${formatCount(
+          revenueContext.baselineSampleCount
+        )} historical matching windows.`
+      );
     }
 
     reasons.push(
@@ -300,21 +393,34 @@ if (
 
 function buildBaselineGrid(accountId: string, alert: AlertLike) {
   const parsed = safeParseContext(alert.context);
+  const revenueContext = getRevenueContext(alert);
   const defaults = getDemoMonitoringDefaults(accountId);
 
   const expectedRevenue =
-    parsed && typeof parsed.expectedRevenue === "number"
-      ? parsed.expectedRevenue
+    revenueContext
+      ? revenueContext.parsed.amountUnit === "cents"
+        ? revenueContext.baselineAmount / 100
+        : revenueContext.baselineAmount
+      : parsed && typeof parsed.expectedRevenue === "number"
+        ? parsed.expectedRevenue
       : defaults.expectedRevenue;
 
   const currentRevenue =
-    parsed && typeof parsed.currentRevenue === "number"
-      ? parsed.currentRevenue
-      : expectedRevenue;
+    revenueContext
+      ? revenueContext.parsed.amountUnit === "cents"
+        ? revenueContext.currentAmount / 100
+        : revenueContext.currentAmount
+      : parsed && typeof parsed.currentRevenue === "number"
+        ? parsed.currentRevenue
+        : expectedRevenue;
 
   const activeRevenueColumn =
-    parsed && typeof parsed.activeRevenueColumn === "number"
-      ? parsed.activeRevenueColumn
+    revenueContext?.hourOfDay !== null && revenueContext?.hourOfDay !== undefined
+      ? getRevenueColumnFromHour(revenueContext.hourOfDay)
+      : revenueContext?.activeRevenueColumn !== null && revenueContext?.activeRevenueColumn !== undefined
+      ? revenueContext.activeRevenueColumn
+      : parsed && typeof parsed.activeRevenueColumn === "number"
+        ? parsed.activeRevenueColumn
       : defaults.activeRevenueColumn;
 
   const baseRows = [
@@ -330,7 +436,7 @@ function buildBaselineGrid(accountId: string, alert: AlertLike) {
  const referenceDate =
   alert.createdAt ? new Date(alert.createdAt) : new Date();
 
-  const dayIndex = referenceDate.getDay();
+  const dayIndex = referenceDate.getUTCDay();
   const selectedBaseRow = baseRows[dayIndex];
 
   const values = [...selectedBaseRow.values];
@@ -353,6 +459,7 @@ function buildBaselineGrid(accountId: string, alert: AlertLike) {
     rows: [selectedRow],
     unit: "currency" as const,
    currentLabel: `Actual revenue in this window: ${formatMoneyAmount(currentRevenue)}`,
+    dropThreshold: revenueContext?.threshold,
   };
 }
 
@@ -373,6 +480,68 @@ function getActiveRevenueWindow(grid: BaselineGrid | null) {
   }
 
   return null;
+}
+
+function buildRevenueMonitorModel(
+  accountId: string,
+  alert: AlertLike | null,
+  now: Date
+): RevenueChartModel {
+  const revenueContext =
+    alert?.type === "revenue_drop" ? getRevenueContext(alert) : null;
+  const defaults = getDemoMonitoringDefaults(accountId);
+  const amountIsCents = revenueContext?.parsed.amountUnit === "cents";
+
+  const expectedValue = revenueContext
+    ? amountIsCents
+      ? revenueContext.baselineAmount / 100
+      : revenueContext.baselineAmount
+    : defaults.expectedRevenue;
+
+  const actualValue = revenueContext
+    ? amountIsCents
+      ? revenueContext.currentAmount / 100
+      : revenueContext.currentAmount
+    : Math.round(expectedValue * 0.94);
+
+  const dropThreshold = revenueContext?.threshold ?? 0.5;
+  const thresholdValue = Math.round(expectedValue * (1 - dropThreshold));
+  const activeHour = revenueContext?.hourOfDay ?? now.getUTCHours();
+
+  const points = Array.from({ length: 24 }, (_, hour) => {
+    const wave = 0.9 + Math.sin((hour / 24) * Math.PI * 2 - 0.7) * 0.12;
+    const businessLift = hour >= 8 && hour <= 20 ? 1.08 : 0.78;
+    const expected = Math.round(expectedValue * wave * businessLift);
+    const distance = Math.min(Math.abs(hour - activeHour), 24 - Math.abs(hour - activeHour));
+    const alertDip = revenueContext && distance <= 1;
+    const actual = alertDip
+      ? Math.round(actualValue * (distance === 0 ? 1 : 1.08))
+      : Math.round(expected * (0.9 + ((hour % 5) * 0.035)));
+
+    return {
+      hour,
+      expected,
+      actual,
+    };
+  });
+
+  points[activeHour] = {
+    hour: activeHour,
+    expected: expectedValue,
+    actual: actualValue,
+  };
+
+  return {
+    points,
+    expectedValue,
+    actualValue,
+    thresholdValue,
+    dropThreshold,
+    activeHour,
+    baselineLabel: revenueContext?.baselineLabel ?? "same day and same hour",
+    windowLabel: revenueContext?.windowLabel ?? "current hour",
+    isAlerting: actualValue < thresholdValue,
+  };
 }
 
 
@@ -411,52 +580,52 @@ function getDemoMonitoringDefaults(accountId: string) {
       activeRevenueColumn: number;
     }
   > = {
-    acct_demo_northlane: {
-      expectedRevenue: 3600,
+    acct_sample_northstar: {
+      expectedRevenue: 8200,
       baselineFailures: 3,
-      activeRevenueColumn: 2,
+      activeRevenueColumn: 1,
     },
-    acct_demo_brightgrowth: {
+    acct_sample_brightgrowth: {
       expectedRevenue: 1240,
       baselineFailures: 2,
       activeRevenueColumn: 2,
     },
-    acct_demo_meridian: {
-      expectedRevenue: 1600,
+    acct_sample_meridian: {
+      expectedRevenue: 3100,
       baselineFailures: 2,
       activeRevenueColumn: 2,
     },
-    acct_demo_atlas: {
+    acct_sample_atlas: {
       expectedRevenue: 4200,
       baselineFailures: 3,
       activeRevenueColumn: 2,
     },
-    acct_demo_pixelharbor: {
+    acct_sample_pixel: {
       expectedRevenue: 980,
       baselineFailures: 2,
       activeRevenueColumn: 1,
     },
-    acct_demo_bluepeak: {
+    acct_sample_bluepeak: {
       expectedRevenue: 2200,
       baselineFailures: 2,
       activeRevenueColumn: 2,
     },
-    acct_demo_luma: {
+    acct_sample_luma: {
       expectedRevenue: 2600,
       baselineFailures: 2,
       activeRevenueColumn: 2,
     },
-    acct_demo_forge: {
+    acct_sample_forge: {
       expectedRevenue: 2100,
       baselineFailures: 2,
       activeRevenueColumn: 1,
     },
-    acct_demo_cedar: {
+    acct_sample_cedar: {
       expectedRevenue: 940,
       baselineFailures: 2,
       activeRevenueColumn: 2,
     },
-    acct_demo_novaops: {
+    acct_sample_nova: {
       expectedRevenue: 1800,
       baselineFailures: 2,
       activeRevenueColumn: 1,
@@ -471,25 +640,6 @@ function getDemoMonitoringDefaults(accountId: string) {
     }
   );
 }
-
-function buildFallbackRevenueAlert(accountId: string): AlertLike {
-  const defaults = getDemoMonitoringDefaults(accountId);
-
-  return {
-    type: "revenue_drop",
-    severity: "warning",
-    message: "Revenue is within the normal range for this account.",
-    context: JSON.stringify({
-      expectedRevenue: defaults.expectedRevenue,
-      currentRevenue: defaults.expectedRevenue,
-      window: "last 2 hours",
-      activeRevenueColumn: defaults.activeRevenueColumn,
-    }),
-  };
-}
-
-
-
 
 /* ---------------- UI ---------------- */
 
@@ -702,6 +852,234 @@ function MicroStat({
   );
 }
 
+function RevenueMonitorCard({ model }: { model: RevenueChartModel }) {
+  const width = 760;
+  const height = 300;
+  const padding = { top: 24, right: 24, bottom: 38, left: 52 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const values = model.points.flatMap((point) => [point.expected, point.actual]);
+  const maxValue = Math.max(...values, model.thresholdValue) * 1.18;
+  const minValue = 0;
+
+  const x = (hour: number) => padding.left + (hour / 23) * chartWidth;
+  const y = (value: number) =>
+    padding.top +
+    chartHeight -
+    ((value - minValue) / (maxValue - minValue)) * chartHeight;
+
+  const buildPath = (key: "expected" | "actual") =>
+    model.points
+      .map((point, index) => {
+        const command = index === 0 ? "M" : "L";
+        return `${command} ${x(point.hour).toFixed(1)} ${y(point[key]).toFixed(1)}`;
+      })
+      .join(" ");
+
+  const actualPath = buildPath("actual");
+  const expectedPath = buildPath("expected");
+  const thresholdY = y(model.thresholdValue);
+  const activePoint = model.points[model.activeHour];
+
+  return (
+    <Surface style={{ padding: 0, overflow: "hidden" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1.35fr) minmax(260px, 0.65fr)",
+          gap: 0,
+        }}
+      >
+        <div style={{ padding: 24 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 16,
+              alignItems: "flex-start",
+              marginBottom: 16,
+              flexWrap: "wrap",
+            }}
+          >
+            <SectionTitle
+              eyebrow="Revenue monitor"
+              title="Current day vs expected baseline"
+              subtitle={`RevenueWatch compares this account against ${model.baselineLabel}. This is not a forecast; it is the historical pattern used for monitoring.`}
+            />
+
+            <StatusChip
+              status={model.isAlerting ? severityMeta("critical") : healthyMeta()}
+              label={model.isAlerting ? "Below threshold" : "Within range"}
+            />
+          </div>
+
+          <div
+            style={{
+              border: "1px solid #e7edf5",
+              borderRadius: 24,
+              background:
+                "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+              overflow: "hidden",
+            }}
+          >
+            <svg
+              viewBox={`0 0 ${width} ${height}`}
+              role="img"
+              aria-label="Revenue monitor chart showing actual revenue, expected baseline, and alert threshold"
+              style={{ display: "block", width: "100%", height: "auto" }}
+            >
+              {[0.25, 0.5, 0.75].map((ratio) => {
+                const gridY = padding.top + chartHeight * ratio;
+                return (
+                  <line
+                    key={ratio}
+                    x1={padding.left}
+                    x2={width - padding.right}
+                    y1={gridY}
+                    y2={gridY}
+                    stroke="#e7edf5"
+                    strokeWidth="1"
+                  />
+                );
+              })}
+
+              {[0, 6, 12, 18, 23].map((hour) => (
+                <g key={hour}>
+                  <line
+                    x1={x(hour)}
+                    x2={x(hour)}
+                    y1={padding.top}
+                    y2={padding.top + chartHeight}
+                    stroke="#eef2f7"
+                    strokeWidth="1"
+                  />
+                  <text
+                    x={x(hour)}
+                    y={height - 14}
+                    textAnchor="middle"
+                    fill="#64748b"
+                    fontSize="12"
+                    fontWeight="700"
+                  >
+                    {hour === 23 ? "23:00" : `${hour}:00`}
+                  </text>
+                </g>
+              ))}
+
+              <line
+                x1={padding.left}
+                x2={width - padding.right}
+                y1={thresholdY}
+                y2={thresholdY}
+                stroke="#b91c1c"
+                strokeWidth="2"
+                strokeDasharray="8 8"
+              />
+              <text
+                x={width - padding.right}
+                y={thresholdY - 8}
+                textAnchor="end"
+                fill="#991b1b"
+                fontSize="12"
+                fontWeight="800"
+              >
+                Alert threshold
+              </text>
+
+              <path
+                d={expectedPath}
+                fill="none"
+                stroke="#94a3b8"
+                strokeWidth="3"
+                strokeDasharray="7 7"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+
+              <path
+                d={`${actualPath} L ${x(23).toFixed(1)} ${padding.top + chartHeight} L ${padding.left} ${padding.top + chartHeight} Z`}
+                fill="url(#actualFill)"
+                opacity="0.72"
+              />
+
+              <path
+                d={actualPath}
+                fill="none"
+                stroke="#0067d9"
+                strokeWidth="4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+
+              <circle
+                cx={x(activePoint.hour)}
+                cy={y(activePoint.actual)}
+                r="7"
+                fill={model.isAlerting ? "#dc2626" : "#0067d9"}
+                stroke="#ffffff"
+                strokeWidth="3"
+              />
+
+              <defs>
+                <linearGradient id="actualFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#0067d9" stopOpacity="0.2" />
+                  <stop offset="100%" stopColor="#0067d9" stopOpacity="0.03" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 16,
+              flexWrap: "wrap",
+              marginTop: 14,
+              color: "#475569",
+              fontSize: 13,
+              fontWeight: 700,
+            }}
+          >
+            <span>Blue line: actual revenue</span>
+            <span>Dashed gray: expected baseline</span>
+            <span>Dashed red: alert threshold</span>
+          </div>
+        </div>
+
+        <div
+          style={{
+            borderLeft: "1px solid #e7edf5",
+            background: "#fbfcfe",
+            padding: 22,
+            display: "grid",
+            alignContent: "start",
+            gap: 12,
+          }}
+        >
+          <MicroStat
+            label="Expected in window"
+            value={formatMoneyAmount(model.expectedValue)}
+          />
+          <MicroStat
+            label="Alert if below"
+            value={formatMoneyAmount(model.thresholdValue)}
+            tone={model.isAlerting ? "attention" : "neutral"}
+          />
+          <MicroStat
+            label="Actual observed"
+            value={formatMoneyAmount(model.actualValue)}
+            tone={model.isAlerting ? "attention" : "good"}
+          />
+          <MicroStat
+            label="Measured over"
+            value={model.windowLabel}
+          />
+        </div>
+      </div>
+    </Surface>
+  );
+}
+
 function BaselineGridCard({
   grid,
 }: {
@@ -726,7 +1104,7 @@ function BaselineGridCard({
               marginBottom: 8,
             }}
           >
-            Full day pattern
+            Supporting pattern
           </div>
 
           <div
@@ -750,7 +1128,8 @@ function BaselineGridCard({
               maxWidth: 900,
             }}
           >
-            This is supporting context. The highlighted cell shows the time
+            This is illustrative supporting context, not a full reconstruction
+            of every historical payment. The highlighted cell shows the time
             window RevenueWatch used for this alert.
           </div>
         </div>
@@ -826,7 +1205,7 @@ function BaselineGridCard({
 
               {row.values.map((value, valueIndex) => {
                 const isActive = row.activeColumn === valueIndex;
-                const threshold = Math.round(value * 0.7);
+                const threshold = Math.round(value * (1 - (grid.dropThreshold ?? 0.5)));
 
                 return (
                   <div
@@ -964,12 +1343,14 @@ function ActiveWindowCard({
   label,
   expectedValue,
   actualValue,
+  dropThreshold = 0.5,
 }: {
   label: string;
   expectedValue: number;
   actualValue: number;
+  dropThreshold?: number;
 }) {
-  const alertThreshold = Math.round(expectedValue * 0.7);
+  const alertThreshold = Math.round(expectedValue * (1 - dropThreshold));
   const isBelowThreshold = actualValue < alertThreshold;
 
   return (
@@ -1128,16 +1509,13 @@ function ActiveWindowCard({
 
 function PaymentFailureCard({
   failedPayments,
-  baseline,
+  threshold,
   windowLabel,
 }: {
   failedPayments: number;
-  baseline: number;
+  threshold: number;
   windowLabel: string;
 }) {
-  const ratio =
-    baseline > 0 ? (failedPayments / baseline).toFixed(1) : null;
-
   return (
     <Surface style={{ padding: 20 }}>
       <div style={{ display: "grid", gap: 16 }}>
@@ -1165,7 +1543,7 @@ function PaymentFailureCard({
               marginBottom: 8,
             }}
           >
-            Higher than normal in the {windowLabel}
+            Threshold reached in the {windowLabel}
           </div>
 
           <div
@@ -1176,8 +1554,8 @@ function PaymentFailureCard({
               maxWidth: 860,
             }}
           >
-            RevenueWatch compares recent failed payment volume against the normal
-            level for this account.
+            RevenueWatch counts failed payments in a short window and triggers only
+            when the fixed spike threshold is reached.
           </div>
         </div>
 
@@ -1197,7 +1575,7 @@ function PaymentFailureCard({
             }}
           >
             <div style={{ fontSize: 12, color: "#64748b", marginBottom: 6 }}>
-              Normal failures
+              Alert threshold
             </div>
             <div
               style={{
@@ -1207,7 +1585,7 @@ function PaymentFailureCard({
                 lineHeight: 1.15,
               }}
             >
-              {formatCount(baseline)}
+              {formatCount(threshold)}
             </div>
           </div>
 
@@ -1220,7 +1598,7 @@ function PaymentFailureCard({
             }}
           >
             <div style={{ fontSize: 12, color: "#92400e", marginBottom: 6 }}>
-              Failure spike
+              Threshold result
             </div>
             <div
               style={{
@@ -1230,7 +1608,7 @@ function PaymentFailureCard({
                 lineHeight: 1.15,
               }}
             >
-              {ratio ? `${ratio}×` : "High"}
+              Reached
             </div>
           </div>
 
@@ -1265,17 +1643,117 @@ function PaymentFailureCard({
             color: "#475569",
           }}
         >
-          RevenueWatch normally expects around{" "}
+          RevenueWatch triggers this alert when failed payments reach{" "}
           <strong style={{ color: "#0f172a" }}>
-            {formatCount(baseline)}
+            {formatCount(threshold)}
           </strong>{" "}
-          failed payments in the {windowLabel}, but it observed{" "}
+          in the {windowLabel}. It observed{" "}
           <strong style={{ color: "#0f172a" }}>
             {formatCount(failedPayments)}
           </strong>
-          . This suggests multiple customers may be unable to complete payment.
+          , which suggests multiple customers may be unable to complete payment.
         </div>
       </div>
+    </Surface>
+  );
+}
+
+function AlertListCard({
+  eyebrow,
+  title,
+  emptyText,
+  alerts,
+  now,
+}: {
+  eyebrow: string;
+  title: string;
+  emptyText: string;
+  alerts: AlertLike[];
+  now: Date;
+}) {
+  return (
+    <Surface>
+      <SectionTitle eyebrow={eyebrow} title={title} />
+
+      {alerts.length === 0 ? (
+        <div
+          style={{
+            border: "1px dashed #dbe4ef",
+            borderRadius: 20,
+            padding: 18,
+            background: "#fbfcfe",
+            color: "#64748b",
+            fontSize: 15,
+          }}
+        >
+          {emptyText}
+        </div>
+      ) : (
+        <div style={{ display: "grid", gap: 12 }}>
+          {alerts.map((alert) => {
+            const sev = severityMeta(alert.severity ?? "warning");
+
+            return (
+              <div
+                key={alert.id ?? `${alert.type}-${alert.createdAt?.toISOString()}`}
+                style={{
+                  borderRadius: 18,
+                  border: "1px solid #edf2f7",
+                  background: "#fbfcfe",
+                  padding: 16,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    gap: 12,
+                    marginBottom: 8,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 17,
+                      fontWeight: 800,
+                      color: "#0f172a",
+                    }}
+                  >
+                    {alertLabel(alert.type)}
+                  </div>
+
+                  <StatusChip status={sev} label={sev.label} />
+                </div>
+
+                <div
+                  style={{
+                    color: "#334155",
+                    lineHeight: 1.75,
+                    marginBottom: 10,
+                    fontSize: 14,
+                  }}
+                >
+                  {buildReadableAlertMessage(alert)}
+                </div>
+
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "#64748b",
+                    lineHeight: 1.75,
+                  }}
+                >
+                  Triggered {fmtDate(alert.createdAt)} ·{" "}
+                  {alert.windowEnd && alert.windowEnd > now
+                    ? `Active until ${fmtDate(alert.windowEnd)}`
+                    : `Ended ${fmtDate(alert.windowEnd)}`}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </Surface>
   );
 }
@@ -1288,194 +1766,191 @@ const DEMO_NOW = new Date("2026-03-24T10:30:00Z");
 
 const demoStripeAccounts = [
   {
-    id: "demo-1",
-    name: "Northlane SaaS",
-    stripeAccountId: "acct_demo_northlane",
-    status: "active",
-    createdAt: DEMO_NOW,
-  },
-  {
-    id: "demo-2",
-    name: "BrightGrowth Studio",
-    stripeAccountId: "acct_demo_brightgrowth",
-    status: "active",
-    createdAt: DEMO_NOW,
-  },
-  {
-    id: "demo-3",
-    name: "Studio Meridian",
-    stripeAccountId: "acct_demo_meridian",
-    status: "active",
-    createdAt: DEMO_NOW,
-  },
-  {
-    id: "demo-4",
+    id: "sample-1",
     name: "Atlas Commerce",
-    stripeAccountId: "acct_demo_atlas",
+    stripeAccountId: "acct_sample_atlas",
     status: "active",
     createdAt: DEMO_NOW,
   },
   {
-    id: "demo-5",
-    name: "Pixel Harbor",
-    stripeAccountId: "acct_demo_pixelharbor",
+    id: "sample-2",
+    name: "Northstar Digital",
+    stripeAccountId: "acct_sample_northstar",
     status: "active",
     createdAt: DEMO_NOW,
   },
   {
-    id: "demo-6",
-    name: "BluePeak Media",
-    stripeAccountId: "acct_demo_bluepeak",
+    id: "sample-3",
+    name: "BluePeak Subscriptions",
+    stripeAccountId: "acct_sample_bluepeak",
     status: "active",
     createdAt: DEMO_NOW,
   },
   {
-    id: "demo-7",
+    id: "sample-4",
+    name: "Meridian Market",
+    stripeAccountId: "acct_sample_meridian",
+    status: "active",
+    createdAt: DEMO_NOW,
+  },
+  {
+    id: "sample-5",
     name: "Luma Health Co",
-    stripeAccountId: "acct_demo_luma",
+    stripeAccountId: "acct_sample_luma",
     status: "active",
     createdAt: DEMO_NOW,
   },
   {
-    id: "demo-8",
+    id: "sample-6",
     name: "Forge Analytics",
-    stripeAccountId: "acct_demo_forge",
+    stripeAccountId: "acct_sample_forge",
     status: "active",
     createdAt: DEMO_NOW,
   },
   {
-    id: "demo-9",
+    id: "sample-7",
     name: "Cedar Creative",
-    stripeAccountId: "acct_demo_cedar",
+    stripeAccountId: "acct_sample_cedar",
     status: "active",
     createdAt: DEMO_NOW,
   },
   {
-    id: "demo-10",
+    id: "sample-8",
+    name: "Pixel Harbor",
+    stripeAccountId: "acct_sample_pixel",
+    status: "active",
+    createdAt: DEMO_NOW,
+  },
+  {
+    id: "sample-9",
+    name: "BrightGrowth Studio",
+    stripeAccountId: "acct_sample_brightgrowth",
+    status: "active",
+    createdAt: DEMO_NOW,
+  },
+  {
+    id: "sample-10",
     name: "Nova Ops",
-    stripeAccountId: "acct_demo_novaops",
+    stripeAccountId: "acct_sample_nova",
     status: "active",
     createdAt: DEMO_NOW,
   },
 ];
 
 const demoLastEventByAccount = new Map<string, Date>([
-  ["acct_demo_northlane", new Date("2026-03-24T09:18:00Z")],
-  ["acct_demo_brightgrowth", new Date("2026-03-24T09:42:00Z")],
-  ["acct_demo_meridian", new Date("2026-03-24T08:57:00Z")],
-  ["acct_demo_atlas", new Date("2026-03-24T09:36:00Z")],
-  ["acct_demo_pixelharbor", new Date("2026-03-24T09:28:00Z")],
-  ["acct_demo_bluepeak", new Date("2026-03-24T09:10:00Z")],
-  ["acct_demo_luma", new Date("2026-03-24T09:49:00Z")],
-  ["acct_demo_forge", new Date("2026-03-24T09:04:00Z")],
-  ["acct_demo_cedar", new Date("2026-03-24T09:33:00Z")],
-  ["acct_demo_novaops", new Date("2026-03-24T09:21:00Z")],
+  ["acct_sample_atlas", new Date("2026-03-24T10:26:00Z")],
+  ["acct_sample_northstar", new Date("2026-03-24T10:19:00Z")],
+  ["acct_sample_bluepeak", new Date("2026-03-24T10:12:00Z")],
+  ["acct_sample_meridian", new Date("2026-03-24T10:03:00Z")],
+  ["acct_sample_luma", new Date("2026-03-24T09:57:00Z")],
+  ["acct_sample_forge", new Date("2026-03-24T09:49:00Z")],
+  ["acct_sample_cedar", new Date("2026-03-24T09:42:00Z")],
+  ["acct_sample_pixel", new Date("2026-03-24T09:34:00Z")],
+  ["acct_sample_brightgrowth", new Date("2026-03-24T09:27:00Z")],
+  ["acct_sample_nova", new Date("2026-03-24T09:12:00Z")],
 ]);
 
 const demoAlerts = [
   {
-    id: "demo-alert-1",
+    id: "sample-alert-1",
     type: "payment_failed",
     severity: "critical",
     message: "Payment failures spiked above normal levels in the last 30 minutes.",
-    stripeAccountId: "acct_demo_northlane",
-    accountName: "Northlane SaaS",
-    createdAt: new Date("2026-03-24T09:12:00Z"),
-    windowEnd: new Date("2026-03-24T13:12:00Z"),
+    stripeAccountId: "acct_sample_atlas",
+    accountName: "Atlas Commerce",
+    createdAt: new Date("2026-03-24T09:52:00Z"),
+    windowEnd: new Date("2026-03-24T13:52:00Z"),
     context: JSON.stringify({
-      failedPayments: 11,
-      baseline: 3,
-      window: "last 30 minutes",
+      failuresCounted: 18,
+      failureThreshold: 5,
+      failureWindowMinutes: 30,
     }),
   },
   {
-    id: "demo-alert-2",
+    id: "sample-alert-2",
     type: "revenue_drop",
     severity: "critical",
     message: "Revenue is significantly below expected levels for this account.",
-    stripeAccountId: "acct_demo_atlas",
-    accountName: "Atlas Commerce",
-    createdAt: new Date("2026-03-24T09:05:00Z"),
-    windowEnd: new Date("2026-03-24T13:05:00Z"),
+    stripeAccountId: "acct_sample_northstar",
+    accountName: "Northstar Digital",
+    createdAt: new Date("2026-03-24T09:16:00Z"),
+    windowEnd: new Date("2026-03-24T13:16:00Z"),
     context: JSON.stringify({
-      expectedRevenue: 4200,
-      currentRevenue: 1900,
-      window: "last 2 hours",
+      baselineAmount: 8200,
+      currentAmount: 4920,
+      currentWindowMinutes: 60,
+      threshold: 0.5,
+      baselineLabel: "same day and same hour",
+      baselineSampleCount: 6,
+      hourOfDay: 9,
     }),
   },
   {
-    id: "demo-alert-3",
+    id: "sample-alert-3",
     type: "payment_failed",
     severity: "warning",
     message: "Payment failures increased for this account and should be reviewed.",
-    stripeAccountId: "acct_demo_meridian",
-    accountName: "Studio Meridian",
-    createdAt: new Date("2026-03-24T08:20:00Z"),
-    windowEnd: new Date("2026-03-24T11:20:00Z"),
+    stripeAccountId: "acct_sample_bluepeak",
+    accountName: "BluePeak Subscriptions",
+    createdAt: new Date("2026-03-24T08:24:00Z"),
+    windowEnd: new Date("2026-03-24T11:24:00Z"),
     context: JSON.stringify({
-      failedPayments: 6,
-      baseline: 2,
-      window: "last 30 minutes",
+      failuresCounted: 9,
+      failureThreshold: 5,
+      failureWindowMinutes: 30,
     }),
   },
   {
-    id: "demo-alert-4",
+    id: "sample-alert-4",
     type: "revenue_drop",
     severity: "warning",
     message: "Revenue dipped below normal weekday levels during the current monitoring window.",
-    stripeAccountId: "acct_demo_brightgrowth",
-    accountName: "BrightGrowth Studio",
-    createdAt: new Date("2026-03-24T06:40:00Z"),
-    windowEnd: new Date("2026-03-24T08:40:00Z"),
+    stripeAccountId: "acct_sample_meridian",
+    accountName: "Meridian Market",
+    createdAt: new Date("2026-03-24T07:46:00Z"),
+    windowEnd: new Date("2026-03-24T10:46:00Z"),
     context: JSON.stringify({
-      expectedRevenue: 1240,
-      currentRevenue: 768,
-      window: "last 2 hours",
+      baselineAmount: 3100,
+      currentAmount: 2418,
+      currentWindowMinutes: 60,
+      threshold: 0.5,
+      baselineLabel: "same day and same hour",
+      baselineSampleCount: 5,
+      hourOfDay: 7,
     }),
   },
   {
-    id: "demo-alert-5",
+    id: "sample-history-1",
     type: "payment_failed",
     severity: "warning",
-    message: "Payment failures increased for this account and should be reviewed.",
-    stripeAccountId: "acct_demo_pixelharbor",
-    accountName: "Pixel Harbor",
-    createdAt: new Date("2026-03-24T05:55:00Z"),
-    windowEnd: new Date("2026-03-24T07:55:00Z"),
+    message: "A temporary payment failure increase returned to normal.",
+    stripeAccountId: "acct_sample_luma",
+    accountName: "Luma Health Co",
+    createdAt: new Date("2026-03-23T09:30:00Z"),
+    windowEnd: new Date("2026-03-23T12:30:00Z"),
     context: JSON.stringify({
-      failedPayments: 5,
-      baseline: 2,
-      window: "last 30 minutes",
+      failuresCounted: 7,
+      failureThreshold: 5,
+      failureWindowMinutes: 30,
     }),
   },
   {
-    id: "demo-alert-6",
+    id: "sample-history-2",
     type: "revenue_drop",
     severity: "warning",
-    message: "Revenue dipped below normal weekday levels during the current monitoring window.",
-    stripeAccountId: "acct_demo_cedar",
-    accountName: "Cedar Creative",
-    createdAt: new Date("2026-03-23T16:20:00Z"),
-    windowEnd: new Date("2026-03-23T22:20:00Z"),
-    context: JSON.stringify({
-      expectedRevenue: 940,
-      currentRevenue: 610,
-      window: "last 2 hours",
-    }),
-  },
-  {
-    id: "demo-alert-7",
-    type: "payment_failed",
-    severity: "warning",
-    message: "Payment failures increased for this account and should be reviewed.",
-    stripeAccountId: "acct_demo_forge",
+    message: "A short revenue dip recovered within the same business day.",
+    stripeAccountId: "acct_sample_forge",
     accountName: "Forge Analytics",
-    createdAt: new Date("2026-03-23T14:15:00Z"),
-    windowEnd: new Date("2026-03-23T16:15:00Z"),
+    createdAt: new Date("2026-03-22T09:10:00Z"),
+    windowEnd: new Date("2026-03-22T12:10:00Z"),
     context: JSON.stringify({
-      failedPayments: 4,
-      baseline: 2,
-      window: "last 30 minutes",
+      baselineAmount: 2600,
+      currentAmount: 1980,
+      currentWindowMinutes: 60,
+      threshold: 0.5,
+      baselineLabel: "same day and same hour",
+      baselineSampleCount: 5,
+      hourOfDay: 9,
     }),
   },
 ];
@@ -1492,27 +1967,29 @@ export default async function AccountDetailPage({
 }) {
   const { accountId } = await params;
 
-  const realStripeAccount = await prisma.stripeAccount.findFirst({
-    where: { stripeAccountId: accountId },
-  });
-
-  const realAlerts = await prisma.alert.findMany({
-    where: { stripeAccountId: accountId },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-  });
-
-  const realLastEvent = await prisma.stripeEvent.findFirst({
-    where: { stripeAccountId: accountId },
-    orderBy: { createdAt: "desc" },
-  });
-
   const demoStripeAccount =
    demoStripeAccounts.find(
   (account: (typeof demoStripeAccounts)[number]) =>
     account.stripeAccountId === accountId
 )??
     null;
+
+  const [realStripeAccount, realAlerts, realLastEvent] = demoStripeAccount
+    ? [null, [], null]
+    : await Promise.all([
+        prisma.stripeAccount.findFirst({
+          where: { stripeAccountId: accountId },
+        }),
+        prisma.alert.findMany({
+          where: { stripeAccountId: accountId },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+        }),
+        prisma.stripeEvent.findFirst({
+          where: { stripeAccountId: accountId },
+          orderBy: { createdAt: "desc" },
+        }),
+      ]);
 
   const isDemo = !realStripeAccount && !!demoStripeAccount;
   const stripeAccount = realStripeAccount ?? demoStripeAccount;
@@ -1541,6 +2018,7 @@ export default async function AccountDetailPage({
   const activeAlerts = alerts.filter((a) => a.windowEnd > now);
   const historicalAlerts = alerts.filter((a) => a.windowEnd <= now);
   const topAlert = activeAlerts[0] ?? null;
+  const revenueMonitorModel = buildRevenueMonitorModel(accountId, topAlert, now);
 
   const hero = buildStatusSummary(
     topAlert as
@@ -1557,25 +2035,19 @@ export default async function AccountDetailPage({
  
 const activeRevenueWindow = getActiveRevenueWindow(baselineGrid);
 
-const parsedTopAlert = safeParseContext(topAlert?.context);
+const revenueTopContext = topAlert ? getRevenueContext(topAlert) : null;
 const actualRevenueValue =
-  parsedTopAlert && typeof parsedTopAlert.currentRevenue === "number"
-    ? parsedTopAlert.currentRevenue
+  revenueTopContext
+    ? revenueTopContext.parsed.amountUnit === "cents"
+      ? revenueTopContext.currentAmount / 100
+      : revenueTopContext.currentAmount
     : null;
 
-const paymentFailureData =
-  parsedTopAlert &&
-  typeof parsedTopAlert.failedPayments === "number" &&
-  typeof parsedTopAlert.baseline === "number"
-    ? {
-        failedPayments: parsedTopAlert.failedPayments,
-        baseline: parsedTopAlert.baseline,
-        windowLabel:
-          typeof parsedTopAlert.window === "string"
-            ? parsedTopAlert.window
-            : "recent window",
-      }
-    : null;
+const paymentFailureData = topAlert ? getPaymentFailureContext(topAlert) : null;
+const measuredWindowLabel =
+  revenueTopContext?.windowLabel ??
+  paymentFailureData?.windowLabel ??
+  "Current window";
   return (
     <PageShell>
       <div
@@ -1691,6 +2163,8 @@ const paymentFailureData =
           </div>
         </Surface>
 
+        <RevenueMonitorCard model={revenueMonitorModel} />
+
         {topAlert ? (
           <>
 
@@ -1748,11 +2222,7 @@ const paymentFailureData =
     <div style={{ display: "grid", gap: 12 }}>
       <MicroStat
   label="Measured over"
-  value={
-    parsedTopAlert && typeof parsedTopAlert.window === "string"
-      ? parsedTopAlert.window
-      : "Current window"
-  }
+  value={measuredWindowLabel}
 />
     </div>
   </div>
@@ -1765,6 +2235,7 @@ const paymentFailureData =
         label={`${activeRevenueWindow.day} · ${activeRevenueWindow.columnLabel}`}
         expectedValue={activeRevenueWindow.expectedValue}
         actualValue={actualRevenueValue}
+        dropThreshold={baselineGrid.dropThreshold}
       />
     ) : null}
 
@@ -1774,14 +2245,21 @@ const paymentFailureData =
 
 {topAlert?.type === "payment_failed" && paymentFailureData ? (
   <PaymentFailureCard
-    failedPayments={paymentFailureData.failedPayments}
-    baseline={paymentFailureData.baseline}
+    failedPayments={paymentFailureData.failures}
+    threshold={paymentFailureData.threshold}
     windowLabel={paymentFailureData.windowLabel}
   />
 ) : null}
           </>
         ) : null}
 
+        <AlertListCard
+          eyebrow="Active alerts"
+          title="Open issues for this account"
+          emptyText="No active alerts for this account right now."
+          alerts={activeAlerts}
+          now={now}
+        />
 
 
 
@@ -1820,90 +2298,13 @@ const paymentFailureData =
 ) : null}
 
 
-        <Surface>
-        <SectionTitle
-  eyebrow="Past alerts"
-  title="Previous incidents"
-/>
-
-          {historicalAlerts.length === 0 ? (
-            <div
-              style={{
-                border: "1px dashed #dbe4ef",
-                borderRadius: 20,
-                padding: 18,
-                background: "#fbfcfe",
-                color: "#64748b",
-                fontSize: 15,
-              }}
-            >
-              No past alerts for this account yet.
-            </div>
-          ) : (
-            <div style={{ display: "grid", gap: 12 }}>
-              {historicalAlerts.map((alert: (typeof historicalAlerts)[number]) => {
-                const sev = severityMeta(alert.severity);
-
-                return (
-                  <div
-                    key={alert.id}
-                    style={{
-                      borderRadius: 18,
-                      border: "1px solid #edf2f7",
-                      background: "#fbfcfe",
-                      padding: 16,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "flex-start",
-                        gap: 12,
-                        marginBottom: 8,
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 17,
-                          fontWeight: 800,
-                          color: "#0f172a",
-                        }}
-                      >
-                        {alertLabel(alert.type)}
-                      </div>
-
-                      <StatusChip status={sev} label={sev.label} />
-                    </div>
-
-                    <div
-                      style={{
-                        color: "#334155",
-                        lineHeight: 1.75,
-                        marginBottom: 10,
-                        fontSize: 14,
-                      }}
-                    >
-                      {buildReadableAlertMessage(alert)}
-                    </div>
-
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "#64748b",
-                        lineHeight: 1.75,
-                      }}
-                    >
-                      Triggered {fmtDate(alert.createdAt)} · Ended{" "}
-                      {fmtDate(alert.windowEnd)}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Surface>
+        <AlertListCard
+          eyebrow="Recent history"
+          title="Previous incidents"
+          emptyText="No past alerts for this account yet."
+          alerts={historicalAlerts}
+          now={now}
+        />
 
 
       </div>

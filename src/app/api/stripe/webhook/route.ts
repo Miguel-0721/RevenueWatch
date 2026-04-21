@@ -49,8 +49,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
  * Intended defaults:
  *
  * Revenue drop detection:
- * - BASELINE_HOURS:        14 days
- *   Rationale: captures a stable recent norm while adapting over time.
+ * - BASELINE_HOURS:        6 weeks
+ *   Rationale: gives exact day/hour matching enough samples before fallback.
  *
  * - REVENUE_WINDOW_MINUTES: 60 minutes
  *   Rationale: ignores brief volatility; detects sustained drops.
@@ -99,8 +99,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 
 
-const REVENUE_WINDOW_MINUTES = 2;   // DEBUG: 5-minute window
-const BASELINE_HOURS = 14 * 24; // 14 day  // DEBUG: ~30 hours baseline
+const REVENUE_WINDOW_MINUTES = 60;
+const BASELINE_HOURS = 6 * 7 * 24; // 6 weeks
 
 
 
@@ -143,7 +143,8 @@ const MIN_CURRENT_REVENUE = 10000;  // €100
 // Payment failure alert (production-safe defaults)
 
 const FAILURE_WINDOW_MINUTES = 30;  // sustained failures, not spikes
-const FAILURE_THRESHOLD = 2;        // meaningful failure volume
+const FAILURE_THRESHOLD = 5;        // meaningful failure volume
+const MIN_SAMPLES = 5;
 
 
 // ---------------- HELPERS ----------------
@@ -173,6 +174,46 @@ function getCooldownUntil(type: string) {
   return new Date(Date.now() + hours * 60 * 60 * 1000);
 }
 
+type RevenueBaselineLevel =
+  | "same_day_and_hour"
+  | "same_day_type_and_hour"
+  | "same_hour";
+
+type RevenueMetricSample = {
+  amount: number;
+  periodEnd: Date;
+};
+
+function dayTypeDays(dayOfWeek: number) {
+  return dayOfWeek === 0 || dayOfWeek === 6
+    ? [0, 6]
+    : [1, 2, 3, 4, 5];
+}
+
+function revenueBaselineLabel(level: RevenueBaselineLevel) {
+  if (level === "same_day_and_hour") return "same day and same hour";
+  if (level === "same_day_type_and_hour") return "same weekday/weekend type and same hour";
+  return "same hour";
+}
+
+function summarizeRevenueWindows(samples: RevenueMetricSample[]) {
+  const totalsByWindow = new Map<string, number>();
+
+  for (const sample of samples) {
+    const d = new Date(sample.periodEnd);
+    const key = `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}-${d.getUTCHours()}`;
+    totalsByWindow.set(key, (totalsByWindow.get(key) ?? 0) + sample.amount);
+  }
+
+  const totals = Array.from(totalsByWindow.values());
+  const total = totals.reduce((sum, amount) => sum + amount, 0);
+
+  return {
+    average: totals.length > 0 ? total / totals.length : 0,
+    sampleCount: totals.length,
+  };
+}
+
 // ---------------- WEBHOOK ----------------
 
 export async function POST(req: Request) {
@@ -195,8 +236,9 @@ export async function POST(req: Request) {
       sig,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
-  } catch (err: any) {
-    console.error("❌ Webhook verification failed:", err.message);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown webhook verification error";
+    console.error("❌ Webhook verification failed:", message);
     return NextResponse.json({ error: "Webhook error" }, { status: 400 });
   }
 
@@ -306,8 +348,8 @@ if (!isFirstProcessing) {
       amount: pi.amount_received,
       periodStart: new Date(now.getTime() - REVENUE_WINDOW_MINUTES * 60 * 1000),
       periodEnd: now,
-      hourOfDay: now.getHours(), // 0–23
-      dayOfWeek: now.getDay(),   // 0–6
+      hourOfDay: now.getUTCHours(), // 0-23 UTC
+      dayOfWeek: now.getUTCDay(),   // 0-6 UTC
     },
   });
 }
@@ -342,33 +384,72 @@ console.log("Window start:", currentWindowStart.toISOString());
 console.log("Current amount:", currentAmount);
 
 
-const nowHour = now.getHours();
-const nowDay = now.getDay();
-const isWeekend = nowDay === 0 || nowDay === 6;
+const nowHour = now.getUTCHours();
+const nowDay = now.getUTCDay();
 
-const baselineMetrics = await prisma.revenueMetric.findMany({
-  where: {
-    stripeAccountId,
-    periodEnd: { gte: baselineStart, lt: currentWindowStart },
-    hourOfDay: nowHour,
-    ...(isWeekend
-      ? { dayOfWeek: { in: [0, 6] } }
-      : { dayOfWeek: { in: [1, 2, 3, 4, 5] } }),
-  },
-  select: {
-    amount: true,
-  },
-});
+const baselineCandidates: Array<{
+  level: RevenueBaselineLevel;
+  dayFilter?: { equals?: number; in?: number[] };
+}> = [
+  { level: "same_day_and_hour", dayFilter: { equals: nowDay } },
+  { level: "same_day_type_and_hour", dayFilter: { in: dayTypeDays(nowDay) } },
+  { level: "same_hour" },
+];
+
+let selectedBaseline:
+  | {
+      level: RevenueBaselineLevel;
+      amount: number;
+      sampleCount: number;
+    }
+  | null = null;
+
+for (const candidate of baselineCandidates) {
+  const baselineMetrics = await prisma.revenueMetric.findMany({
+    where: {
+      stripeAccountId,
+      periodEnd: { gte: baselineStart, lt: currentWindowStart },
+      hourOfDay: nowHour,
+      ...(candidate.dayFilter
+        ? candidate.dayFilter.equals !== undefined
+          ? { dayOfWeek: candidate.dayFilter.equals }
+          : { dayOfWeek: { in: candidate.dayFilter.in } }
+        : {}),
+    },
+    select: {
+      amount: true,
+      periodEnd: true,
+    },
+  });
+
+  const summary = summarizeRevenueWindows(baselineMetrics);
+
+  console.log("BASELINE CHECK", {
+    level: candidate.level,
+    nowHour,
+    nowDay,
+    sampleCount: summary.sampleCount,
+    average: summary.average,
+  });
+
+  if (summary.sampleCount >= MIN_SAMPLES) {
+    selectedBaseline = {
+      level: candidate.level,
+      amount: summary.average,
+      sampleCount: summary.sampleCount,
+    };
+    break;
+  }
+}
 
 
 
 console.log("🔵 BASELINE CHECK");
 console.log("Now hour:", nowHour);
 console.log("Now day:", nowDay);
-console.log("Baseline count:", baselineMetrics.length);
 
 
-if (baselineMetrics.length < 5) {
+if (!selectedBaseline) {
   return NextResponse.json({ received: true });
 }
 
@@ -377,15 +458,7 @@ if (baselineMetrics.length < 5) {
 
 
 
-const baselineTotal = baselineMetrics.reduce(
-  (sum, m) => sum + m.amount,
-  0
-);
-
-const baselineAveragePerWindow =
-  baselineTotal / baselineMetrics.length;
-
-    const baselineAmount = baselineAveragePerWindow;
+    const baselineAmount = selectedBaseline.amount;
 
 
     if (
@@ -401,7 +474,8 @@ console.log("🧪 DEBUG DROP STATE", {
   baselineAmount,
   currentAmount,
   dropRatio,
-  baselineCount: baselineMetrics.length,
+  baselineCount: selectedBaseline.sampleCount,
+  baselineLevel: selectedBaseline.level,
   nowHour,
   nowDay,
 });
@@ -451,15 +525,23 @@ try {
       stripeEventId: event.id,
       stripeAccountId,
       message: `Revenue dropped by ${(dropRatio * 100).toFixed(0)}% compared to baseline.
-Baseline (same hour & day type, last ${BASELINE_HOURS}h): €${(baselineAmount / 100).toFixed(2)}
+Baseline (${revenueBaselineLabel(selectedBaseline.level)}, last ${BASELINE_HOURS}h): €${(baselineAmount / 100).toFixed(2)}
 Current (${REVENUE_WINDOW_MINUTES} min): €${(currentAmount / 100).toFixed(2)}`,
       context: JSON.stringify({
         dropRatio,
         baselineHours: BASELINE_HOURS,
         baselineAmount,
+        baselineLevel: selectedBaseline.level,
+        baselineLabel: revenueBaselineLabel(selectedBaseline.level),
+        baselineSampleCount: selectedBaseline.sampleCount,
         currentWindowMinutes: REVENUE_WINDOW_MINUTES,
         currentAmount,
         threshold: DROP_THRESHOLD,
+        alertThresholdAmount: Math.round(baselineAmount * (1 - DROP_THRESHOLD)),
+        amountUnit: "cents",
+        currency: "EUR",
+        dayOfWeek: nowDay,
+        hourOfDay: nowHour,
       }),
       windowStart: currentWindowStart,
       windowEnd: new Date(now.getTime() + REVENUE_WINDOW_MINUTES * 60 * 1000),
