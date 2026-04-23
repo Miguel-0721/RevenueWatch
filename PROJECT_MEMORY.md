@@ -1094,3 +1094,256 @@ Current account detail principle:
 Remaining account detail improvement:
 - The revenue chart is currently generated from alert context/sample defaults.
 - Later, the chart should be backed by real `RevenueMetric` historical/current data.
+
+---
+
+## Memory Update - Stitch 13 Account Detail Direction
+
+The account/company detail page direction has been changed again after comparing Stitch exports `(12)` and `(13)`.
+
+Decision:
+- Use `stitch_revenuewatch_landing_page (13).zip` as the visual/layout source of truth for account detail.
+- Treat Stitch as layout/design direction, not final product copy.
+- Do not copy Stitch wording like `Node`, `Network`, `Admin`, `Agent`, or `Sovereign` unless those become real RevenueWatch concepts.
+
+Implemented direction:
+- Rebuilt `src/app/dashboard/accounts/[accountId]/page.tsx`.
+- Added `src/app/dashboard/accounts/[accountId]/page.module.css`.
+- Layout now follows Stitch `(13)` more closely:
+  - Top account header with status pill, account ID, and actions.
+  - Large full-width revenue chart card.
+  - Compact metric cards below the chart.
+  - Lower split layout with active/recent alerts on the left and resolved alerts on the right.
+  - Light gray canvas, white cards, sharper corners, uppercase micro-labels, blue/red status language.
+- The page keeps RevenueWatch calculation language:
+  - `Expected baseline`, not `Historical Mean` if that wording is clearer.
+  - `Alert threshold`, not forecast/prediction.
+  - Payment failures remain fixed-threshold based.
+- The page still uses shared RevenueWatch navbar/footer for product consistency.
+
+Current caution:
+- This rebuild has passed TypeScript, but still needs browser visual review.
+- If the user says it does not match Stitch closely enough, tighten spacing, card radii, chart height, and typography against Stitch `(13)` screenshot.
+
+---
+
+## Memory Update - 2026-04-23 Account Detail Graph/Data Iteration
+
+This section records the latest account-detail and chart work. Keep all older memory above, but treat this section as the current override for account-detail graph behavior and demo data.
+
+### Current Account Detail Files
+
+Primary files:
+- `src/app/dashboard/accounts/[accountId]/page.tsx`
+- `src/app/dashboard/accounts/[accountId]/page.module.css`
+
+Related logic file:
+- `src/app/api/stripe/webhook/route.ts`
+
+Current account-detail route examples:
+- `/dashboard/accounts/acct_sample_atlas`
+- `/dashboard/accounts/acct_sample_northstar`
+- `/dashboard/accounts/acct_sample_luma`
+- `/dashboard/accounts/acct_sample_forge`
+
+### Account Detail Design Direction
+
+The account-detail page is currently a Stitch-inspired product screen, but the wording and data must remain RevenueWatch-specific.
+
+Current layout:
+- Shared RevenueWatch navbar.
+- Account header with status pill, account ID, and action buttons.
+- Main monitoring card with chart on the left.
+- Current-state/current-issue details panel on the right.
+- Lower alert/history area.
+- Shared footer.
+
+Design principles accepted:
+- The chart should not stretch full-width without useful supporting information.
+- Putting the issue/state panel to the right of the graph improves the layout and prevents the graph from feeling too wide.
+- Do not over-color the right-side panel. Heavy red panels felt too aggressive. Keep the panel mostly white with subtle red accents when there is an issue.
+- Blue should represent normal/monitoring state. Red should represent active issue state.
+- Avoid duplicating the same key values both below the chart and inside the right-side panel.
+
+Recent design cleanup:
+- Removed redundant lower metric cards that repeated the right-side panel.
+- Removed unnecessary `Last event`, `Active until`, and `Open alerts` cards from the mid-page because they added clutter without helping the user understand the main issue.
+- Simplified the active alert card copy so it reads like a short operational summary, not a repeated explanation.
+
+### Account Detail Content Rules
+
+When a user clicks a business/account, the page should answer:
+- Is this account healthy right now?
+- What is being monitored?
+- What triggered the current alert, if any?
+- What was expected for this time context?
+- What actually happened?
+- What is the alert threshold?
+- What active and past alerts exist?
+
+Avoid:
+- Generic analytics wording.
+- Predictions.
+- Recommendations.
+- AI decision language.
+- Payment-failure baseline language.
+- Duplicating the same metrics in multiple places.
+
+Preferred wording:
+- Revenue chart: `Actual revenue against the historical baseline for the same day and hour.`
+- Payment failure chart: `Failed payment events counted during the current 30 minutes monitoring window. RevenueWatch triggers when the fixed threshold is reached.`
+- Revenue context: `same day and same hour history`.
+- Payment failure context: `fixed failure threshold`, `no baseline for failures`.
+
+### Current Chart Direction
+
+Revenue chart should show:
+- Blue current/actual revenue line.
+- Light gray dashed expected baseline line.
+- Red dashed alert threshold line.
+- Euro values on the y-axis.
+- Time labels on the x-axis.
+- A visible time context label, for example `TIME CONTEXT: 09:00 UTC`.
+- The threshold should not be a flat line if the expected baseline changes through the day.
+
+Important revenue chart logic:
+- The alert threshold is derived from the baseline.
+- If the baseline changes by hour, the threshold should also change by hour.
+- The red threshold line should therefore be a curve/line following the baseline at the configured drop percentage, not a single horizontal line.
+
+Payment failure chart should show:
+- Failure counts over the current window.
+- A fixed horizontal threshold because payment failures use a fixed spike rule.
+- Time range for the current 30-minute window.
+- No expected-baseline line for payment failures.
+
+Important payment failure chart logic:
+- Payment failures do not use a baseline.
+- It is correct for their threshold to be horizontal because the backend uses a fixed threshold.
+
+### Recent Graph Fixes
+
+Problem found:
+- The revenue chart had three lines, but the red threshold was initially flat. This was misleading because revenue thresholds should follow the expected baseline over the day.
+
+Fix made:
+- The revenue threshold is now generated from each expected baseline point:
+  - `thresholdPoint = expectedPoint * (1 - dropThreshold)`
+- The chart now renders the threshold as a red dashed path, not a flat horizontal line.
+
+Problem found after the fix:
+- The chart showed a black filled area.
+
+Cause:
+- SVG paths default to `fill: black` if CSS does not explicitly set `fill: none`.
+
+Fix made:
+- Added `fill: none` to `.thresholdLine` in `page.module.css`.
+- TypeScript check passed after the fix.
+
+Verification:
+- `npx.cmd tsc --noEmit` passed.
+
+If black appears again:
+- Check any SVG `<path>` used as a line and ensure the CSS has `fill: none`.
+- Also hard-refresh the browser because stale CSS can remain visible during Next dev hot reload.
+
+### Demo Data Added For Testing
+
+Fake/demo data was added for the 10 sample businesses so the account-detail page can be tested with realistic states.
+
+Purpose:
+- Let the user review how charts and alert panels look when accounts are filled with data.
+- Test both healthy and issue states.
+- Keep this removable later.
+
+Demo accounts currently include revenue points and/or payment-failure points for:
+- Atlas Commerce
+- Northstar Digital
+- BluePeak Subscriptions
+- Meridian Market
+- Luma Health Co
+- Forge Analytics
+- Cedar Creative
+- Pixel Harbor
+- BrightGrowth Studio
+- Nova Ops
+
+Current demo-state intent:
+- Some accounts should look normal.
+- Some should show revenue drops.
+- Some should show payment-failure spikes.
+- The data is temporary UI test data, not production seed data.
+
+Implementation direction:
+- Demo account detail pages should use local demo monitoring data when available.
+- Real connected Stripe accounts should still use real Prisma/Stripe-derived data.
+
+### Current Calculation Rules To Preserve
+
+Revenue drop:
+- Current window: 60 minutes.
+- Compare against historical behavior for the same time context.
+- First compare same `dayOfWeek` and same `hourOfDay`.
+- Fallback order:
+  1. same day and same hour
+  2. same weekday/weekend type and same hour
+  3. same hour only
+  4. do not evaluate if there are not enough samples
+- Threshold is based on drop percentage from baseline.
+- For example, if baseline is EUR 8,200 and drop threshold is 50%, alert line is EUR 4,100 for that same hour.
+
+Payment failure spike:
+- Current window: 30 minutes.
+- Fixed threshold: 5 failed payments.
+- No baseline.
+- No comparison to "normal failures."
+
+Hard constraints:
+- Read-only.
+- No money movement.
+- No Stripe setting changes.
+- No AI decision-making.
+- No recommendations or automated actions.
+
+### Advisor Notes For Future Work
+
+Keep the visual chart.
+- It helps users trust the alert because they can see current behavior versus expected behavior.
+- But it must be accurate and readable; a misleading chart is worse than no chart.
+
+Revenue chart must clearly explain:
+- Blue = current revenue.
+- Gray dashed = expected baseline.
+- Red dashed = alert threshold.
+- X-axis = time of day.
+- Y-axis = revenue amount.
+- Baseline and threshold can change by hour/day.
+
+Payment failure chart must clearly explain:
+- Bars = failed payments counted.
+- Red threshold = fixed failure threshold.
+- It does not use historical baseline.
+
+If the page feels too busy:
+- Remove redundant metric cards first.
+- Keep the chart, right-side issue panel, and concise alert history.
+- Do not add extra operational metadata unless it helps the user understand the alert.
+
+### Known Remaining Improvements
+
+Potential next improvements:
+- Make the revenue chart line visually smoother and less jagged while keeping it truthful.
+- Consider deriving real chart series from stored `RevenueMetric` data instead of demo curves.
+- For real accounts, build the graph from:
+  - current revenue by hour/window
+  - historical matched baseline by same day/hour
+  - threshold derived from baseline
+- For payment failures, build the graph from failure counts in small buckets inside the 30-minute window.
+- Make sure mobile layout stacks chart and issue panel cleanly.
+
+Do not do yet without user approval:
+- Remove the chart entirely.
+- Add destructive alert clearing.
+- Add prediction/recommendation language.
+- Convert payment failure logic to a baseline-based model.

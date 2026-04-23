@@ -1,0 +1,751 @@
+.page {
+  min-height: 100vh;
+  background: #f8f9fa;
+  color: #191c1d;
+}
+
+.shell {
+  width: min(100%, 1220px);
+  margin: 0 auto;
+  padding: 56px 32px 88px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 26px;
+}
+
+.kickerRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.activeNode,
+.nominalNode,
+.accountId {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 3px 9px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.activeNode {
+  color: #0058bc;
+  background: rgba(216, 226, 255, 0.65);
+}
+
+.nominalNode {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.accountId {
+  color: #717786;
+  padding-inline: 0;
+}
+
+.header h1 {
+  margin: 0;
+  color: #191c1d;
+  font-size: clamp(2rem, 3vw, 2.65rem);
+  line-height: 0.98;
+  font-weight: 900;
+  letter-spacing: -0.055em;
+}
+
+.header h1 span {
+  color: #717786;
+  font-weight: 400;
+  letter-spacing: -0.05em;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.secondaryAction,
+.primaryAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 20px;
+  border-radius: 6px;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.secondaryAction {
+  color: #191c1d;
+  background: #ffffff;
+  border: 1px solid rgba(193, 198, 215, 0.45);
+}
+
+.primaryAction {
+  color: #ffffff;
+  background: linear-gradient(135deg, #0058bc 0%, #0070eb 100%);
+  box-shadow: 0 16px 30px rgba(0, 88, 188, 0.16);
+}
+
+.chartCard,
+.alertRow,
+.resolvedRow,
+.emptyState {
+  background: #ffffff;
+  border: 1px solid rgba(193, 198, 215, 0.22);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(25, 28, 29, 0.035);
+}
+
+.chartCard {
+  padding: 26px;
+}
+
+.chartLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 24px;
+  align-items: stretch;
+}
+
+.chartMain {
+  min-width: 0;
+}
+
+.chartHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.chartHeader h2,
+.sectionHeading h2 {
+  margin: 0;
+  color: #191c1d;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+}
+
+.chartHeader p {
+  margin: 8px 0 0;
+  max-width: 620px;
+  color: #717786;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.chartMeta {
+  margin-top: 10px;
+  color: #0058bc;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.liveBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #ba1a1a;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.liveBadge span {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #ba1a1a;
+  box-shadow: 0 0 0 6px rgba(186, 26, 26, 0.09);
+}
+
+.chartWrap {
+  position: relative;
+  height: 300px;
+  border-radius: 10px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, 0.95) 0%, rgba(255, 255, 255, 0.55) 100%);
+}
+
+.chartSvg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.gridLine {
+  stroke: rgba(193, 198, 215, 0.32);
+  stroke-width: 1;
+}
+
+.axisLabel {
+  fill: #717786;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.thresholdLine {
+  fill: none;
+  stroke: #ba1a1a;
+  stroke-width: 1.7;
+  stroke-dasharray: 9 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.activeHourLine {
+  stroke: rgba(0, 88, 188, 0.18);
+  stroke-width: 1;
+  stroke-dasharray: 4 7;
+}
+
+.expectedPath {
+  fill: none;
+  stroke: #c1c6d7;
+  stroke-width: 3;
+  stroke-dasharray: 7 8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.actualPath {
+  fill: none;
+  stroke: #0058bc;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.activePoint,
+.alertPoint {
+  stroke: #ffffff;
+  stroke-width: 3;
+}
+
+.activePoint {
+  fill: #0058bc;
+}
+
+.alertPoint {
+  fill: #ba1a1a;
+}
+
+.thresholdLabel {
+  position: absolute;
+  right: 16px;
+  transform: translateY(-50%);
+  padding: 4px 9px;
+  border-radius: 4px;
+  background: #ffdad6;
+  color: #ba1a1a;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.activeHourLabel {
+  position: absolute;
+  bottom: 34px;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(0, 88, 188, 0.08);
+  color: #0058bc;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.chartFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(193, 198, 215, 0.18);
+}
+
+.chartFooterCompact {
+  justify-content: flex-end;
+}
+
+.chartStats {
+  display: flex;
+  gap: 52px;
+  flex-wrap: wrap;
+}
+
+.chartStats span,
+.sectionHeading span {
+  display: block;
+  color: #717786;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.chartStats strong {
+  display: block;
+  margin-top: 7px;
+  color: #191c1d;
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.dangerText {
+  color: #ba1a1a !important;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  color: #717786;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.legendBlue,
+.legendRed,
+.legendGray {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.legendBlue {
+  background: #0058bc;
+}
+
+.legendRed {
+  background: #ba1a1a;
+}
+
+.legendGray {
+  background: #c1c6d7;
+}
+
+.failureChartWrap {
+  position: relative;
+  height: 300px;
+  border-radius: 10px;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(
+      to top,
+      rgba(193, 198, 215, 0.18) 0,
+      rgba(193, 198, 215, 0.18) 1px,
+      transparent 1px,
+      transparent 46px
+    ),
+    linear-gradient(180deg, rgba(255, 248, 248, 0.86) 0%, rgba(255, 255, 255, 0.9) 100%);
+}
+
+.failureBars {
+  position: absolute;
+  inset: 22px 22px 48px;
+  display: grid;
+  grid-template-columns: repeat(30, minmax(0, 1fr));
+  gap: 5px;
+  align-items: end;
+}
+
+.failureBarSlot {
+  height: 100%;
+  display: flex;
+  align-items: end;
+}
+
+.failureBar,
+.failureBarActive {
+  display: block;
+  width: 100%;
+  min-height: 6px;
+  border-radius: 999px 999px 3px 3px;
+  background: rgba(186, 26, 26, 0.24);
+}
+
+.failureBarActive {
+  background: #ba1a1a;
+  box-shadow: 0 14px 26px rgba(186, 26, 26, 0.22);
+}
+
+.failureThresholdLine {
+  position: absolute;
+  right: 22px;
+  left: 22px;
+  z-index: 2;
+  border-top: 2px dashed rgba(186, 26, 26, 0.72);
+  pointer-events: none;
+}
+
+.failureThreshold {
+  position: absolute;
+  right: 22px;
+  top: 18px;
+  z-index: 2;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #ffdad6;
+  color: #ba1a1a;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.failureTimeAxis {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  bottom: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #717786;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.monitorPanel {
+  position: relative;
+  display: grid;
+  align-content: space-between;
+  gap: 18px;
+  padding: 22px;
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, #f7f9fc 0%, #ffffff 100%);
+  border: 1px solid rgba(193, 198, 215, 0.28);
+  overflow: hidden;
+}
+
+.monitorPanelNormal {
+  background:
+    linear-gradient(180deg, rgba(0, 101, 209, 0.025) 0%, #ffffff 40%);
+  border-color: rgba(193, 198, 215, 0.3);
+}
+
+.monitorPanelIssue {
+  background:
+    linear-gradient(180deg, rgba(186, 26, 26, 0.025) 0%, #ffffff 40%);
+  border-color: rgba(193, 198, 215, 0.3);
+}
+
+.panelEyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: #717786;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.panelStatusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #0065d1;
+}
+
+.monitorPanelIssue .panelStatusDot {
+  background: #ba1a1a;
+}
+
+.monitorPanel h3 {
+  margin: 0;
+  color: #191c1d;
+  font-size: 22px;
+  line-height: 1.05;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.monitorPanel p {
+  margin: 12px 0 0;
+  color: #414755;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.panelGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.panelMetric {
+  padding: 13px 14px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid rgba(193, 198, 215, 0.2);
+}
+
+.panelMetric span,
+.panelContext span {
+  display: block;
+  margin-bottom: 6px;
+  color: #717786;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.panelMetric strong {
+  display: block;
+  color: #191c1d;
+  font-size: 21px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.panelContext {
+  display: grid;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(193, 198, 215, 0.24);
+}
+
+.panelContext strong {
+  display: block;
+  color: #191c1d;
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 800;
+}
+
+.lowerGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(360px, 0.85fr);
+  gap: 24px;
+  margin-top: 30px;
+}
+
+.sectionHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.alertStack,
+.resolvedStack {
+  display: grid;
+  gap: 14px;
+}
+
+.alertRow {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+  padding: 16px;
+}
+
+.alertIconCritical,
+.alertIconWarning {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  font-size: 22px;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.alertIconCritical {
+  color: #ba1a1a;
+  background: rgba(255, 218, 214, 0.55);
+}
+
+.alertIconWarning {
+  color: #9e3d00;
+  background: rgba(255, 219, 204, 0.62);
+}
+
+.alertRow h3,
+.resolvedRow h3 {
+  margin: 0;
+  color: #191c1d;
+  font-size: 16px;
+  line-height: 1.25;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.alertRow p,
+.resolvedRow p {
+  margin: 6px 0 0;
+  color: #414755;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.alertRow span,
+.resolvedRow span:not(.resolvedIcon) {
+  display: block;
+  margin-top: 8px;
+  color: #717786;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rowAction {
+  align-self: center;
+  color: #0058bc;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.reasonList {
+  display: grid;
+  gap: 5px;
+  margin: 12px 0 0;
+  padding-left: 17px;
+  color: #414755;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.resolvedRow {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 14px;
+  padding: 18px 20px;
+  background: rgba(231, 232, 233, 0.42);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.resolvedIcon {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #ffffff;
+  background: #405e96;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.emptyState {
+  padding: 22px;
+  color: #717786;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+@media (max-width: 980px) {
+  .shell {
+    padding: 48px 20px 72px;
+  }
+
+  .header,
+  .chartHeader,
+  .chartFooter {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .lowerGrid,
+  .chartLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .chartCard {
+    padding: 24px;
+  }
+
+  .chartWrap {
+    height: 270px;
+  }
+
+  .monitorPanel {
+    align-content: start;
+  }
+
+  .alertRow {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  .rowAction {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 640px) {
+  .shell {
+    padding-inline: 16px;
+  }
+
+  .header h1 {
+    font-size: 2rem;
+  }
+
+  .actions,
+  .secondaryAction,
+  .primaryAction {
+    width: 100%;
+  }
+
+  .chartCard,
+  .alertRow {
+    padding: 18px;
+  }
+
+  .chartStats,
+  .legend {
+    gap: 14px;
+  }
+}
