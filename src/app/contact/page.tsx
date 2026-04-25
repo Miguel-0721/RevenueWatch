@@ -1,8 +1,10 @@
+import Navbar from "@/components/Navbar";
 import MarketingFooter from "@/components/MarketingFooter";
 
 export default function ContactPage() {
   return (
     <main className="legal-page">
+      <Navbar mode="marketing" />
       <div className="rw-shell legal-container">
         <h1 className="legal-title">Contact</h1>
         <p className="legal-updated">RevenueWatch</p>

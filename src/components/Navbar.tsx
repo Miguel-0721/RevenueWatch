@@ -7,6 +7,7 @@ type NavbarProps = {
   ctaLabel?: string;
   ctaHref?: string;
   hideCta?: boolean;
+  mode?: "marketing" | "app";
 };
 
 function Brand() {
@@ -30,11 +31,12 @@ export default async function Navbar({
   ctaLabel = "Connect Stripe",
   ctaHref = "/login",
   hideCta = false,
+  mode = "marketing",
 }: NavbarProps) {
   const session = await auth();
   const displayName = getDisplayName(session?.user?.name, session?.user?.email);
 
-  if (session?.user) {
+  if (mode === "app" && session?.user) {
     return (
       <header className="rw-topbar">
         <div className="rw-shell rw-topbar-inner">
@@ -83,9 +85,6 @@ export default async function Navbar({
         <Brand />
 
         <nav className="rw-nav-links" aria-label="Primary">
-          <Link href="/" className="rw-nav-link rw-nav-link-active">
-            Home
-          </Link>
           <Link href="/#how-it-works" className="rw-nav-link">
             How it Works
           </Link>
@@ -97,7 +96,42 @@ export default async function Navbar({
           </Link>
         </nav>
 
-        {hideCta ? null : (
+        {session?.user ? (
+          <div className="rw-auth-area">
+            <div className="rw-user-block">
+              {session.user.image ? (
+                <img
+                  src={session.user.image}
+                  alt={session.user.name || "User"}
+                  className="rw-avatar"
+                />
+              ) : (
+                <div className="rw-avatar rw-avatar-fallback">
+                  {(session.user.name?.[0] || session.user.email?.[0] || "U").toUpperCase()}
+                </div>
+              )}
+
+              <div className="rw-user-meta">
+                <span>{displayName}</span>
+              </div>
+
+              <Link href="/dashboard" className="rw-signout">
+                Dashboard
+              </Link>
+
+              <form
+                action={async () => {
+                  "use server";
+                  await signOut({ redirectTo: "/login" });
+                }}
+              >
+                <button type="submit" className="rw-signout">
+                  Sign out
+                </button>
+              </form>
+            </div>
+          </div>
+        ) : hideCta ? null : (
           <Link href={ctaHref} className="rw-connect-button">
             {ctaLabel}
           </Link>

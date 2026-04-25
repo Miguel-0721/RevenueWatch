@@ -1,8 +1,10 @@
+import Navbar from "@/components/Navbar";
 import MarketingFooter from "@/components/MarketingFooter";
 
 export default function PrivacyPage() {
   return (
     <main className="legal-page">
+      <Navbar mode="marketing" />
       <div className="rw-shell legal-container">
         <h1 className="legal-title">Privacy Policy</h1>
         <p className="legal-updated">Last updated: March 2026</p>

@@ -131,8 +131,6 @@ img {
 .rw-nav-link-active {
   color: #007aff;
   font-weight: 600;
-  padding-bottom: 4px;
-  border-bottom: 2px solid #007aff;
 }
 
 .rw-connect-button {
@@ -175,8 +173,8 @@ img {
 }
 
 .rw-app-nav-link-active {
-  padding-bottom: 4px;
-  border-bottom: 2px solid #007aff;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .rw-back-link {

@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import MarketingFooter from "@/components/MarketingFooter";
+import Navbar from "@/components/Navbar";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -26,198 +27,6 @@ type AccountRecord = {
   status: string;
   createdAt: Date;
 };
-
-// TEMP VISUAL TEST DATA: set to false or remove this block after dashboard review.
-const USE_TEMP_DASHBOARD_SAMPLE_DATA = true;
-
-function minutesAgo(minutes: number) {
-  return new Date(Date.now() - minutes * 60 * 1000);
-}
-
-function minutesFromNow(minutes: number) {
-  return new Date(Date.now() + minutes * 60 * 1000);
-}
-
-function buildTemporaryDashboardSampleData() {
-  const accounts: AccountRecord[] = [
-    {
-      id: "sample-1",
-      name: "Atlas Commerce",
-      stripeAccountId: "acct_sample_atlas",
-      status: "active",
-      createdAt: minutesAgo(9200),
-    },
-    {
-      id: "sample-2",
-      name: "Northstar Digital",
-      stripeAccountId: "acct_sample_northstar",
-      status: "active",
-      createdAt: minutesAgo(8800),
-    },
-    {
-      id: "sample-3",
-      name: "BluePeak Subscriptions",
-      stripeAccountId: "acct_sample_bluepeak",
-      status: "active",
-      createdAt: minutesAgo(8300),
-    },
-    {
-      id: "sample-4",
-      name: "Meridian Market",
-      stripeAccountId: "acct_sample_meridian",
-      status: "active",
-      createdAt: minutesAgo(7900),
-    },
-    {
-      id: "sample-5",
-      name: "Luma Health Co",
-      stripeAccountId: "acct_sample_luma",
-      status: "active",
-      createdAt: minutesAgo(7400),
-    },
-    {
-      id: "sample-6",
-      name: "Forge Analytics",
-      stripeAccountId: "acct_sample_forge",
-      status: "active",
-      createdAt: minutesAgo(7000),
-    },
-    {
-      id: "sample-7",
-      name: "Cedar Creative",
-      stripeAccountId: "acct_sample_cedar",
-      status: "active",
-      createdAt: minutesAgo(6600),
-    },
-    {
-      id: "sample-8",
-      name: "Pixel Harbor",
-      stripeAccountId: "acct_sample_pixel",
-      status: "active",
-      createdAt: minutesAgo(6200),
-    },
-    {
-      id: "sample-9",
-      name: "BrightGrowth Studio",
-      stripeAccountId: "acct_sample_brightgrowth",
-      status: "active",
-      createdAt: minutesAgo(5800),
-    },
-    {
-      id: "sample-10",
-      name: "Nova Ops",
-      stripeAccountId: "acct_sample_nova",
-      status: "active",
-      createdAt: minutesAgo(5400),
-    },
-  ];
-
-  const alerts: AlertRecord[] = [
-    {
-      id: "sample-alert-1",
-      type: "payment_failed",
-      severity: "critical",
-      message: "Payment failures spiked above normal levels in the last 30 minutes.",
-      stripeAccountId: "acct_sample_atlas",
-      accountName: "Atlas Commerce",
-      createdAt: minutesAgo(38),
-      windowEnd: minutesFromNow(142),
-      context: JSON.stringify({
-        failedPayments: 18,
-        baseline: 4,
-      }),
-    },
-    {
-      id: "sample-alert-2",
-      type: "revenue_drop",
-      severity: "critical",
-      message: "Revenue is significantly below expected levels for this account.",
-      stripeAccountId: "acct_sample_northstar",
-      accountName: "Northstar Digital",
-      createdAt: minutesAgo(74),
-      windowEnd: minutesFromNow(106),
-      context: JSON.stringify({
-        expectedRevenue: 8200,
-        currentRevenue: 4920,
-      }),
-    },
-    {
-      id: "sample-alert-3",
-      type: "payment_failed",
-      severity: "warning",
-      message: "Payment failures increased and should be reviewed.",
-      stripeAccountId: "acct_sample_bluepeak",
-      accountName: "BluePeak Subscriptions",
-      createdAt: minutesAgo(126),
-      windowEnd: minutesFromNow(54),
-      context: JSON.stringify({
-        failedPayments: 9,
-        baseline: 4,
-      }),
-    },
-    {
-      id: "sample-alert-4",
-      type: "revenue_drop",
-      severity: "warning",
-      message: "Revenue dipped below normal weekday levels during the current monitoring window.",
-      stripeAccountId: "acct_sample_meridian",
-      accountName: "Meridian Market",
-      createdAt: minutesAgo(164),
-      windowEnd: minutesFromNow(16),
-      context: JSON.stringify({
-        expectedRevenue: 3100,
-        currentRevenue: 2418,
-      }),
-    },
-    {
-      id: "sample-history-1",
-      type: "payment_failed",
-      severity: "warning",
-      message: "A temporary payment failure increase returned to normal.",
-      stripeAccountId: "acct_sample_luma",
-      accountName: "Luma Health Co",
-      createdAt: minutesAgo(1500),
-      windowEnd: minutesAgo(1320),
-      context: JSON.stringify({
-        failedPayments: 7,
-        baseline: 3,
-      }),
-    },
-    {
-      id: "sample-history-2",
-      type: "revenue_drop",
-      severity: "warning",
-      message: "A short revenue dip recovered within the same business day.",
-      stripeAccountId: "acct_sample_forge",
-      accountName: "Forge Analytics",
-      createdAt: minutesAgo(2960),
-      windowEnd: minutesAgo(2780),
-      context: JSON.stringify({
-        expectedRevenue: 2600,
-        currentRevenue: 1980,
-      }),
-    },
-  ];
-
-  const lastEventByAccount = new Map<string, Date | null>([
-    ["acct_sample_atlas", minutesAgo(4)],
-    ["acct_sample_northstar", minutesAgo(11)],
-    ["acct_sample_bluepeak", minutesAgo(18)],
-    ["acct_sample_meridian", minutesAgo(27)],
-    ["acct_sample_luma", minutesAgo(33)],
-    ["acct_sample_forge", minutesAgo(41)],
-    ["acct_sample_cedar", minutesAgo(48)],
-    ["acct_sample_pixel", minutesAgo(56)],
-    ["acct_sample_brightgrowth", minutesAgo(63)],
-    ["acct_sample_nova", minutesAgo(78)],
-  ]);
-
-  return {
-    accounts,
-    alerts,
-    lastEventByAccount,
-  };
-}
 
 function alertLabel(type: string) {
   if (type === "revenue_drop") return "Revenue Drop Detected";
@@ -612,16 +421,9 @@ export default async function DashboardPage() {
     lastEvents.map((event) => [event.stripeAccountId, event._max.createdAt ?? null])
   );
 
-  const temporarySampleData = buildTemporaryDashboardSampleData();
-  const displayStripeAccounts = USE_TEMP_DASHBOARD_SAMPLE_DATA
-    ? temporarySampleData.accounts
-    : stripeAccounts;
-  const displayAlerts = USE_TEMP_DASHBOARD_SAMPLE_DATA
-    ? temporarySampleData.alerts
-    : alerts;
-  const lastEventByAccount = USE_TEMP_DASHBOARD_SAMPLE_DATA
-    ? temporarySampleData.lastEventByAccount
-    : realLastEventByAccount;
+  const displayStripeAccounts = stripeAccounts;
+  const displayAlerts = alerts;
+  const lastEventByAccount = realLastEventByAccount;
 
   const accountNameById = new Map(
     displayStripeAccounts.map((account) => [
@@ -673,6 +475,7 @@ export default async function DashboardPage() {
 
   return (
     <>
+    <Navbar mode="app" />
     <main className={styles.page}>
       <div className={styles.main} id="overview-top">
         <section aria-label="Global Status" className={styles.globalStatus}>

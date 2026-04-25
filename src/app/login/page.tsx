@@ -49,7 +49,7 @@ export default async function LoginPage() {
 
   return (
     <div className={styles.page}>
-      <Navbar ctaLabel="Sign in" ctaHref="/login" />
+      <Navbar mode="marketing" ctaLabel="Sign in" ctaHref="/login" />
       <main className={styles.main}>
         <section className={styles.heroShell}>
           <div className={styles.copy}>

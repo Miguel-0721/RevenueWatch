@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Navbar from "@/components/Navbar";
 import MarketingFooter from "@/components/MarketingFooter";
 import StitchIcon from "@/components/StitchIcon";
 import type { IconName } from "@/components/StitchIcon";
@@ -285,7 +286,9 @@ function PricingCard({
 
 export default function HomePage() {
   return (
-    <main className={styles.page}>
+    <>
+      <Navbar mode="marketing" />
+      <main className={styles.page}>
       <section className={styles.heroSection}>
         <div className={styles.heroShell}>
           <div className={styles.heroGrid}>
@@ -652,5 +655,6 @@ export default function HomePage() {
 
       <MarketingFooter />
     </main>
+    </>
   );
 }

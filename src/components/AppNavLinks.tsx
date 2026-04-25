@@ -32,6 +32,10 @@ export default function AppNavLinks() {
           ? "alerts"
           : "dashboard";
 
+  if (pathname === "/dashboard" && hash !== "#connected-accounts") {
+    return null;
+  }
+
   return (
     <nav className="rw-app-nav" aria-label="Product">
       {appNavItems.map((item) => {
