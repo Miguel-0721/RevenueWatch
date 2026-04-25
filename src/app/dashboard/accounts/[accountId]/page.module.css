@@ -123,6 +123,13 @@
   align-items: stretch;
 }
 
+.chartLayoutSingle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 24px;
+  align-items: start;
+}
+
 .chartMain {
   min-width: 0;
 }
@@ -446,6 +453,48 @@
   text-transform: uppercase;
 }
 
+.failureSummaryCard {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.failureMiniBlock {
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid rgba(193, 198, 215, 0.22);
+}
+
+.failureMiniBlock span {
+  display: block;
+  margin-bottom: 6px;
+  color: #717786;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.failureMiniBlock strong {
+  display: block;
+  color: #191c1d;
+  font-size: 20px;
+  line-height: 1.1;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+}
+
+.failureMiniChart .failureChartWrap {
+  height: 180px;
+}
+
+.failureMiniChart .chartFooter {
+  margin-top: 14px;
+  padding-top: 14px;
+}
+
 .monitorPanel {
   position: relative;
   display: grid;
@@ -698,7 +747,8 @@
   }
 
   .lowerGrid,
-  .chartLayout {
+  .chartLayout,
+  .chartLayoutSingle {
     grid-template-columns: 1fr;
   }
 
@@ -742,6 +792,10 @@
   .chartCard,
   .alertRow {
     padding: 18px;
+  }
+
+  .failureSummaryCard {
+    grid-template-columns: 1fr;
   }
 
   .chartStats,
