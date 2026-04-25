@@ -28,7 +28,7 @@ function getDisplayName(name?: string | null, email?: string | null) {
 }
 
 export default async function Navbar({
-  ctaLabel = "Connect Stripe",
+  ctaLabel = "Get started",
   ctaHref = "/login",
   hideCta = false,
   mode = "marketing",
@@ -36,7 +36,7 @@ export default async function Navbar({
   const session = await auth();
   const displayName = getDisplayName(session?.user?.name, session?.user?.email);
 
-  if (mode === "app" && session?.user) {
+  if (session?.user) {
     return (
       <header className="rw-topbar">
         <div className="rw-shell rw-topbar-inner">
@@ -45,34 +45,48 @@ export default async function Navbar({
           <AppNavLinks />
 
           <div className="rw-auth-area">
-            <div className="rw-user-block">
-              {session.user.image ? (
-                <img
-                  src={session.user.image}
-                  alt={session.user.name || "User"}
-                  className="rw-avatar"
-                />
-              ) : (
-                <div className="rw-avatar rw-avatar-fallback">
-                  {(session.user.name?.[0] || session.user.email?.[0] || "U").toUpperCase()}
+            <details className="rw-user-menu">
+              <summary className="rw-user-trigger">
+                {session.user.image ? (
+                  <img
+                    src={session.user.image}
+                    alt={session.user.name || "User"}
+                    className="rw-avatar"
+                  />
+                ) : (
+                  <div className="rw-avatar rw-avatar-fallback">
+                    {(session.user.name?.[0] || session.user.email?.[0] || "U").toUpperCase()}
+                  </div>
+                )}
+
+                <div className="rw-user-meta">
+                  <span>{displayName}</span>
                 </div>
-              )}
 
-              <div className="rw-user-meta">
-                <span>{displayName}</span>
+                <span className="rw-menu-caret" aria-hidden="true">
+                  ▾
+                </span>
+              </summary>
+
+              <div className="rw-user-dropdown">
+                <Link href="/settings" className="rw-user-dropdown-link">
+                  Settings
+                </Link>
+                <Link href="/billing" className="rw-user-dropdown-link">
+                  Billing
+                </Link>
+                <form
+                  action={async () => {
+                    "use server";
+                    await signOut({ redirectTo: "/login" });
+                  }}
+                >
+                  <button type="submit" className="rw-user-dropdown-button">
+                    Sign out
+                  </button>
+                </form>
               </div>
-
-              <form
-                action={async () => {
-                  "use server";
-                  await signOut({ redirectTo: "/login" });
-                }}
-              >
-                <button type="submit" className="rw-signout">
-                  Sign out
-                </button>
-              </form>
-            </div>
+            </details>
           </div>
         </div>
       </header>
@@ -96,45 +110,15 @@ export default async function Navbar({
           </Link>
         </nav>
 
-        {session?.user ? (
-          <div className="rw-auth-area">
-            <div className="rw-user-block">
-              {session.user.image ? (
-                <img
-                  src={session.user.image}
-                  alt={session.user.name || "User"}
-                  className="rw-avatar"
-                />
-              ) : (
-                <div className="rw-avatar rw-avatar-fallback">
-                  {(session.user.name?.[0] || session.user.email?.[0] || "U").toUpperCase()}
-                </div>
-              )}
-
-              <div className="rw-user-meta">
-                <span>{displayName}</span>
-              </div>
-
-              <Link href="/dashboard" className="rw-signout">
-                Dashboard
-              </Link>
-
-              <form
-                action={async () => {
-                  "use server";
-                  await signOut({ redirectTo: "/login" });
-                }}
-              >
-                <button type="submit" className="rw-signout">
-                  Sign out
-                </button>
-              </form>
-            </div>
+        {hideCta ? null : (
+          <div className="rw-auth-area rw-auth-area-marketing">
+            <Link href="/login" className="rw-text-action">
+              Sign in
+            </Link>
+            <Link href={ctaHref} className="rw-connect-button">
+              {ctaLabel}
+            </Link>
           </div>
-        ) : hideCta ? null : (
-          <Link href={ctaHref} className="rw-connect-button">
-            {ctaLabel}
-          </Link>
         )}
       </div>
     </header>

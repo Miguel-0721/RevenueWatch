@@ -24,17 +24,15 @@ export default function AppNavLinks() {
   }, []);
 
   const activeMatch =
-    pathname === "/dashboard" && hash === "#connected-accounts"
+    pathname?.startsWith("/dashboard/accounts")
+      ? "accounts"
+      : pathname === "/dashboard" && hash === "#connected-accounts"
       ? "accounts"
       : pathname === "/dashboard"
         ? "dashboard"
         : pathname?.startsWith("/alerts")
           ? "alerts"
           : "dashboard";
-
-  if (pathname === "/dashboard" && hash !== "#connected-accounts") {
-    return null;
-  }
 
   return (
     <nav className="rw-app-nav" aria-label="Product">
