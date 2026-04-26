@@ -1,5 +1,7 @@
 import { auth } from "@/auth";
 import Navbar from "@/components/Navbar";
+import AccountNameEditor from "@/components/AccountNameEditor";
+import { getPlanLabel, getPlanLimit } from "@/lib/billing";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -172,10 +174,10 @@ function getAlertAccountName(
   }
 
   if (alert.stripeAccountId) {
-    return accountNameById.get(alert.stripeAccountId) ?? "Unnamed account";
+    return accountNameById.get(alert.stripeAccountId) ?? "Stripe account";
   }
 
-  return "Unnamed account";
+  return "Stripe account";
 }
 
 function buildStatusCopy(activeAlertsCount: number, accountCount: number) {
@@ -192,9 +194,9 @@ function buildStatusCopy(activeAlertsCount: number, accountCount: number) {
 
   return {
     title: "All Systems Normal",
-    summary: `${accountCount} connected Stripe account${
+    summary: `Monitoring ${accountCount} Stripe account${
       accountCount === 1 ? "" : "s"
-    }. No revenue drops or payment failure spikes detected in the last 24 hours.`,
+    }. No issues detected in the last 24 hours.`,
   };
 }
 
@@ -296,7 +298,7 @@ function IssueCard({
       <div className={styles.issueBody}>
         <div className={styles.issueHeader}>
           <div>
-            <h3 className={styles.issueTitle}>{account.name ?? "Unnamed account"}</h3>
+            <h3 className={styles.issueTitle}>{account.name ?? "Stripe account"}</h3>
             <p className={styles.issueType} style={{ color: severity.statusColor }}>
               {alertLabel(alert.type)}
             </p>
@@ -367,26 +369,49 @@ function ConnectedAccountRow({
   alert: AlertRecord | null;
   isMuted: boolean;
 }) {
+  const isPaused = account.status === "paused";
+  const stateLabel = isPaused
+    ? "Paused"
+    : alert
+      ? severityMeta(alert.severity).shortLabel
+      : "Monitoring";
+  const stateColor = isPaused
+    ? "#717786"
+    : alert
+      ? severityMeta(alert.severity).statusColor
+      : "#414755";
+  const dotColor = isPaused
+    ? "#8b91a1"
+    : alert
+      ? severityMeta(alert.severity).dotColor
+      : "#0058bc";
+
   return (
-    <Link
-      href={`/dashboard/accounts/${encodeURIComponent(account.stripeAccountId)}`}
+    <div
       className={`${styles.connectedRow} ${isMuted ? styles.connectedRowAlt : ""}`}
     >
       <div className={styles.connectedCopy}>
-        <span className={styles.connectedName}>{account.name ?? "Unnamed account"}</span>
+        <AccountNameEditor
+          accountId={account.id}
+          stripeAccountId={account.stripeAccountId}
+          currentName={account.name}
+          currentStatus={account.status}
+        />
         <span className={styles.connectedMeta}>Last event: {formatRelativeTime(account.lastActivity)}</span>
       </div>
 
-      <div className={styles.connectedState}>
-        <span
-          className={styles.connectedDot}
-          style={{ background: alert ? severityMeta(alert.severity).dotColor : "#0058bc" }}
-        />
-        <span style={{ color: alert ? severityMeta(alert.severity).statusColor : "#414755" }}>
-          {alert ? severityMeta(alert.severity).shortLabel : "Monitoring"}
-        </span>
+      <div className={styles.connectedStateWrap}>
+        <div className={styles.connectedState}>
+          <span
+            className={styles.connectedDot}
+            style={{ background: dotColor }}
+          />
+          <span style={{ color: stateColor }}>
+            {stateLabel}
+          </span>
+        </div>
       </div>
-    </Link>
+    </div>
   );
 }
 
@@ -401,7 +426,11 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const [alerts, stripeAccounts, lastEvents] = await Promise.all([
+  const [user, alerts, stripeAccounts, lastEvents] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { plan: true },
+    }),
     prisma.alert.findMany({
       orderBy: { createdAt: "desc" },
       take: 50,
@@ -416,6 +445,10 @@ export default async function DashboardPage() {
     }),
   ]);
 
+  if (!user) {
+    redirect("/login");
+  }
+
   const realLastEventByAccount = new Map(
     lastEvents.map((event) => [event.stripeAccountId, event._max.createdAt ?? null])
   );
@@ -427,7 +460,7 @@ export default async function DashboardPage() {
   const accountNameById = new Map(
     displayStripeAccounts.map((account) => [
       account.stripeAccountId,
-      account.name ?? "Unnamed Stripe account",
+      account.name ?? "Stripe account",
     ])
   );
 
@@ -445,6 +478,7 @@ export default async function DashboardPage() {
   }
 
   const monitoredAccounts = displayStripeAccounts
+    .filter((account) => account.status !== "disconnected")
     .map((account) => {
       const accountAlerts = alertsByAccount.get(account.stripeAccountId) ?? [];
       const topAlert = accountAlerts[0] ?? null;
@@ -471,9 +505,8 @@ export default async function DashboardPage() {
   const activeIncidentRows = activeAlerts;
   const recentHistory = historicalAlerts.slice(0, 2);
   const statusCopy = buildStatusCopy(activeAlerts.length, activeAccounts.length);
-  const showLocalBillingPreview =
-    process.env.NODE_ENV !== "production" ||
-    process.env.NEXT_PUBLIC_APP_URL?.includes("localhost");
+  const currentPlanLabel = getPlanLabel(user.plan);
+  const currentPlanLimit = getPlanLimit(user.plan);
 
   return (
     <>
@@ -497,24 +530,33 @@ export default async function DashboardPage() {
                 </div>
 
                 <p className={styles.statusSummary}>
-                  <strong>Stripe Account Monitoring:</strong> {statusCopy.summary}
+                  {statusCopy.summary}
                 </p>
               </div>
             </div>
 
-            <div className={styles.quickStats}>
-              <div className={styles.quickStat}>
-                <span>CONNECTED</span>
-                <strong>{activeAccounts.length}</strong>
-              </div>
-              <div className={styles.quickDivider} />
-              <div className={styles.quickStat}>
-                <span>ACTIVE ALERTS</span>
-                <strong>{activeAlerts.length}</strong>
+              <div className={styles.quickStats}>
+                <div className={styles.quickStat}>
+                  <span>CONNECTED</span>
+                  <strong>{activeAccounts.length}</strong>
+                </div>
+                <div className={styles.quickDivider} />
+                <div className={styles.quickStat}>
+                  <span>ACTIVE ALERTS</span>
+                  <strong>{activeAlerts.length}</strong>
+                </div>
+                <div className={styles.quickDivider} />
+                <div className={styles.quickStat}>
+                  <span>CURRENT PLAN</span>
+                  <strong>{currentPlanLabel}</strong>
+                  <small>{currentPlanLimit} account limit</small>
+                  <Link href="/api/billing/portal" className={styles.quickStatLink}>
+                    Manage billing
+                  </Link>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
 
         <div className={styles.layoutGrid}>
           <div className={styles.leftRail}>
@@ -572,11 +614,6 @@ export default async function DashboardPage() {
               <header className={styles.sectionHeaderInline}>
                 <h2 className={styles.sectionTitle}>Connected Accounts</h2>
                 <div className={styles.connectedActions}>
-                  {showLocalBillingPreview ? (
-                    <Link href="/billing" className={styles.secondaryActionLink}>
-                      Billing Preview
-                    </Link>
-                  ) : null}
                   <Link href="/api/stripe/connect" className={styles.addAccountLink}>
                     Add Account
                   </Link>

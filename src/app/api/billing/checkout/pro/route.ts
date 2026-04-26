@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { resolveCheckoutCustomerId } from "@/lib/stripe-customer";
+import { customerHasManagedSubscription } from "@/lib/subscription-guard";
 import { stripe } from "@/lib/stripe";
 import { NextResponse } from "next/server";
 
@@ -46,6 +47,10 @@ export async function GET() {
     stripeCustomerId = await resolveCheckoutCustomerId(user);
   } catch {
     return NextResponse.redirect(new URL("/billing?billing=customer_error", appUrl));
+  }
+
+  if (await customerHasManagedSubscription(stripeCustomerId)) {
+    return NextResponse.redirect(new URL("/api/billing/portal", appUrl));
   }
 
   const checkoutSession = await stripe.checkout.sessions.create({

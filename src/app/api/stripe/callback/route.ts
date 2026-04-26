@@ -2,6 +2,25 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "../../../../auth";
 
+function pickDisplayName(account: {
+  business_profile?: { name?: string | null } | null;
+  email?: string | null;
+}) {
+  const businessName = account.business_profile?.name?.trim();
+
+  if (businessName) {
+    return businessName;
+  }
+
+  const email = account.email?.trim();
+
+  if (email) {
+    return email;
+  }
+
+  return "Stripe account";
+}
+
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
@@ -81,16 +100,38 @@ export async function GET(req: Request) {
       );
     }
 
-       await prisma.stripeAccount.upsert({
+    const accountResponse = await fetch(
+      `https://api.stripe.com/v1/accounts/${stripeAccountId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${clientSecret}`,
+        },
+      }
+    );
+
+    let displayName = "Stripe account";
+
+    if (accountResponse.ok) {
+      const accountData = (await accountResponse.json()) as {
+        business_profile?: { name?: string | null } | null;
+        email?: string | null;
+      };
+
+      displayName = pickDisplayName(accountData);
+    }
+
+    await prisma.stripeAccount.upsert({
       where: { stripeAccountId },
       update: {
         status: "active",
         userId: session.user.id,
+        name: displayName,
       },
       create: {
         stripeAccountId,
         status: "active",
         userId: session.user.id,
+        name: displayName,
       },
     });
 

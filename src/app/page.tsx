@@ -275,7 +275,13 @@ function PricingCard({
       </ul>
 
       <Link
-        href={tier === "Pro" ? "/contact" : "/login"}
+        href={
+          tier === "Pro"
+            ? "/contact"
+            : tier === "Growth"
+              ? "/auth/continue?plan=growth"
+              : "/auth/continue?plan=free"
+        }
         className={featured ? styles.primaryAction : styles.secondaryAction}
       >
         {cta}

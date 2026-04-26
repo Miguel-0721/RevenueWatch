@@ -108,6 +108,12 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
             </div>
           ) : null}
 
+          {params?.billing === "no_profile" ? (
+            <div className={styles.noticeMuted}>
+              No billing profile found yet.
+            </div>
+          ) : null}
+
           <header className={styles.header}>
             <h1>Billing</h1>
             <p>

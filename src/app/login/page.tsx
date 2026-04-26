@@ -40,11 +40,38 @@ function MicrosoftIcon() {
   );
 }
 
-export default async function LoginPage() {
+type LoginPageProps = {
+  searchParams?: Promise<{
+    plan?: string;
+  }>;
+};
+
+function normalizePlan(plan?: string) {
+  if (!plan) {
+    return "free";
+  }
+
+  const normalized = plan.toLowerCase();
+
+  if (normalized === "growth") {
+    return "growth";
+  }
+
+  if (normalized === "pro") {
+    return "pro";
+  }
+
+  return "free";
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
   const session = await auth();
+  const params = searchParams ? await searchParams : undefined;
+  const plan = normalizePlan(params?.plan);
+  const redirectTarget = `/auth/continue?plan=${plan}`;
 
   if (session?.user) {
-    redirect("/dashboard");
+    redirect(redirectTarget);
   }
 
   return (
@@ -80,7 +107,7 @@ export default async function LoginPage() {
                   className={styles.providerForm}
                   action={async () => {
                     "use server";
-                    await signIn("google", { redirectTo: "/dashboard" });
+                    await signIn("google", { redirectTo: redirectTarget });
                   }}
                 >
                   <button
