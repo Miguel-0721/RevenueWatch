@@ -1347,3 +1347,527 @@ Do not do yet without user approval:
 - Add destructive alert clearing.
 - Add prediction/recommendation language.
 - Convert payment failure logic to a baseline-based model.
+
+---
+
+## Memory Update - 2026-04-26 Billing, Navbar, Dashboard, Stripe, and Recovery History
+
+This section records the major product/app changes completed after the older landing/auth/account-detail iterations above. Keep all earlier history, but treat this section as the most recent operational memory for current app state, billing, local dev issues, and GitHub recovery points.
+
+### Important Git Recovery Points
+
+Recent important pushed commits on `main`:
+- `b648ebf` — `Refine nav states and remove sample dashboard data`
+- `93bc231` — `Separate marketing and app nav states`
+- `5698dac` — `Add plan gating for Stripe account limits`
+- `61a45fc` — `Refine billing page and add local billing preview`
+- `8176136` — `Add Stripe Checkout billing routes`
+- `e2736aa` — `Handle Stripe customer mode mismatch`
+- `034a93c` — `Separate Stripe customer IDs by mode`
+
+Important workflow behavior:
+- The user frequently asks to revert to the last GitHub push if a direction feels wrong.
+- When the user says "go back to the last github push", the repo should be aligned to `origin/main`, not partially reverted.
+- Database/demo data changes are not recoverable via Git unless a seed/reset script exists.
+
+### Dashboard and App Shell Direction
+
+The dashboard and app shell have been deliberately moved away from "marketing site inside the app" and toward a focused SaaS product shell.
+
+Accepted app-shell decisions:
+- Logged-out navbar and logged-in navbar are intentionally different.
+- Logged-out navbar:
+  - left: `RevenueWatch`
+  - center: `How it Works`, `Pricing`, `Support`
+  - right: `Sign in`, `Get started`
+- Logged-in navbar:
+  - left: `RevenueWatch`
+  - center: `Dashboard`, `Accounts`, `Alerts`
+  - right: avatar, user name, dropdown arrow
+  - dropdown includes app actions like `Settings`, `Billing`, `Sign out`
+- Logged-in navbar should be slightly smaller/tighter than marketing navbar.
+- Active logged-in nav item should be clearly visible:
+  - darker text
+  - slightly bolder
+  - subtle underline
+
+Dashboard/footer product-shell decisions:
+- Remove the full marketing footer from dashboard/app pages.
+- App pages should feel like product surfaces, not public site sections.
+- Dashboard/footer spacing should remain quiet and minimal.
+
+### Dashboard Layout Decisions
+
+The dashboard was refactored away from a left/right split into a clearer vertical product flow.
+
+Accepted dashboard order:
+1. System status
+2. Accounts needing attention
+3. Active alerts
+4. Connected accounts
+5. Recent history
+
+Dashboard UX rules accepted:
+- User should scan top to bottom, not left to right.
+- Empty states should be simple and calm.
+- Empty states eventually received subtle low-contrast containers instead of large heavy boxes.
+- Connected account cards should feel clickable.
+- `Unnamed account` fallback was replaced with `Stripe account`.
+- The `LIVE` badge was removed from the top status area in later refinement requests, but some older screenshots/branches may still show it depending on revert state.
+- Recent History can be hidden or visually softened when empty.
+
+Important dashboard copy decisions:
+- Top description simplified to:
+  - `Monitoring 1 Stripe account. No issues detected.`
+- Empty-state copy simplified to:
+  - `No accounts need attention`
+  - `No active alerts`
+
+Important current behavior:
+- Dashboard `Add Account` remains the main action for connecting Stripe accounts.
+- A temporary local-only `Billing Preview` shortcut was added during billing work so the user could inspect `/billing` locally without triggering Stripe Connect.
+- This local preview button exists only as a dev convenience and should not be treated as a permanent product requirement.
+
+### Demo/Test Dashboard Data History
+
+This changed multiple times and must be remembered clearly.
+
+What happened:
+- Temporary sample businesses and alerts were removed from code so the dashboard reflected real DB state.
+- Later, demo companies and alerts were seeded directly into the database for UI review.
+- A reusable seed script was created temporarily:
+  - `scripts/seed-demo-dashboard.cjs`
+- Seeded companies included realistic names such as:
+  - Atlas Commerce
+  - Northstar Digital
+  - BluePeak Subscriptions
+  - Meridian Market
+  - Oak & Ember
+  - Lumen Studio
+  - Harbor House Goods
+  - Riverline Fitness
+  - Cedar & Co
+  - Summit Learn
+
+Seeded alert intent:
+- Some accounts should show revenue drops.
+- Some should show payment failure spikes.
+- Some should remain healthy.
+
+Important nuance:
+- Seeded active alerts can "disappear" from the dashboard when their alert windows expire, even though alert records still exist in the DB.
+- This caused confusion because the user expected issues to remain active.
+- The fix during testing was to refresh demo timestamps or reseed active alerts.
+
+Current rule:
+- Demo/sample data is acceptable for testing, but the user may ask to remove it at any time.
+- When the user says "remove the data in the dashboard", they mean delete the seeded demo companies/alerts from the DB, not just hide them in UI.
+
+### Account Management Direction That Was Explored Then Reverted
+
+Several account-management ideas were implemented and then intentionally rolled back after the user disliked the direction.
+
+Explored features:
+- Pause monitoring / resume monitoring
+- Remove account
+- Account management controls in the account detail header
+- Soft removal via account `status`
+
+Outcome:
+- Those directions were not kept as the final preferred path at that time.
+- The user explicitly asked to revert to the last GitHub push more than once.
+- Future chats should not assume those account-management controls are still desired unless they still exist in the current checked-out code.
+
+### Billing and Plan-Limit Product Direction
+
+This is now a major current product direction and should be treated as intentional.
+
+Agreed billing/product flow:
+1. User signs in first.
+2. User starts on Free by default.
+3. Free plan allows 1 connected Stripe account.
+4. If user tries to connect more than their plan allows, RevenueWatch blocks the Stripe Connect flow and sends them to Billing.
+5. Billing is an in-app upgrade page, not a marketing pricing page.
+6. Stripe Checkout handles subscription purchase.
+7. Stripe webhooks update plan/subscription state.
+8. Later, Stripe Customer Portal can be used for subscription management.
+
+Plan limits agreed:
+- `FREE` = 1 active connected Stripe account
+- `GROWTH` = 10 active connected Stripe accounts
+- `PRO` = 25 active connected Stripe accounts
+
+Important plan-limit rule:
+- Count only active connected Stripe accounts.
+- Do not count disconnected/paused accounts.
+
+### Billing Placeholder Page Direction
+
+The billing page was rebuilt to feel like a real in-app upgrade gate rather than an internal placeholder.
+
+Current billing page principles:
+- In-app billing/settings feel, not a landing-page pricing table.
+- Calm, product-like, Stitch-inspired card layout.
+- Show current plan clearly.
+- Show account usage clearly.
+- Show Growth and Pro upgrade cards.
+- Avoid internal product-explanation text on the page.
+- Both upgrade buttons should look actionable.
+
+Accepted billing page content decisions:
+- Show a top message like:
+  - `You've reached your limit of 1 connected Stripe account. Upgrade to monitor more accounts.`
+- Current plan card simplified to:
+  - `Current plan: Free`
+  - `1 / 1 accounts used`
+- Remove internal placeholder text like:
+  - `RevenueWatch keeps billing separate from monitoring...`
+  - `Stripe Checkout comes next`
+- Add trust line:
+  - `You can upgrade or cancel anytime. No changes are made to your Stripe accounts.`
+
+Stitch guidance:
+- The user shared a Stitch export and explicitly wanted the billing page to follow the Stitch layout more closely.
+- Billing page was adjusted to feel more like the Stitch design while remaining product-like.
+
+### Billing Implementation State
+
+Core files involved:
+- `src/lib/billing.ts`
+- `src/app/billing/page.tsx`
+- `src/app/billing/page.module.css`
+- `src/app/api/stripe/connect/route.ts`
+- `src/app/api/billing/checkout/growth/route.ts`
+- `src/app/api/billing/checkout/pro/route.ts`
+- `src/lib/stripe-customer.ts`
+- `src/app/api/stripe/webhook/route.ts`
+
+Current billing helper state:
+- `src/lib/billing.ts` provides:
+  - plan labels
+  - plan limits
+  - `getPlanLimit`
+  - `getPlanLabel`
+
+Billing page state:
+- Reads `user.plan` from Prisma.
+- Reads active connected Stripe accounts from Prisma.
+- Calculates usage and plan limit from DB state.
+- Supports billing notices like:
+  - `reason=limit_reached`
+  - `billing=cancelled`
+  - `billing=customer_error`
+
+### Stripe Connect Plan Gating
+
+Current implementation:
+- File: `src/app/api/stripe/connect/route.ts`
+- Behavior:
+  - authenticates user
+  - loads `user.plan`
+  - counts active Stripe accounts
+  - compares against plan limit
+  - redirects to `/billing?reason=limit_reached` when limit is reached
+  - otherwise continues to Stripe OAuth
+
+Important nuance:
+- The gating is implemented before redirecting to Stripe Connect.
+- The user repeatedly confirmed this behavior and asked for confirmation checks.
+
+Current Connect OAuth redirect behavior:
+- Code builds redirect URI from:
+  - `${NEXT_PUBLIC_APP_URL}/api/stripe/callback`
+- Important Stripe dashboard configuration:
+  - The OAuth redirect URIs in Stripe must exactly match:
+    - `http://localhost:3000/api/stripe/callback`
+    - `https://revenuewatch.app/api/stripe/callback`
+- The user at one point configured:
+  - `/api/stripe/connect/callback`
+  - and `www.revenuewatch.app`
+  which did **not** match the current app code.
+
+Important reminder:
+- Stripe requires exact redirect URI matches.
+- If Stripe dashboard uses `/api/stripe/connect/callback` but the app uses `/api/stripe/callback`, Stripe Connect will fail.
+
+### Stripe Checkout Implementation State
+
+Current checkout routes:
+- `/api/billing/checkout/growth`
+- `/api/billing/checkout/pro`
+
+Current route behavior:
+- Require a logged-in user.
+- Load the user from Prisma.
+- Ensure a Stripe customer exists.
+- Create a Stripe Checkout Session with `mode: "subscription"`.
+- Use environment variables:
+  - `STRIPE_GROWTH_PRICE_ID`
+  - `STRIPE_PRO_PRICE_ID`
+- Use:
+  - `success_url = ${NEXT_PUBLIC_APP_URL}/dashboard?billing=success`
+  - `cancel_url = ${NEXT_PUBLIC_APP_URL}/billing?billing=cancelled`
+- Include metadata:
+  - `userId`
+  - `plan`
+
+Important checkout metadata rule:
+- `userId` is included in top-level session metadata.
+- `userId` and `plan` are also included in `subscription_data.metadata`.
+- This is critical because webhook fulfillment depends on it.
+
+### Stripe Customer ID Mode Separation
+
+This became necessary because the same logged-in user is used locally with `sk_test_...` and in production with `sk_live_...`.
+
+Problem:
+- A single `stripeCustomerId` field is not sufficient.
+- A test customer ID can be accidentally reused in live mode, or vice versa.
+- That causes Stripe errors like:
+  - `No such customer; a similar object exists in live mode, but a test mode key was used.`
+
+Implemented solution:
+- Keep legacy:
+  - `stripeCustomerId`
+- Add:
+  - `stripeTestCustomerId`
+  - `stripeLiveCustomerId`
+
+Current mode-aware customer logic:
+- File: `src/lib/stripe-customer.ts`
+- Detect Stripe mode from `STRIPE_SECRET_KEY`:
+  - `sk_test_...` => use `stripeTestCustomerId`
+  - `sk_live_...` => use `stripeLiveCustomerId`
+- Candidate lookup order:
+  1. mode-specific customer field
+  2. legacy `stripeCustomerId` (compatibility fallback)
+- Try `stripe.customers.retrieve(customerId)`
+- If Stripe says `resource_missing` or the customer is deleted:
+  - create a new customer
+  - save it to the correct mode-specific field
+- Unexpected errors redirect to:
+  - `/billing?billing=customer_error`
+
+Migration added:
+- `20260426200000_add_mode_specific_customer_ids`
+
+Pushed commit:
+- `034a93c` — `Separate Stripe customer IDs by mode`
+
+### Stripe/Webhook and Subscription Fulfillment State
+
+This is the most important current area because it is still being actively debugged.
+
+What was true before the latest webhook work:
+- Payment could succeed in Stripe Checkout.
+- User remained on `FREE`.
+- `Add Account` still redirected to Billing.
+- Root cause: webhook fulfillment was missing or incomplete, so the database plan was never updated.
+
+Webhook file:
+- `src/app/api/stripe/webhook/route.ts`
+
+Existing webhook responsibilities before billing changes:
+- Verify Stripe webhook signature using raw body and `STRIPE_WEBHOOK_SECRET`.
+- Process Connect/payment events for RevenueWatch monitoring.
+- Create `StripeEvent` audit records.
+- Trigger revenue-drop and payment-failure alerts.
+
+Important current webhook design rule:
+- The webhook serves **both**:
+  - RevenueWatch monitoring alerts (Connect/payment events)
+  - Billing fulfillment (Checkout/subscription events)
+
+Important implementation detail:
+- `checkout.session.completed` must be handled **before** the Connect-specific `event.account` logic.
+- Checkout events may not include `event.account`.
+- If code assumes every webhook event is a Connect event first, billing fulfillment will silently fail or return early.
+
+Current billing-related webhook work:
+- `checkout.session.completed` handler was added.
+- It:
+  - reads `session.metadata.userId`
+  - reads `session.metadata.plan`
+  - falls back to finding the user by Stripe customer ID if metadata is missing
+  - updates:
+    - `plan`
+    - `stripeCustomerId`
+    - correct mode-specific customer field
+    - `stripeSubscriptionId`
+- Console logging was added for billing webhook visibility.
+
+Planned/implemented extension:
+- Add `subscriptionStatus` to `User`.
+- Handle:
+  - `customer.subscription.updated`
+  - `invoice.paid`
+- Update user subscription state from those events.
+
+Current migration for this:
+- `20260426213000_add_subscription_status`
+
+Current local status of this work:
+- `subscriptionStatus` was added to Prisma schema locally.
+- The migration was created and applied to the database.
+- Webhook code was updated locally to handle:
+  - `checkout.session.completed`
+  - `customer.subscription.updated`
+  - `invoice.paid`
+- `npx prisma migrate deploy` was run successfully for `subscriptionStatus`.
+- However, this latest `subscriptionStatus` webhook work was still **local/unpushed** at the time of this memory update.
+- Because the dev server was holding Prisma DLLs open, Prisma client regeneration was blocked until the user stops `next dev`.
+
+Current local unpushed files (at memory update time):
+- `prisma/schema.prisma`
+- `prisma/migrations/20260426213000_add_subscription_status/migration.sql`
+- `src/app/api/stripe/webhook/route.ts`
+- `src/lib/stripe-customer.ts` may also have local export changes depending on the exact working tree state
+
+Important current local step after editing Prisma schema:
+- Stop dev server
+- Run:
+  - `npx prisma generate`
+  - `npm run dev`
+
+Without this, TypeScript or runtime can complain that new Prisma fields do not exist.
+
+### Stripe CLI and Local Webhook Debugging
+
+Very important local-dev lessons:
+
+1. Stripe CLI can fail with expired API key
+- Error seen:
+  - `api_key_expired`
+  - `Expired API Key provided`
+- Meaning:
+  - local Stripe test key used by CLI was expired
+- Fix:
+  - create/reveal a fresh test secret key in Stripe Dashboard
+  - update local `.env`
+  - optionally `stripe logout` and `stripe login`
+
+2. `STRIPE_WEBHOOK_SECRET` from `stripe listen` is session-specific
+- Every time `stripe listen --forward-to localhost:3000/api/stripe/webhook` is restarted, a new `whsec_...` may be issued.
+- If `.env` still contains an old `whsec_...`, webhook verification fails silently from the user’s point of view and the plan will remain `FREE`.
+
+3. Changing webhook secret after payment does not fix old missed events
+- If checkout already completed while the wrong secret/listener was active, the user record will not update retroactively.
+- To recover, either:
+  - replay the event
+  - run a new checkout
+  - or manually update the user in DB for testing
+
+4. Payment success does not update the app by itself
+- Success URL is **not** the source of truth.
+- Only the webhook should update:
+  - plan
+  - subscription/customer IDs
+  - subscription status
+
+### Production/Vercel Billing Environment Notes
+
+Production failures encountered:
+- Missing `STRIPE_GROWTH_PRICE_ID` in Vercel caused raw JSON error:
+  - `{"error":"Missing STRIPE_GROWTH_PRICE_ID"}`
+- Fix:
+  - add env vars in Vercel
+  - redeploy
+
+Another production/local issue:
+- Using a live-mode price with a test secret key caused:
+  - `No such price ... a similar object exists in live mode, but a test mode key was used`
+- Meaning:
+  - price IDs must match the mode/account of the Stripe secret key
+- Rule:
+  - `sk_test_...` must use test-mode price IDs
+  - `sk_live_...` must use live-mode price IDs
+
+### Prisma/Windows Local Dev Gotchas
+
+Important recurring issue on Windows:
+- `npx prisma generate` can fail because `query_engine-windows.dll.node` is locked while `next dev` is running.
+- Error patterns:
+  - rename EPERM
+  - locked `.dll.node`
+
+Correct fix:
+- Stop `next dev`
+- Run:
+  - `npx prisma generate`
+  - `npx prisma migrate deploy` if needed
+- Start `npm run dev` again
+
+Do not use:
+- `npx prisma generate --no-engine`
+for this project
+
+Reason:
+- It previously caused Prisma to behave like Data Proxy/Accelerate mode and produced confusing errors such as:
+  - datasource URL must start with `prisma://`
+
+### Prisma/Auth Mismatch History
+
+This repo hit several schema/client mismatch issues:
+
+Examples:
+- `User.plan` missing from generated client
+- `User.stripeCustomerId` missing from DB/client
+- `User.stripeTestCustomerId` missing from DB
+- `subscriptionStatus` added locally but Prisma client regeneration blocked by running dev server
+
+Important lesson:
+- When schema changes are made:
+  1. apply migration
+  2. regenerate Prisma client
+  3. restart dev server
+
+Auth.js impact:
+- Because Auth.js loads `User` via Prisma during login/session/account lookup, missing DB columns can break:
+  - navbar rendering
+  - login
+  - callback
+  - session lookup
+even if the bug is "really" a billing schema change
+
+### Billing Problem Diagnosis Rule
+
+If the user says:
+- payment succeeded
+- billing page still says `Current plan: Free`
+- add-account still sends them to billing
+
+Then assume:
+- `User.plan` in the database is still `FREE`
+- webhook fulfillment did not update the row
+
+The correct debugging order is:
+1. Confirm checkout route includes metadata `userId` and `plan`
+2. Confirm webhook listener is running
+3. Confirm `STRIPE_WEBHOOK_SECRET` matches current `stripe listen`
+4. Confirm webhook logs show:
+   - `Checkout session completed webhook received`
+   - `Updated user plan from checkout webhook`
+5. Confirm user row in DB changed
+6. Only then test `Add Account` again
+
+### Current Product/Code Truth At End Of This Memory Update
+
+Pushed billing/product state:
+- Plan gating exists before Stripe Connect.
+- Billing page exists and reads plan from DB.
+- Checkout routes for Growth/Pro exist.
+- Mode-specific Stripe customer ID handling exists.
+- GitHub `main` includes those billing foundations.
+
+Current local in-progress state:
+- Billing webhook fulfillment is being extended so successful Stripe subscription payments actually upgrade the user in Prisma.
+- `subscriptionStatus` has been added locally and migrated in the DB.
+- Final local step still needed after schema change:
+  - stop dev server
+  - `npx prisma generate`
+  - restart app
+
+Do not forget:
+- The user wants future chats to remember all of this.
+- Do not delete old memory sections when updating this file.
+- Append new dated sections instead.

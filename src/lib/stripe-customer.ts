@@ -14,7 +14,7 @@ type CheckoutUser = {
 type StripeMode = "test" | "live";
 type CustomerField = "stripeTestCustomerId" | "stripeLiveCustomerId";
 
-function getStripeMode(): { mode: StripeMode; field: CustomerField } {
+export function getStripeMode(): { mode: StripeMode; field: CustomerField } {
   const secretKey = process.env.STRIPE_SECRET_KEY ?? "";
 
   if (secretKey.startsWith("sk_live_")) {

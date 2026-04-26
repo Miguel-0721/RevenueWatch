@@ -3,10 +3,56 @@ import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { sendAlertEmail } from "@/lib/notify";
 import { canTriggerAlert } from "@/lib/alert-guard";
+import { getStripeMode } from "@/lib/stripe-customer";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-12-15.clover",
 });
+
+function normalizePlan(plan: string | null | undefined) {
+  if (plan === "pro") return "PRO";
+  if (plan === "growth") return "GROWTH";
+  if (plan === "free") return "FREE";
+  return null;
+}
+
+function planFromPriceId(priceId: string | null | undefined) {
+  if (!priceId) return null;
+  if (priceId === process.env.STRIPE_GROWTH_PRICE_ID) return "GROWTH";
+  if (priceId === process.env.STRIPE_PRO_PRICE_ID) return "PRO";
+  return null;
+}
+
+async function findUserForBillingEvent({
+  userId,
+  customerId,
+}: {
+  userId?: string;
+  customerId?: string | null;
+}) {
+  if (userId) {
+    return prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+  }
+
+  if (!customerId) {
+    return null;
+  }
+
+  const { field } = getStripeMode();
+
+  return prisma.user.findFirst({
+    where: {
+      OR: [
+        { stripeCustomerId: customerId },
+        { [field]: customerId },
+      ],
+    },
+    select: { id: true },
+  });
+}
 
 
 
@@ -242,6 +288,150 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Webhook error" }, { status: 400 });
   }
 
+
+  if (event.type === "checkout.session.completed") {
+    console.log("Checkout session completed webhook received", event.id);
+
+    const session = event.data.object as Stripe.Checkout.Session;
+    const userId = session.metadata?.userId;
+    const plan = normalizePlan(session.metadata?.plan);
+    const customerId =
+      typeof session.customer === "string"
+        ? session.customer
+        : session.customer?.id;
+    const subscriptionId =
+      typeof session.subscription === "string"
+        ? session.subscription
+        : session.subscription?.id;
+
+    const user = await findUserForBillingEvent({ userId, customerId });
+
+    if (!user) {
+      console.error("Unable to resolve user for checkout session", {
+        sessionId: session.id,
+        userId,
+        customerId,
+      });
+      return NextResponse.json({ received: true });
+    }
+
+    if (!plan) {
+      console.error("Invalid plan in checkout session metadata", {
+        sessionId: session.id,
+        plan: session.metadata?.plan,
+      });
+      return NextResponse.json({ received: true });
+    }
+
+    const { field } = getStripeMode();
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        plan,
+        stripeCustomerId: customerId ?? undefined,
+        stripeSubscriptionId: subscriptionId ?? undefined,
+        subscriptionStatus: "active",
+        [field]: customerId ?? undefined,
+      },
+    });
+
+    console.log("Updated user plan from checkout webhook", {
+      userId: user.id,
+      nextPlan: plan,
+      customerId,
+      subscriptionId,
+      modeField: field,
+    });
+
+    return NextResponse.json({ received: true });
+  }
+
+  if (event.type === "customer.subscription.updated") {
+    console.log("Customer subscription updated webhook received", event.id);
+
+    const subscription = event.data.object as Stripe.Subscription;
+    const customerId =
+      typeof subscription.customer === "string"
+        ? subscription.customer
+        : subscription.customer.id;
+    const user = await findUserForBillingEvent({
+      userId: subscription.metadata?.userId,
+      customerId,
+    });
+
+    if (!user) {
+      console.error("Unable to resolve user for subscription update", {
+        subscriptionId: subscription.id,
+        customerId,
+      });
+      return NextResponse.json({ received: true });
+    }
+
+    const activeItem = subscription.items.data[0];
+    const nextPlan = planFromPriceId(activeItem?.price?.id);
+    const { field } = getStripeMode();
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        plan: nextPlan ?? undefined,
+        stripeCustomerId: customerId,
+        stripeSubscriptionId: subscription.id,
+        subscriptionStatus: subscription.status,
+        [field]: customerId,
+      },
+    });
+
+    console.log("Updated user from subscription update", {
+      userId: user.id,
+      nextPlan,
+      subscriptionId: subscription.id,
+      status: subscription.status,
+    });
+
+    return NextResponse.json({ received: true });
+  }
+
+  if (event.type === "invoice.paid") {
+    console.log("Invoice paid webhook received", event.id);
+
+    const invoice = event.data.object as Stripe.Invoice;
+    const customerId =
+      typeof invoice.customer === "string"
+        ? invoice.customer
+        : invoice.customer?.id;
+    const user = await findUserForBillingEvent({
+      userId: invoice.parent?.subscription_details?.metadata?.userId,
+      customerId,
+    });
+
+    if (!user) {
+      console.error("Unable to resolve user for invoice paid", {
+        invoiceId: invoice.id,
+        customerId,
+      });
+      return NextResponse.json({ received: true });
+    }
+
+    const { field } = getStripeMode();
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        stripeCustomerId: customerId ?? undefined,
+        subscriptionStatus: "active",
+        [field]: customerId ?? undefined,
+      },
+    });
+
+    console.log("Confirmed active subscription from invoice", {
+      userId: user.id,
+      invoiceId: invoice.id,
+    });
+
+    return NextResponse.json({ received: true });
+  }
 
 /**
  * Stripe Connect events include `event.account`.
