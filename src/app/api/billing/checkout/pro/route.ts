@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { resolveCheckoutCustomerId } from "@/lib/stripe-customer";
 import { stripe } from "@/lib/stripe";
 import { NextResponse } from "next/server";
 
@@ -24,7 +25,10 @@ export async function GET() {
     select: {
       id: true,
       email: true,
+      name: true,
       stripeCustomerId: true,
+      stripeTestCustomerId: true,
+      stripeLiveCustomerId: true,
     },
   });
 
@@ -36,48 +40,12 @@ export async function GET() {
     return NextResponse.redirect(new URL("/billing?reason=missing_email", appUrl));
   }
 
-  let stripeCustomerId = user.stripeCustomerId;
+  let stripeCustomerId: string;
 
   try {
-    if (stripeCustomerId) {
-      await stripe.customers.retrieve(stripeCustomerId);
-    }
-  } catch (error) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "type" in error &&
-      error.type === "StripeInvalidRequestError" &&
-      "code" in error &&
-      error.code === "resource_missing"
-    ) {
-      stripeCustomerId = null;
-    } else {
-      return NextResponse.redirect(new URL("/billing?billing=customer_error", appUrl));
-    }
-  }
-
-  if (!stripeCustomerId) {
-    try {
-      const customer = await stripe.customers.create({
-        email: user.email,
-        name: session.user.name ?? undefined,
-        metadata: {
-          userId: user.id,
-        },
-      });
-
-      stripeCustomerId = customer.id;
-
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          stripeCustomerId,
-        },
-      });
-    } catch {
-      return NextResponse.redirect(new URL("/billing?billing=customer_error", appUrl));
-    }
+    stripeCustomerId = await resolveCheckoutCustomerId(user);
+  } catch {
+    return NextResponse.redirect(new URL("/billing?billing=customer_error", appUrl));
   }
 
   const checkoutSession = await stripe.checkout.sessions.create({
