@@ -45,7 +45,7 @@ export async function GET() {
   const connectedAccountCount = user.stripeAccounts.length;
 
   if (connectedAccountCount >= accountLimit) {
-    return NextResponse.redirect(new URL("/billing?limitReached=1", appUrl));
+    return NextResponse.redirect(new URL("/billing?reason=limit_reached", appUrl));
   }
 
   const redirectUri = `${appUrl}/api/stripe/callback`;

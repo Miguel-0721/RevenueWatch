@@ -17,6 +17,30 @@
   font-weight: 700;
 }
 
+.notice {
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 1px solid rgba(0, 88, 188, 0.16);
+  border-radius: 10px;
+  background: rgba(216, 226, 255, 0.45);
+  color: #26467d;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.noticeMuted {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(193, 198, 215, 0.35);
+  border-radius: 10px;
+  background: #ffffff;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
 .header {
   display: grid;
   gap: 10px;
@@ -48,12 +72,10 @@
 }
 
 .sidebar {
-  display: grid;
-  gap: 16px;
+  display: block;
 }
 
 .planCard,
-.noteCard,
 .upgradeCard {
   position: relative;
   overflow: hidden;
@@ -62,8 +84,7 @@
   border-radius: 14px;
 }
 
-.planCard,
-.noteCard {
+.planCard {
   padding: 24px;
 }
 
@@ -76,16 +97,6 @@
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.planValue {
-  display: block;
-  margin-top: 12px;
-  color: #191c1d;
-  font-size: 28px;
-  line-height: 1;
-  font-weight: 900;
-  letter-spacing: -0.04em;
 }
 
 .progressTrack {
@@ -103,29 +114,19 @@
   background: #0058bc;
 }
 
-.planMetaRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 12px;
-  color: #717786;
-  font-size: 10px;
+.planLabel {
+  display: block;
+  color: #191c1d;
+  font-size: 18px;
+  line-height: 1.3;
   font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: -0.03em;
 }
 
-.noteText {
-  margin: 12px 0 0;
+.planUsage {
+  display: block;
+  margin-top: 12px;
   color: #414755;
-  font-size: 14px;
-  line-height: 1.65;
-}
-
-.noteLink {
-  margin: 14px 0 0;
-  color: #0058bc;
   font-size: 14px;
   font-weight: 700;
 }
@@ -248,18 +249,24 @@
   min-height: 46px;
   width: 100%;
   padding: 0 18px;
-  border: 1px solid rgba(193, 198, 215, 0.55);
+  border: 1px solid transparent;
   border-radius: 8px;
-  background: #f3f4f5;
-  color: #191c1d;
+  background: linear-gradient(180deg, #0058bc 0%, #0070eb 100%);
+  color: #ffffff;
   font-size: 14px;
   font-weight: 700;
+  box-shadow: 0 10px 20px rgba(0, 88, 188, 0.14);
 }
 
 .upgradeButtonPrimary {
-  border-color: transparent;
   background: linear-gradient(180deg, #0058bc 0%, #0070eb 100%);
-  color: #ffffff;
+}
+
+.trustLine {
+  margin: 24px 0 0;
+  color: #717786;
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 @media (max-width: 960px) {
@@ -275,17 +282,11 @@
   }
 
   .planCard,
-  .noteCard,
   .upgradeBody {
     padding: 20px;
   }
 
   .header h1 {
     font-size: 28px;
-  }
-
-  .planMetaRow {
-    flex-direction: column;
-    align-items: flex-start;
   }
 }

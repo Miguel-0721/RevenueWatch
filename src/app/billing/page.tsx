@@ -8,7 +8,8 @@ import styles from "./page.module.css";
 
 type BillingPageProps = {
   searchParams?: Promise<{
-    limitReached?: string;
+    reason?: string;
+    billing?: string;
   }>;
 };
 
@@ -17,11 +18,11 @@ const upgradePlans = [
     key: "GROWTH" as const,
     price: "€79",
     subtitle: "Scale monitoring",
-    limit: 10,
+    checkoutHref: "/api/billing/checkout/growth",
     features: [
       "Up to 10 connected Stripe accounts",
       "Revenue and failure monitoring across a broader portfolio",
-      "Checkout wiring coming soon",
+      "Upgrade to monitor more Stripe accounts.",
     ],
     cta: "Upgrade to Growth",
   },
@@ -29,11 +30,11 @@ const upgradePlans = [
     key: "PRO" as const,
     price: "€149",
     subtitle: "Portfolio coverage",
-    limit: 25,
+    checkoutHref: "/api/billing/checkout/pro",
     features: [
       "Up to 25 connected Stripe accounts",
       "More headroom for larger Stripe operations",
-      "Checkout wiring coming soon",
+      "Upgrade to monitor more Stripe accounts.",
     ],
     cta: "Upgrade to Pro",
     featured: true,
@@ -77,7 +78,8 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
   const currentPlanLabel = getPlanLabel(user.plan);
   const connectedAccountCount = user.stripeAccounts.length;
   const planLimit = getPlanLimit(user.plan);
-  const showLimitMessage = params?.limitReached === "1" || connectedAccountCount >= planLimit;
+  const showLimitMessage =
+    params?.reason === "limit_reached" || connectedAccountCount >= planLimit;
 
   return (
     <>
@@ -88,11 +90,23 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
             Back to dashboard
           </Link>
 
+          {params?.reason === "limit_reached" ? (
+            <div className={styles.notice}>
+              You’ve reached your account limit. Upgrade to connect more Stripe accounts.
+            </div>
+          ) : null}
+
+          {params?.billing === "cancelled" ? (
+            <div className={styles.noticeMuted}>
+              Checkout was cancelled. Your current plan is still active.
+            </div>
+          ) : null}
+
           <header className={styles.header}>
             <h1>Billing</h1>
             <p>
               {showLimitMessage
-                ? `Your current plan includes ${planLimit} connected Stripe account${planLimit === 1 ? "" : "s"}. Upgrade to monitor more accounts.`
+                ? `You've reached your limit of ${planLimit} connected Stripe account${planLimit === 1 ? "" : "s"}. Upgrade to monitor more accounts.`
                 : "Review your current plan and unlock more connected Stripe accounts when you need them."}
             </p>
           </header>
@@ -100,8 +114,7 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
           <section className={styles.layoutGrid}>
             <aside className={styles.sidebar}>
               <article className={styles.planCard}>
-                <div className={styles.cardEyebrow}>Current plan</div>
-                <strong className={styles.planValue}>{currentPlanLabel}</strong>
+                <span className={styles.planLabel}>Current plan: {currentPlanLabel}</span>
 
                 <div className={styles.progressTrack} aria-hidden="true">
                   <div
@@ -112,19 +125,9 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
                   />
                 </div>
 
-                <div className={styles.planMetaRow}>
-                  <span>Connected accounts: {connectedAccountCount}</span>
-                  <span>Plan limit: {planLimit}</span>
+                <div className={styles.planUsage}>
+                  {connectedAccountCount} / {planLimit} accounts used
                 </div>
-
-              </article>
-
-              <article className={styles.noteCard}>
-                <div className={styles.cardEyebrow}>Upgrade path</div>
-                <p className={styles.noteText}>
-                  RevenueWatch keeps billing separate from monitoring so teams can start on Free and only upgrade when account limits are reached.
-                </p>
-                <p className={styles.noteLink}>Stripe Checkout comes next</p>
               </article>
             </aside>
 
@@ -157,17 +160,21 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
                       ))}
                     </ul>
 
-                    <button
-                      type="button"
-                      className={`${styles.upgradeButton}${plan.featured ? ` ${styles.upgradeButtonPrimary}` : ""}`}
+                    <Link
+                      href={plan.checkoutHref}
+                      className={`${styles.upgradeButton} ${styles.upgradeButtonPrimary}`}
                     >
                       {plan.cta}
-                    </button>
+                    </Link>
                   </div>
                 </article>
               ))}
             </div>
           </section>
+
+          <p className={styles.trustLine}>
+            You can upgrade or cancel anytime. No changes are made to your Stripe accounts.
+          </p>
         </div>
       </main>
     </>
