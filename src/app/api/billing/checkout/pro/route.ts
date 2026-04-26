@@ -38,22 +38,46 @@ export async function GET() {
 
   let stripeCustomerId = user.stripeCustomerId;
 
+  try {
+    if (stripeCustomerId) {
+      await stripe.customers.retrieve(stripeCustomerId);
+    }
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "type" in error &&
+      error.type === "StripeInvalidRequestError" &&
+      "code" in error &&
+      error.code === "resource_missing"
+    ) {
+      stripeCustomerId = null;
+    } else {
+      return NextResponse.redirect(new URL("/billing?billing=customer_error", appUrl));
+    }
+  }
+
   if (!stripeCustomerId) {
-    const customer = await stripe.customers.create({
-      email: user.email,
-      metadata: {
-        userId: user.id,
-      },
-    });
+    try {
+      const customer = await stripe.customers.create({
+        email: user.email,
+        name: session.user.name ?? undefined,
+        metadata: {
+          userId: user.id,
+        },
+      });
 
-    stripeCustomerId = customer.id;
+      stripeCustomerId = customer.id;
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        stripeCustomerId,
-      },
-    });
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          stripeCustomerId,
+        },
+      });
+    } catch {
+      return NextResponse.redirect(new URL("/billing?billing=customer_error", appUrl));
+    }
   }
 
   const checkoutSession = await stripe.checkout.sessions.create({

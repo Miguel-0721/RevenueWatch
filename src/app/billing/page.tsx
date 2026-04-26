@@ -102,6 +102,12 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
             </div>
           ) : null}
 
+          {params?.billing === "customer_error" ? (
+            <div className={styles.noticeMuted}>
+              We couldn&apos;t prepare billing for this account right now. Please try again.
+            </div>
+          ) : null}
+
           <header className={styles.header}>
             <h1>Billing</h1>
             <p>
