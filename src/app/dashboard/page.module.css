@@ -21,15 +21,18 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  padding: 22px 0 28px;
-  border-bottom: 1px solid rgba(193, 198, 215, 0.3);
+  gap: 28px;
+  padding: 28px 30px;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 6px 14px rgba(25, 28, 29, 0.03), 0 14px 36px rgba(25, 28, 29, 0.04),
+    inset 0 0 0 1px rgba(193, 198, 215, 0.16);
 }
 
 .globalStatusLead {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 26px;
 }
 
 .statusIconStack {
@@ -37,14 +40,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 68px;
+  height: 68px;
+  flex-shrink: 0;
 }
 
 .statusPulse {
   position: absolute;
-  inset: 4px;
-  border-radius: 999px;
+  inset: 0;
+  border-radius: 18px;
   background: rgba(0, 88, 188, 0.08);
   animation: pulse 2.4s ease-out infinite;
 }
@@ -54,18 +58,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
-  border: 1px solid rgba(0, 88, 188, 0.18);
-  border-radius: 999px;
-  background: #ffffff;
+  width: 64px;
+  height: 64px;
+  border: 1px solid rgba(0, 88, 188, 0.14);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #edf4ff 0%, #e7f0fb 100%);
   color: #0058bc;
-  box-shadow: 0 4px 8px rgba(25, 28, 29, 0.02), 0 12px 32px rgba(25, 28, 29, 0.04);
+  box-shadow: 0 6px 16px rgba(25, 28, 29, 0.04);
 }
 
 .statusShield {
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
 }
 
 .statusHeadingRow {
@@ -76,8 +80,8 @@
 }
 
 .statusTitle {
-  font-size: 1.875rem;
-  line-height: 1;
+  font-size: 2.1rem;
+  line-height: 0.98;
   font-weight: 800;
   letter-spacing: -0.05em;
   color: #191c1d;
@@ -97,21 +101,24 @@
 }
 
 .statusSummary {
-  max-width: 42rem;
+  max-width: 44rem;
   color: #414755;
-  font-size: 1rem;
-  line-height: 1.65;
+  font-size: 1.02rem;
+  line-height: 1.7;
 }
 
 .quickStats {
   display: flex;
   align-items: center;
   gap: 32px;
+  align-self: stretch;
+  padding-left: 18px;
 }
 
 .quickStat {
   display: flex;
   flex-direction: column;
+  min-width: 112px;
 }
 
 .quickStat span {
@@ -150,7 +157,7 @@
 
 .quickDivider {
   width: 1px;
-  height: 32px;
+  height: 44px;
   background: rgba(193, 198, 215, 0.3);
 }
 
@@ -691,6 +698,8 @@
 
   .quickStats {
     gap: 20px;
+    padding-left: 0;
+    flex-wrap: wrap;
   }
 }
 
@@ -705,6 +714,10 @@
     gap: 16px;
   }
 
+  .globalStatusInner {
+    padding: 22px 20px;
+  }
+
   .statusHeadingRow {
     align-items: flex-start;
     flex-wrap: wrap;
@@ -712,6 +725,22 @@
 
   .statusTitle {
     font-size: 1.5rem;
+  }
+
+  .statusIconStack {
+    width: 56px;
+    height: 56px;
+  }
+
+  .statusBadge {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+  }
+
+  .statusShield {
+    width: 28px;
+    height: 28px;
   }
 
   .issueCard {
