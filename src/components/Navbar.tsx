@@ -38,7 +38,7 @@ export default async function Navbar({
 
   if (session?.user) {
     return (
-      <header className="rw-topbar">
+      <header className={`rw-topbar${mode === "app" ? " rw-topbar-app" : ""}`}>
         <div className="rw-shell rw-topbar-inner">
           <Brand />
 
@@ -63,17 +63,12 @@ export default async function Navbar({
                   <span>{displayName}</span>
                 </div>
 
-                <span className="rw-menu-caret" aria-hidden="true">
-                  ▾
-                </span>
+                <span className="rw-menu-caret" aria-hidden="true" />
               </summary>
 
               <div className="rw-user-dropdown">
                 <Link href="/settings" className="rw-user-dropdown-link">
                   Settings
-                </Link>
-                <Link href="/billing" className="rw-user-dropdown-link">
-                  Billing
                 </Link>
                 <form
                   action={async () => {

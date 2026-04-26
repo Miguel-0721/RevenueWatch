@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Navbar from "@/components/Navbar";
-import MarketingFooter from "@/components/MarketingFooter";
 import { prisma } from "@/lib/prisma";
 import styles from "./page.module.css";
 
@@ -1053,8 +1052,6 @@ export default async function AccountDetailPage({
           </div>
         </section>
       </div>
-
-      <MarketingFooter />
     </main>
   );
 }

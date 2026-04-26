@@ -1,5 +1,4 @@
 import { auth } from "@/auth";
-import MarketingFooter from "@/components/MarketingFooter";
 import Navbar from "@/components/Navbar";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
@@ -656,7 +655,6 @@ export default async function DashboardPage() {
         </div>
       </div>
     </main>
-    <MarketingFooter />
     </>
   );
 }

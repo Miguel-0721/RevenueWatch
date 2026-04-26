@@ -1,5 +1,4 @@
 import { auth } from "@/auth";
-import MarketingFooter from "@/components/MarketingFooter";
 import Navbar from "@/components/Navbar";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -73,7 +72,6 @@ export default async function SettingsPage() {
           </section>
         </div>
       </main>
-      <MarketingFooter />
     </>
   );
 }

@@ -1,5 +1,4 @@
 import { auth } from "@/auth";
-import MarketingFooter from "@/components/MarketingFooter";
 import Navbar from "@/components/Navbar";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
@@ -77,7 +76,6 @@ export default async function AlertsPage() {
           ))}
         </ul>
       </main>
-      <MarketingFooter />
     </>
   );
 }

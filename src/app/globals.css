@@ -82,6 +82,10 @@ img {
   box-shadow: 0 12px 28px rgba(25, 28, 29, 0.06);
 }
 
+.rw-topbar-app {
+  box-shadow: 0 8px 18px rgba(25, 28, 29, 0.045);
+}
+
 .rw-topbar-inner {
   display: flex;
   align-items: center;
@@ -90,6 +94,11 @@ img {
   width: 100%;
   padding-top: 10px;
   padding-bottom: 10px;
+}
+
+.rw-topbar-app .rw-topbar-inner {
+  padding-top: 7px;
+  padding-bottom: 7px;
 }
 
 .rw-brand,
@@ -171,22 +180,34 @@ img {
   margin-right: auto;
 }
 
+.rw-topbar-app .rw-app-nav {
+  gap: 22px;
+}
+
+.rw-topbar-app .rw-auth-area {
+  gap: 10px;
+}
+
 .rw-app-nav-link {
-  color: #64748b;
-  font-size: 0.84rem;
+  color: #7a8495;
+  font-size: 0.8rem;
   font-weight: 600;
   letter-spacing: -0.01em;
-  transition: color 0.18s ease;
+  padding-bottom: 3px;
+  border-bottom: 2px solid transparent;
+  transition:
+    color 0.18s ease,
+    border-color 0.18s ease;
 }
 
-.rw-app-nav-link:hover,
-.rw-app-nav-link-active {
-  color: #007aff;
+.rw-app-nav-link:hover {
+  color: #334155;
 }
 
 .rw-app-nav-link-active {
-  padding-bottom: 0;
-  border-bottom: none;
+  color: #0f172a;
+  font-weight: 700;
+  border-bottom-color: #0058bc;
 }
 
 .rw-back-link {
@@ -224,14 +245,24 @@ img {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding-left: 16px;
+  min-height: 38px;
+  padding: 4px 10px 4px 16px;
   border-left: 1px solid #e7edf5;
+  border-radius: 12px;
   list-style: none;
   cursor: pointer;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease;
 }
 
 .rw-user-trigger::-webkit-details-marker {
   display: none;
+}
+
+.rw-user-trigger:hover {
+  background: #eef4fb;
+  color: #0f172a;
 }
 
 .rw-avatar {
@@ -259,7 +290,7 @@ img {
 }
 
 .rw-user-meta span {
-  font-size: 0.84rem;
+  font-size: 0.8rem;
   font-weight: 700;
   max-width: 110px;
   overflow: hidden;
@@ -268,9 +299,16 @@ img {
 }
 
 .rw-menu-caret {
-  color: #94a3b8;
-  font-size: 0.7rem;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid #94a3b8;
   transition: transform 0.18s ease;
+}
+
+.rw-user-trigger:hover .rw-menu-caret {
+  border-top-color: #64748b;
 }
 
 .rw-user-dropdown {
