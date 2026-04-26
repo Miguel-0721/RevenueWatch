@@ -1,0 +1,291 @@
+.page {
+  min-height: calc(100vh - 72px);
+  background: #f8f9fa;
+}
+
+.shell {
+  width: min(100%, 1200px);
+  margin: 0 auto;
+  padding: 32px 24px 56px;
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.header {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.header h1 {
+  margin: 0;
+  color: #191c1d;
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.header p {
+  max-width: 720px;
+  margin: 0;
+  color: #414755;
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.layoutGrid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.85fr) minmax(0, 1.35fr);
+  gap: 24px;
+  margin-top: 28px;
+  align-items: start;
+}
+
+.sidebar {
+  display: grid;
+  gap: 16px;
+}
+
+.planCard,
+.noteCard,
+.upgradeCard {
+  position: relative;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid rgba(193, 198, 215, 0.3);
+  border-radius: 14px;
+}
+
+.planCard,
+.noteCard {
+  padding: 24px;
+}
+
+.cardEyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #717786;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.planValue {
+  display: block;
+  margin-top: 12px;
+  color: #191c1d;
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.progressTrack {
+  width: 100%;
+  height: 4px;
+  margin-top: 18px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #e1e3e4;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: inherit;
+  background: #0058bc;
+}
+
+.planMetaRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  color: #717786;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.noteText {
+  margin: 12px 0 0;
+  color: #414755;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.noteLink {
+  margin: 14px 0 0;
+  color: #0058bc;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.upgradeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.upgradeCard {
+  min-height: 100%;
+  box-shadow: 0 1px 2px rgba(25, 28, 29, 0.03);
+  transition: box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.upgradeCard:hover {
+  border-color: rgba(113, 119, 134, 0.32);
+  box-shadow: 0 8px 24px rgba(25, 28, 29, 0.06);
+}
+
+.upgradeCardFeatured {
+  border-color: rgba(0, 88, 188, 0.26);
+  box-shadow: 0 6px 22px rgba(0, 88, 188, 0.08);
+}
+
+.upgradeTopRule {
+  height: 4px;
+  background: transparent;
+}
+
+.upgradeCardFeatured .upgradeTopRule {
+  background: linear-gradient(90deg, #0058bc 0%, #0070eb 100%);
+}
+
+.recommendedBadge {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: rgba(0, 112, 235, 0.08);
+  color: #0058bc;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.upgradeBody {
+  display: grid;
+  gap: 22px;
+  padding: 24px;
+}
+
+.upgradeBody h2 {
+  margin: 8px 0 0;
+  color: #191c1d;
+  font-size: 22px;
+  line-height: 1.05;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.priceRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.priceRow strong {
+  color: #191c1d;
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.priceRow span {
+  color: #717786;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.featureList {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.featureList li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: #414755;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.checkIcon {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  color: #0058bc;
+  flex-shrink: 0;
+}
+
+.upgradeButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  width: 100%;
+  padding: 0 18px;
+  border: 1px solid rgba(193, 198, 215, 0.55);
+  border-radius: 8px;
+  background: #f3f4f5;
+  color: #191c1d;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.upgradeButtonPrimary {
+  border-color: transparent;
+  background: linear-gradient(180deg, #0058bc 0%, #0070eb 100%);
+  color: #ffffff;
+}
+
+@media (max-width: 960px) {
+  .layoutGrid,
+  .upgradeGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .shell {
+    padding: 24px 18px 48px;
+  }
+
+  .planCard,
+  .noteCard,
+  .upgradeBody {
+    padding: 20px;
+  }
+
+  .header h1 {
+    font-size: 28px;
+  }
+
+  .planMetaRow {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

@@ -1,9 +1,10 @@
 import { auth } from "@/auth";
 import Navbar from "@/components/Navbar";
-import { getPlanLabel, getPlanLimit, PLAN_LABELS, PLAN_LIMITS } from "@/lib/billing";
+import { getPlanLabel, getPlanLimit, PLAN_LABELS } from "@/lib/billing";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import styles from "./page.module.css";
 
 type BillingPageProps = {
   searchParams?: Promise<{
@@ -12,9 +13,43 @@ type BillingPageProps = {
 };
 
 const upgradePlans = [
-  { key: "GROWTH" as const, description: "Up to 10 connected Stripe accounts" },
-  { key: "PRO" as const, description: "Up to 25 connected Stripe accounts" },
+  {
+    key: "GROWTH" as const,
+    price: "€79",
+    subtitle: "Scale monitoring",
+    limit: 10,
+    features: [
+      "Up to 10 connected Stripe accounts",
+      "Revenue and failure monitoring across a broader portfolio",
+      "Checkout wiring coming soon",
+    ],
+    cta: "Upgrade to Growth",
+  },
+  {
+    key: "PRO" as const,
+    price: "€149",
+    subtitle: "Portfolio coverage",
+    limit: 25,
+    features: [
+      "Up to 25 connected Stripe accounts",
+      "More headroom for larger Stripe operations",
+      "Checkout wiring coming soon",
+    ],
+    cta: "Upgrade to Pro",
+    featured: true,
+  },
 ];
+
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true" className={styles.checkIcon}>
+      <path
+        fill="currentColor"
+        d="M10 1.75a8.25 8.25 0 1 0 8.25 8.25A8.26 8.26 0 0 0 10 1.75Zm3.72 6.74-4.36 4.58a.75.75 0 0 1-1.08.02L6.3 11.12l1.05-1.07 1.45 1.43 3.83-4.03Z"
+      />
+    </svg>
+  );
+}
 
 export default async function BillingPage({ searchParams }: BillingPageProps) {
   const session = await auth();
@@ -47,230 +82,90 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
   return (
     <>
       <Navbar mode="app" />
-      <main
-        style={{
-          minHeight: "calc(100vh - 72px)",
-          padding: "40px 24px 72px",
-          background: "#f8f9fa",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 860,
-            margin: "0 auto",
-            display: "grid",
-            gap: 20,
-          }}
-        >
-          <Link
-            href="/dashboard"
-            style={{
-              color: "#64748b",
-              fontSize: 14,
-              fontWeight: 700,
-            }}
-          >
+      <main className={styles.page}>
+        <div className={styles.shell}>
+          <Link href="/dashboard" className={styles.backLink}>
             Back to dashboard
           </Link>
 
-          <section
-            style={{
-              padding: 32,
-              borderRadius: 18,
-              background: "#ffffff",
-              border: "1px solid rgba(193, 198, 215, 0.22)",
-              boxShadow: "0 2px 8px rgba(25, 28, 29, 0.035)",
-              display: "grid",
-              gap: 20,
-            }}
-          >
-            <div style={{ display: "grid", gap: 10 }}>
-              <h1
-                style={{
-                  fontSize: 40,
-                  lineHeight: 1,
-                  fontWeight: 900,
-                  letterSpacing: "-0.05em",
-                  color: "#191c1d",
-                }}
-              >
-                Billing
-              </h1>
-              <p
-                style={{
-                  color: "#414755",
-                  fontSize: 17,
-                  lineHeight: 1.7,
-                  maxWidth: 640,
-                }}
-              >
-                {showLimitMessage
-                  ? `Your current plan includes ${planLimit} connected Stripe account${planLimit === 1 ? "" : "s"}. Upgrade to monitor more accounts.`
-                  : "Manage your current plan and view the account limit for this workspace."}
-              </p>
-            </div>
+          <header className={styles.header}>
+            <h1>Billing</h1>
+            <p>
+              {showLimitMessage
+                ? `Your current plan includes ${planLimit} connected Stripe account${planLimit === 1 ? "" : "s"}. Upgrade to monitor more accounts.`
+                : "Review your current plan and unlock more connected Stripe accounts when you need them."}
+            </p>
+          </header>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                gap: 14,
-              }}
-            >
-              <div
-                style={{
-                  padding: 18,
-                  borderRadius: 14,
-                  background: "#f8f9fa",
-                  border: "1px solid rgba(193, 198, 215, 0.2)",
-                }}
-              >
-                <span
-                  style={{
-                    display: "block",
-                    marginBottom: 8,
-                    color: "#717786",
-                    fontSize: 11,
-                    fontWeight: 800,
-                    letterSpacing: "0.1em",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Current plan
-                </span>
-                <strong style={{ fontSize: 24, fontWeight: 900, letterSpacing: "-0.04em" }}>
-                  {currentPlanLabel}
-                </strong>
-              </div>
+          <section className={styles.layoutGrid}>
+            <aside className={styles.sidebar}>
+              <article className={styles.planCard}>
+                <div className={styles.cardEyebrow}>Current plan</div>
+                <strong className={styles.planValue}>{currentPlanLabel}</strong>
 
-              <div
-                style={{
-                  padding: 18,
-                  borderRadius: 14,
-                  background: "#f8f9fa",
-                  border: "1px solid rgba(193, 198, 215, 0.2)",
-                }}
-              >
-                <span
-                  style={{
-                    display: "block",
-                    marginBottom: 8,
-                    color: "#717786",
-                    fontSize: 11,
-                    fontWeight: 800,
-                    letterSpacing: "0.1em",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Connected accounts
-                </span>
-                <strong style={{ fontSize: 24, fontWeight: 900, letterSpacing: "-0.04em" }}>
-                  {connectedAccountCount}
-                </strong>
-              </div>
-
-              <div
-                style={{
-                  padding: 18,
-                  borderRadius: 14,
-                  background: "#f8f9fa",
-                  border: "1px solid rgba(193, 198, 215, 0.2)",
-                }}
-              >
-                <span
-                  style={{
-                    display: "block",
-                    marginBottom: 8,
-                    color: "#717786",
-                    fontSize: 11,
-                    fontWeight: 800,
-                    letterSpacing: "0.1em",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Plan limit
-                </span>
-                <strong style={{ fontSize: 24, fontWeight: 900, letterSpacing: "-0.04em" }}>
-                  {planLimit}
-                </strong>
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gap: 12 }}>
-              <h2
-                style={{
-                  fontSize: 22,
-                  lineHeight: 1.1,
-                  fontWeight: 800,
-                  letterSpacing: "-0.03em",
-                  color: "#191c1d",
-                }}
-              >
-                Upgrade options
-              </h2>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                  gap: 14,
-                }}
-              >
-                {upgradePlans.map((plan) => (
-                  <article
-                    key={plan.key}
+                <div className={styles.progressTrack} aria-hidden="true">
+                  <div
+                    className={styles.progressFill}
                     style={{
-                      padding: 20,
-                      borderRadius: 14,
-                      background: "#ffffff",
-                      border: "1px solid rgba(193, 198, 215, 0.22)",
-                      boxShadow: "0 2px 8px rgba(25, 28, 29, 0.03)",
-                      display: "grid",
-                      gap: 10,
+                      width: `${Math.min(100, Math.max((connectedAccountCount / planLimit) * 100, 8))}%`,
                     }}
-                  >
+                  />
+                </div>
+
+                <div className={styles.planMetaRow}>
+                  <span>Connected accounts: {connectedAccountCount}</span>
+                  <span>Plan limit: {planLimit}</span>
+                </div>
+
+              </article>
+
+              <article className={styles.noteCard}>
+                <div className={styles.cardEyebrow}>Upgrade path</div>
+                <p className={styles.noteText}>
+                  RevenueWatch keeps billing separate from monitoring so teams can start on Free and only upgrade when account limits are reached.
+                </p>
+                <p className={styles.noteLink}>Stripe Checkout comes next</p>
+              </article>
+            </aside>
+
+            <div className={styles.upgradeGrid}>
+              {upgradePlans.map((plan) => (
+                <article
+                  key={plan.key}
+                  className={`${styles.upgradeCard}${plan.featured ? ` ${styles.upgradeCardFeatured}` : ""}`}
+                >
+                  {plan.featured ? <span className={styles.recommendedBadge}>Recommended</span> : null}
+
+                  <div className={styles.upgradeTopRule} aria-hidden={!plan.featured} />
+
+                  <div className={styles.upgradeBody}>
                     <div>
-                      <h3
-                        style={{
-                          fontSize: 20,
-                          fontWeight: 900,
-                          letterSpacing: "-0.03em",
-                          color: "#191c1d",
-                        }}
-                      >
-                        {PLAN_LABELS[plan.key]}
-                      </h3>
-                      <p
-                        style={{
-                          marginTop: 6,
-                          color: "#414755",
-                          fontSize: 15,
-                          lineHeight: 1.6,
-                        }}
-                      >
-                        {plan.description}
-                      </p>
+                      <span className={styles.cardEyebrow}>{plan.subtitle}</span>
+                      <h2>{PLAN_LABELS[plan.key]}</h2>
+                      <div className={styles.priceRow}>
+                        <strong>{plan.price}</strong>
+                        <span>/mo</span>
+                      </div>
                     </div>
 
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        minHeight: 38,
-                        padding: "0 14px",
-                        borderRadius: 10,
-                        background: "#f3f4f5",
-                        color: "#717786",
-                        fontSize: 14,
-                        fontWeight: 800,
-                      }}
+                    <ul className={styles.featureList}>
+                      {plan.features.map((feature) => (
+                        <li key={feature}>
+                          <CheckIcon />
+                          <span>{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    <button
+                      type="button"
+                      className={`${styles.upgradeButton}${plan.featured ? ` ${styles.upgradeButtonPrimary}` : ""}`}
                     >
-                      Checkout coming soon
-                    </span>
-                  </article>
-                ))}
-              </div>
+                      {plan.cta}
+                    </button>
+                  </div>
+                </article>
+              ))}
             </div>
           </section>
         </div>

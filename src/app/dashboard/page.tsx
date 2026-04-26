@@ -471,6 +471,9 @@ export default async function DashboardPage() {
   const activeIncidentRows = activeAlerts;
   const recentHistory = historicalAlerts.slice(0, 2);
   const statusCopy = buildStatusCopy(activeAlerts.length, activeAccounts.length);
+  const showLocalBillingPreview =
+    process.env.NODE_ENV !== "production" ||
+    process.env.NEXT_PUBLIC_APP_URL?.includes("localhost");
 
   return (
     <>
@@ -569,6 +572,11 @@ export default async function DashboardPage() {
               <header className={styles.sectionHeaderInline}>
                 <h2 className={styles.sectionTitle}>Connected Accounts</h2>
                 <div className={styles.connectedActions}>
+                  {showLocalBillingPreview ? (
+                    <Link href="/billing" className={styles.secondaryActionLink}>
+                      Billing Preview
+                    </Link>
+                  ) : null}
                   <Link href="/api/stripe/connect" className={styles.addAccountLink}>
                     Add Account
                   </Link>
