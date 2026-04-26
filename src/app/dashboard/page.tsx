@@ -279,6 +279,28 @@ function HistoryIcon() {
   );
 }
 
+function AccountsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.sectionIcon}>
+      <path
+        fill="currentColor"
+        d="M12 2 5 5v6c0 5 3.4 9.74 7 11 3.6-1.26 7-6 7-11V5l-7-3Zm0 9.25a2.25 2.25 0 1 1 0-4.5 2.25 2.25 0 0 1 0 4.5Zm3.5 4.25h-7v-.4c0-1.63 2.34-2.6 3.5-2.6s3.5.97 3.5 2.6v.4Z"
+      />
+    </svg>
+  );
+}
+
+function BellIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.sectionIcon}>
+      <path
+        fill="currentColor"
+        d="M12 22a2.49 2.49 0 0 0 2.45-2h-4.9A2.49 2.49 0 0 0 12 22Zm7-6V11a7 7 0 1 0-14 0v5l-2 2v1h18v-1l-2-2Z"
+      />
+    </svg>
+  );
+}
+
 function IssueCard({
   account,
   alert,
@@ -417,6 +439,26 @@ function ConnectedAccountRow({
 
 function EmptyCard({ children }: { children: React.ReactNode }) {
   return <div className={styles.emptyCard}>{children}</div>;
+}
+
+function EmptyStateCard({
+  icon,
+  title,
+  body,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className={styles.emptyStateCard}>
+      <div className={styles.emptyStateIconWrap}>{icon}</div>
+      <div className={styles.emptyStateCopy}>
+        <h3>{title}</h3>
+        <p>{body}</p>
+      </div>
+    </div>
+  );
 }
 
 export default async function DashboardPage() {
@@ -560,9 +602,12 @@ export default async function DashboardPage() {
 
         <div className={styles.layoutGrid}>
           <div className={styles.leftRail}>
-            <section aria-label="Accounts Needing Attention">
-              <header className={styles.sectionHeader}>
-                <h2 className={styles.sectionTitle}>Accounts Needing Attention</h2>
+            <section aria-label="Accounts Needing Attention" className={styles.sectionPanel}>
+              <header className={styles.sectionHeaderPanel}>
+                <div className={styles.sectionHeaderTitle}>
+                  <AccountsIcon />
+                  <h2 className={styles.sectionTitle}>Accounts Needing Attention</h2>
+                </div>
                 {issueAccounts.length > accountsNeedingAttention.length ? (
                   <p className={styles.sectionNote}>
                     Showing the most urgent accounts. {issueAccounts.length - accountsNeedingAttention.length} more active alert{issueAccounts.length - accountsNeedingAttention.length === 1 ? "" : "s"} appear below.
@@ -572,7 +617,11 @@ export default async function DashboardPage() {
 
               <div className={styles.stack}>
                 {accountsNeedingAttention.length === 0 ? (
-                  <EmptyCard>No accounts currently require review.</EmptyCard>
+                  <EmptyStateCard
+                    icon={<AccountsIcon />}
+                    title="No accounts need attention"
+                    body="Monitoring is active across your connected accounts."
+                  />
                 ) : (
                   accountsNeedingAttention.map((account) => (
                     <IssueCard
@@ -585,17 +634,24 @@ export default async function DashboardPage() {
               </div>
             </section>
 
-            <section aria-label="Active Alerts">
-              <header className={styles.sectionHeader}>
-                <h2 className={styles.alertLogTitle}>Active alert log</h2>
+            <section aria-label="Active Alerts" className={styles.sectionPanel}>
+              <header className={styles.sectionHeaderPanel}>
+                <div className={styles.sectionHeaderTitle}>
+                  <BellIcon />
+                  <h2 className={styles.alertLogTitle}>Active Alerts</h2>
+                </div>
                 <p className={styles.sectionNote}>
-                  Event-level view of every issue currently open across monitored Stripe accounts.
+                  Current alerts across your connected accounts.
                 </p>
               </header>
 
               <div className={styles.stack}>
                 {activeIncidentRows.length === 0 ? (
-                  <EmptyCard>No active alerts right now.</EmptyCard>
+                  <EmptyStateCard
+                    icon={<BellIcon />}
+                    title="No active alerts"
+                    body="We'll notify you if anything requires attention."
+                  />
                 ) : (
                   activeIncidentRows.map((alert) => (
                     <ActiveAlertRow
@@ -668,14 +724,21 @@ export default async function DashboardPage() {
               </div>
             </section>
 
-            <section aria-label="Recent History">
-              <header className={styles.historyHeader}>
-                <h2 className={styles.historyTitle}>Recent History</h2>
+            <section aria-label="Recent History" className={styles.sectionPanel}>
+              <header className={styles.sectionHeaderPanel}>
+                <div className={styles.sectionHeaderTitle}>
+                  <HistoryIcon />
+                  <h2 className={styles.historyTitle}>Recent History</h2>
+                </div>
               </header>
 
               <div className={styles.historyStack}>
                 {recentHistory.length === 0 ? (
-                  <EmptyCard>No recent history yet.</EmptyCard>
+                  <EmptyStateCard
+                    icon={<HistoryIcon />}
+                    title="No recent history yet"
+                    body="Resolved alerts and recovered activity will appear here."
+                  />
                 ) : (
                   recentHistory.map((alert) => (
                     <div key={alert.id} className={styles.historyItem}>
