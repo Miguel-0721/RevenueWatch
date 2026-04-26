@@ -396,7 +396,7 @@ function ConnectedAccountRow({
     ? "Paused"
     : alert
       ? severityMeta(alert.severity).shortLabel
-      : "Monitoring";
+      : "Monitoring active";
   const stateColor = isPaused
     ? "#717786"
     : alert
@@ -419,7 +419,9 @@ function ConnectedAccountRow({
           currentName={account.name}
           currentStatus={account.status}
         />
-        <span className={styles.connectedMeta}>Last event: {formatRelativeTime(account.lastActivity)}</span>
+        <span className={styles.connectedMeta}>
+          {account.lastActivity ? `Last event: ${formatRelativeTime(account.lastActivity)}` : "No events yet"}
+        </span>
       </div>
 
       <div className={styles.connectedStateWrap}>
@@ -620,7 +622,7 @@ export default async function DashboardPage() {
                   <EmptyStateCard
                     icon={<AccountsIcon />}
                     title="No accounts need attention"
-                    body="Monitoring is active across your connected accounts."
+                    body="Monitoring is active across all connected accounts."
                   />
                 ) : (
                   accountsNeedingAttention.map((account) => (
@@ -650,7 +652,7 @@ export default async function DashboardPage() {
                   <EmptyStateCard
                     icon={<BellIcon />}
                     title="No active alerts"
-                    body="We'll notify you if anything requires attention."
+                    body="We'll notify you immediately if anything requires attention."
                   />
                 ) : (
                   activeIncidentRows.map((alert) => (
