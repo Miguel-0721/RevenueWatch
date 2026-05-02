@@ -105,6 +105,43 @@ function fmtDate(d?: Date | null) {
   return new Date(d).toLocaleString();
 }
 
+function fmtDetectedDate(d?: Date | null) {
+  if (!d) return null;
+
+  const target = new Date(d);
+  const monthDay = target.toLocaleDateString([], {
+    month: "long",
+    day: "numeric",
+  });
+  const time = target.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  return `${monthDay} at ${time}`;
+}
+
+function buildApproxDateFromRelativeLabel(label?: string, now: Date = new Date()) {
+  if (!label) return undefined;
+
+  const match = label.match(/(\d+)\s+(minute|hour|day)s?\s+ago/i);
+  if (!match) return undefined;
+
+  const amount = Number(match[1]);
+  const unit = match[2].toLowerCase();
+  const date = new Date(now);
+
+  if (unit === "minute") {
+    date.setMinutes(date.getMinutes() - amount);
+  } else if (unit === "hour") {
+    date.setHours(date.getHours() - amount);
+  } else if (unit === "day") {
+    date.setDate(date.getDate() - amount);
+  }
+
+  return date;
+}
+
 function fmtUtcHour(hour: number) {
   return `${String(hour).padStart(2, "0")}:00`;
 }
@@ -223,7 +260,7 @@ function buildReadableAlertMessage(alert: AlertLike) {
   const revenueContext = getRevenueContext(alert);
   if (revenueContext) {
     const dropPercent = Math.round(revenueContext.dropRatio * 100);
-    return `Sales are ${dropPercent}% lower than usual for this window.`;
+    return `Sales are ${dropPercent}% lower than usual for this time period.`;
   }
 
   const paymentContext = getPaymentFailureContext(alert);
@@ -472,6 +509,11 @@ function MonitorInsightPanel({
             ? buildReadableAlertMessage(topAlert)
             : "No issues detected. RevenueWatch is checking this account in read-only mode."}
         </p>
+        {topAlert ? (
+          <div className={styles.detectedAt}>
+            Detected: {fmtDetectedDate(topAlert.createdAt) ?? "Recently"}
+          </div>
+        ) : null}
       </div>
 
       <div className={styles.panelGrid}>
@@ -493,13 +535,13 @@ function MonitorInsightPanel({
         ) : isRevenueDrop && model ? (
           <>
             <div className={styles.panelMetric}>
-              <span>Current window revenue</span>
+              <span>Current revenue</span>
               <strong className={model.isAlerting ? styles.dangerText : undefined}>
                 {formatMoneyAmount(model.actualValue)}
               </strong>
             </div>
             <div className={styles.panelMetric}>
-              <span>Usual window revenue</span>
+              <span>Usual revenue</span>
               <strong>{formatMoneyAmount(model.expectedValue)}</strong>
             </div>
             <div className={styles.panelMetric}>
@@ -525,7 +567,7 @@ function MonitorInsightPanel({
         <div className={styles.panelContext}>
           <div>
             <span>Comparison basis</span>
-            <strong>Usual revenue is based on normal performance over similar recent windows</strong>
+            <strong>Usual revenue is based on similar recent time periods.</strong>
           </div>
         </div>
       ) : null}
@@ -644,11 +686,25 @@ function RevenueAlertMonitor({
   const activePoint = model.points[model.activeIndex];
   const triggerPoint =
     model.points.find((point) => point.actual <= model.thresholdValue) ?? activePoint;
+  const previousPoint =
+    triggerPoint.index > 0 ? model.points[triggerPoint.index - 1] : triggerPoint;
   const thresholdY = y(model.thresholdValue);
   const yTicks = buildMoneyTicks(maxValue);
   const xTickIndexes = buildTickIndexes(model.points.length);
+  const previousX = x(previousPoint.index);
   const triggerX = x(triggerPoint.index);
   const triggerY = y(triggerPoint.actual);
+  const thresholdLabelWidth = 140;
+  const thresholdLabelPadding = 24;
+  const thresholdLabelHalfWidth = thresholdLabelWidth / 2;
+  const leftLimit = plot.left + thresholdLabelHalfWidth + 12;
+  const rightLimit = plot.right - thresholdLabelHalfWidth - 12;
+  const leftCandidate = previousX - thresholdLabelHalfWidth - 32;
+  const rightCandidate = triggerX + thresholdLabelHalfWidth + 32;
+  const hasRoomLeft = leftCandidate - leftLimit >= thresholdLabelPadding;
+  const thresholdLabelX = hasRoomLeft
+    ? Math.max(leftLimit, leftCandidate)
+    : Math.min(rightLimit, rightCandidate);
 
   return (
     <section className={styles.chartCard}>
@@ -656,9 +712,9 @@ function RevenueAlertMonitor({
         <div className={styles.chartMain}>
           <div className={styles.chartHeader}>
             <div>
-              <h2>Revenue per monitoring window</h2>
-              <p>Each point shows revenue measured during a recent monitoring window.</p>
-              <div className={styles.chartMeta}>Monitoring window: {model.windowLabel}</div>
+              <h2>Revenue during this period</h2>
+              <p>Each point shows how much revenue came in during that time period.</p>
+              <div className={styles.chartMeta}>Current period</div>
             </div>
             <span className={styles.liveBadge}>
               <span />
@@ -671,10 +727,10 @@ function RevenueAlertMonitor({
               className={styles.thresholdPill}
               style={{
                 top: `${(thresholdY / height) * 100}%`,
-                left: "68%",
+                left: `${(thresholdLabelX / width) * 100}%`,
               }}
             >
-              Alert threshold
+              Threshold ({formatMoneyAmount(model.thresholdValue)})
             </div>
             <svg
               viewBox={`0 0 ${width} ${height}`}
@@ -781,6 +837,7 @@ function ActiveAlertRow({ alert, now }: { alert: AlertLike; now: Date }) {
   const isCritical = alert.severity === "critical";
   const activeUntil =
     alert.windowEnd && alert.windowEnd > now ? ` - Active until ${fmtDate(alert.windowEnd)}` : "";
+  const detectedAt = fmtDetectedDate(alert.createdAt);
 
   return (
     <article className={styles.alertRow}>
@@ -789,7 +846,7 @@ function ActiveAlertRow({ alert, now }: { alert: AlertLike; now: Date }) {
         <h3>{alertLabel(alert.type)}</h3>
         <p>{buildReadableAlertMessage(alert)}</p>
         <span>
-          {getSeverityLabel(alert.severity)} - {alert.detectedLabel ? `Detected ${alert.detectedLabel}` : `Triggered ${fmtDate(alert.createdAt)}`}
+          {getSeverityLabel(alert.severity)} · {detectedAt ? `Detected ${detectedAt}` : alert.detectedLabel ? `Detected ${alert.detectedLabel}` : `Triggered ${fmtDate(alert.createdAt)}`}
           {activeUntil}
         </span>
       </div>
@@ -800,7 +857,6 @@ function ActiveAlertRow({ alert, now }: { alert: AlertLike; now: Date }) {
 function HistoryRow({ alert }: { alert: AlertLike }) {
   return (
     <article className={styles.resolvedRow}>
-      <span className={styles.resolvedIcon}>OK</span>
       <div>
         <h3>{alertLabel(alert.type)}</h3>
         <p>{alert.message}</p>
@@ -849,6 +905,7 @@ export default async function AccountDetailPage({
             stripeAccountId: demoAccount.id,
             accountName: demoAccount.name,
             detectedLabel: demoAccount.detectedAt,
+            createdAt: buildApproxDateFromRelativeLabel(demoAccount.detectedAt, now),
             context: JSON.stringify(
               demoAccount.alertType === "revenue_drop"
                 ? {
@@ -905,6 +962,12 @@ export default async function AccountDetailPage({
   const chartModel = buildRevenueChartModel(accountId, topAlert, now);
   const paymentContext = getPaymentFailureContext(topAlert);
   const accountName = account?.name ?? demoAccount?.name ?? accountId;
+  const headerStatus =
+    topAlert?.severity === "critical"
+      ? { label: "High severity", className: styles.statusCritical }
+      : topAlert
+        ? { label: "Review needed", className: styles.statusWarning }
+        : { label: "Monitoring active", className: styles.statusHealthy };
 
   return (
     <main className={styles.page}>
@@ -912,24 +975,19 @@ export default async function AccountDetailPage({
 
       <div className={styles.shell}>
         <header className={styles.header}>
-          <div>
-            <div className={styles.kickerRow}>
-              <span className={activeAlerts.length > 0 ? styles.activeNode : styles.nominalNode}>
-                {activeAlerts.length > 0 ? "Attention needed" : "Monitoring"}
-              </span>
-              <span className={styles.accountId}>ID: {accountId}</span>
+          <div className={styles.headerCopy}>
+            <div className={styles.titleRow}>
+              <h1>{accountName}</h1>
+              <span className={headerStatus.className}>{headerStatus.label}</span>
             </div>
-            <h1>
-              {accountName} <span>Account details</span>
-            </h1>
+            <p className={styles.headerSubtitle}>
+              Review this account&apos;s current monitoring status and alert activity.
+            </p>
           </div>
 
           <div className={styles.actions}>
             <Link href="/dashboard" className={styles.secondaryAction}>
               Back to dashboard
-            </Link>
-            <Link href="/api/stripe/connect" className={styles.primaryAction}>
-              Add account
             </Link>
           </div>
         </header>
@@ -939,8 +997,7 @@ export default async function AccountDetailPage({
         <section className={styles.lowerGrid}>
           <div>
             <div className={styles.sectionHeading}>
-              <h2>Active & Recent Alerts</h2>
-              <span>{activeAlerts.length} flagged items</span>
+              <h2>Current Issue</h2>
             </div>
 
             <div className={styles.alertStack} id="current-alert">
@@ -955,7 +1012,6 @@ export default async function AccountDetailPage({
           <div>
             <div className={styles.sectionHeading}>
               <h2>Alert History</h2>
-              <span>Past alert activity</span>
             </div>
 
             <div className={styles.resolvedStack}>

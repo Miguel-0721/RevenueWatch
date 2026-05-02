@@ -7,51 +7,63 @@
 .shell {
   width: min(100%, 1220px);
   margin: 0 auto;
-  padding: 56px 32px 88px;
+  padding: 36px 32px 88px;
 }
 
 .header {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
   margin-bottom: 26px;
 }
 
+.headerCopy {
+  max-width: 760px;
+}
+
 .kickerRow {
   display: flex;
   align-items: center;
-  gap: 10px;
   margin-bottom: 8px;
 }
 
-.activeNode,
-.nominalNode,
-.accountId {
+.titleRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.statusCritical,
+.statusWarning,
+.statusHealthy {
   display: inline-flex;
   align-items: center;
   min-height: 22px;
-  padding: 3px 9px;
-  border-radius: 4px;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.activeNode {
+.statusCritical {
+  color: #b3261e;
+  background: #ffdad6;
+}
+
+.statusWarning {
+  color: #9a6700;
+  background: #fff1c2;
+}
+
+.statusHealthy {
   color: #0058bc;
-  background: rgba(216, 226, 255, 0.65);
-}
-
-.nominalNode {
-  color: #166534;
-  background: #dcfce7;
-}
-
-.accountId {
-  color: #717786;
-  padding-inline: 0;
+  background: rgba(216, 226, 255, 0.7);
 }
 
 .header h1 {
@@ -63,10 +75,12 @@
   letter-spacing: -0.055em;
 }
 
-.header h1 span {
+.headerSubtitle {
+  margin: 14px 0 0;
+  max-width: 640px;
   color: #717786;
-  font-weight: 400;
-  letter-spacing: -0.05em;
+  font-size: 15px;
+  line-height: 1.55;
 }
 
 .actions {
@@ -74,10 +88,10 @@
   align-items: center;
   gap: 14px;
   flex-wrap: wrap;
+  padding-top: 18px;
 }
 
-.secondaryAction,
-.primaryAction {
+.secondaryAction {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -91,15 +105,15 @@
 }
 
 .secondaryAction {
-  color: #191c1d;
+  color: #0058bc;
   background: #ffffff;
-  border: 1px solid rgba(193, 198, 215, 0.45);
+  border: 1px solid rgba(0, 88, 188, 0.18);
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
 }
 
-.primaryAction {
-  color: #ffffff;
-  background: linear-gradient(135deg, #0058bc 0%, #0070eb 100%);
-  box-shadow: 0 16px 30px rgba(0, 88, 188, 0.16);
+.secondaryAction:hover {
+  background: rgba(0, 88, 188, 0.04);
+  border-color: rgba(0, 88, 188, 0.28);
 }
 
 .chartCard,
@@ -204,7 +218,7 @@
   transform: translate(-50%, -50%);
   padding: 6px 12px;
   border-radius: 999px;
-  background: rgba(255, 218, 214, 0.82);
+  background: #ffdad6;
   color: #b3261e;
   font-size: 11px;
   line-height: 1;
@@ -545,6 +559,14 @@
   line-height: 1.55;
 }
 
+.detectedAt {
+  margin-top: 12px;
+  color: #717786;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
 .panelGrid {
   display: grid;
   grid-template-columns: 1fr;
@@ -663,7 +685,7 @@
 }
 
 .alertRow span,
-.resolvedRow span:not(.resolvedIcon) {
+.resolvedRow span {
   display: block;
   margin-top: 8px;
   color: #717786;
@@ -692,25 +714,11 @@
 }
 
 .resolvedRow {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  gap: 14px;
+  display: block;
   padding: 18px 20px;
-  background: rgba(231, 232, 233, 0.42);
-  border-color: transparent;
-  box-shadow: none;
-}
-
-.resolvedIcon {
-  width: 20px;
-  height: 20px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  color: #ffffff;
-  background: #405e96;
-  font-size: 12px;
-  font-weight: 900;
+  background: #ffffff;
+  border-color: rgba(193, 198, 215, 0.22);
+  box-shadow: 0 2px 8px rgba(25, 28, 29, 0.035);
 }
 
 .emptyState {
