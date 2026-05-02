@@ -262,6 +262,25 @@
   background: linear-gradient(180deg, #0058bc 0%, #0070eb 100%);
 }
 
+.upgradeButtonDisabled {
+  background: #eef0f2;
+  color: #717786;
+  border-color: rgba(193, 198, 215, 0.6);
+  box-shadow: none;
+  cursor: default;
+}
+
+.upgradePlanNote {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  width: 100%;
+  color: #717786;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .trustLine {
   margin: 24px 0 0;
   color: #717786;

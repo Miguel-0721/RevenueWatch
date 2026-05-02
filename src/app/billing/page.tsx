@@ -17,7 +17,6 @@ const upgradePlans = [
   {
     key: "GROWTH" as const,
     price: "€79",
-    subtitle: "Scale monitoring",
     checkoutHref: "/api/billing/checkout/growth",
     features: [
       "Up to 10 connected Stripe accounts",
@@ -29,8 +28,7 @@ const upgradePlans = [
   {
     key: "PRO" as const,
     price: "€149",
-    subtitle: "Portfolio coverage",
-    checkoutHref: "/api/billing/checkout/pro",
+    checkoutHref: "/contact?plan=pro",
     features: [
       "Up to 25 connected Stripe accounts",
       "More headroom for larger Stripe operations",
@@ -40,6 +38,12 @@ const upgradePlans = [
     featured: true,
   },
 ];
+
+const PLAN_RANK = {
+  FREE: 0,
+  GROWTH: 1,
+  PRO: 2,
+} as const;
 
 function CheckIcon() {
   return (
@@ -78,6 +82,7 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
   const currentPlanLabel = getPlanLabel(user.plan);
   const connectedAccountCount = user.stripeAccounts.length;
   const planLimit = getPlanLimit(user.plan);
+  const currentPlanRank = PLAN_RANK[user.plan as keyof typeof PLAN_RANK] ?? 0;
   const showLimitMessage =
     params?.reason === "limit_reached" || connectedAccountCount >= planLimit;
 
@@ -144,43 +149,61 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
             </aside>
 
             <div className={styles.upgradeGrid}>
-              {upgradePlans.map((plan) => (
-                <article
-                  key={plan.key}
-                  className={`${styles.upgradeCard}${plan.featured ? ` ${styles.upgradeCardFeatured}` : ""}`}
-                >
-                  {plan.featured ? <span className={styles.recommendedBadge}>Recommended</span> : null}
+              {upgradePlans.map((plan) => {
+                const planRank = PLAN_RANK[plan.key];
+                const isCurrentPlan = plan.key === user.plan;
+                const canUpgradeToPlan = planRank > currentPlanRank;
 
-                  <div className={styles.upgradeTopRule} aria-hidden={!plan.featured} />
+                return (
+                  <article
+                    key={plan.key}
+                    className={`${styles.upgradeCard}${plan.featured ? ` ${styles.upgradeCardFeatured}` : ""}`}
+                  >
+                    {plan.featured ? (
+                      <span className={styles.recommendedBadge}>Recommended for you</span>
+                    ) : null}
 
-                  <div className={styles.upgradeBody}>
-                    <div>
-                      <span className={styles.cardEyebrow}>{plan.subtitle}</span>
-                      <h2>{PLAN_LABELS[plan.key]}</h2>
-                      <div className={styles.priceRow}>
-                        <strong>{plan.price}</strong>
-                        <span>/mo</span>
+                    <div className={styles.upgradeTopRule} aria-hidden={!plan.featured} />
+
+                    <div className={styles.upgradeBody}>
+                      <div>
+                        <h2>{PLAN_LABELS[plan.key]}</h2>
+                        <div className={styles.priceRow}>
+                          <strong>{plan.price}</strong>
+                          <span>/mo</span>
+                        </div>
                       </div>
+
+                      <ul className={styles.featureList}>
+                        {plan.features.map((feature) => (
+                          <li key={feature}>
+                            <CheckIcon />
+                            <span>{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+
+                      {isCurrentPlan ? (
+                        <span
+                          className={`${styles.upgradeButton} ${styles.upgradeButtonDisabled}`}
+                          aria-disabled="true"
+                        >
+                          Current Plan
+                        </span>
+                      ) : canUpgradeToPlan ? (
+                        <Link
+                          href={plan.checkoutHref}
+                          className={`${styles.upgradeButton} ${styles.upgradeButtonPrimary}`}
+                        >
+                          {plan.cta}
+                        </Link>
+                      ) : (
+                        <span className={styles.upgradePlanNote}>Lower tier</span>
+                      )}
                     </div>
-
-                    <ul className={styles.featureList}>
-                      {plan.features.map((feature) => (
-                        <li key={feature}>
-                          <CheckIcon />
-                          <span>{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
-
-                    <Link
-                      href={plan.checkoutHref}
-                      className={`${styles.upgradeButton} ${styles.upgradeButtonPrimary}`}
-                    >
-                      {plan.cta}
-                    </Link>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           </section>
 

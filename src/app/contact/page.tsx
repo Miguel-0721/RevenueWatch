@@ -1,7 +1,16 @@
 import Navbar from "@/components/Navbar";
 import MarketingFooter from "@/components/MarketingFooter";
 
-export default function ContactPage() {
+type ContactPageProps = {
+  searchParams?: Promise<{
+    plan?: string;
+  }>;
+};
+
+export default async function ContactPage({ searchParams }: ContactPageProps) {
+  const params = searchParams ? await searchParams : undefined;
+  const isProInquiry = params?.plan === "pro";
+
   return (
     <main className="legal-page">
       <Navbar mode="marketing" />
@@ -11,6 +20,23 @@ export default function ContactPage() {
         <p className="legal-meta">
           RevenueWatch is operated by Parmora, registered in the Netherlands.
         </p>
+
+        {isProInquiry ? (
+          <section className="legal-section">
+            <h2>Pro upgrade request</h2>
+            <p>
+              Pro is designed for larger portfolios. Tell us about your setup
+              and we&apos;ll get you onboarded.
+            </p>
+            <p>
+              Contact us at{" "}
+              <a href="mailto:contact@revenuewatch.app?subject=RevenueWatch%20Pro%20upgrade">
+                contact@revenuewatch.app
+              </a>{" "}
+              and mention that you want to upgrade to Pro.
+            </p>
+          </section>
+        ) : null}
 
         <section className="legal-section">
           <h2>General inquiries</h2>
