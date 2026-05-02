@@ -1,5 +1,11 @@
 import { auth } from "@/auth";
 import Navbar from "@/components/Navbar";
+import {
+  getActiveDemoAlerts,
+  getDemoAccountById,
+  getDemoAlertHistory,
+  hasDemoAccount,
+} from "@/lib/demoData";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -11,21 +17,24 @@ type AlertRecord = {
   severity: string;
   message: string;
   stripeAccountId: string | null;
-  createdAt: Date;
-  windowEnd: Date;
+  createdAt?: Date;
+  windowEnd?: Date;
   context?: string | null;
+  detectedLabel?: string;
+  cta?: string;
+};
+
+type HistoryRecord = {
+  id: string;
+  message: string;
+  timestamp: string;
+  group: string;
 };
 
 function alertLabel(type: string) {
   if (type === "revenue_drop") return "Revenue Drop Detected";
   if (type === "payment_failed") return "Payment Failure Spike";
   return type.replace(/_/g, " ");
-}
-
-function resolvedLabel(type: string) {
-  if (type === "revenue_drop") return "Revenue drop resolved";
-  if (type === "payment_failed") return "Payment failures returned to normal";
-  return "Alert resolved";
 }
 
 function severityRank(severity: string) {
@@ -54,7 +63,7 @@ function safeParseContext(input?: string | null) {
   if (!input) return null;
 
   try {
-    return JSON.parse(input);
+    return JSON.parse(input) as Record<string, unknown>;
   } catch {
     return null;
   }
@@ -106,20 +115,12 @@ function formatActiveDuration(date: Date) {
   return `${diffDays} day${diffDays === 1 ? "" : "s"}`;
 }
 
-function buildAlertAction(type: string, stripeAccountId: string | null) {
-  const href = stripeAccountId
-    ? `/dashboard/accounts/${encodeURIComponent(stripeAccountId)}`
+function buildAlertAction(alert: AlertRecord) {
+  const href = alert.stripeAccountId
+    ? `/dashboard/accounts/${encodeURIComponent(alert.stripeAccountId)}`
     : "/dashboard";
 
-  if (type === "revenue_drop") {
-    return { label: "Review Account", href };
-  }
-
-  if (type === "payment_failed") {
-    return { label: "View Logs", href };
-  }
-
-  return { label: "Open Alert", href };
+  return { label: alert.cta ?? "Review Issue", href };
 }
 
 function formatResolvedTime(date: Date) {
@@ -187,49 +188,96 @@ export default async function AlertsPage() {
   });
 
   const accountIds = stripeAccounts.map((account) => account.stripeAccountId);
+  const demoMode = hasDemoAccount(accountIds);
   const accountNameById = new Map(
     stripeAccounts.map((account) => [
       account.stripeAccountId,
-      account.name?.trim() || "Stripe account",
+      account.name?.trim() || getDemoAccountById(account.stripeAccountId)?.name || "Stripe account",
     ])
   );
 
-  const alerts = accountIds.length
-    ? await prisma.alert.findMany({
-        where: { stripeAccountId: { in: accountIds } },
-        orderBy: { createdAt: "desc" },
-        take: 200,
-      })
-    : [];
+  let activeAlerts: AlertRecord[] = [];
+  let groupedHistoryRecords: Record<string, HistoryRecord[]> = {};
+  let historyOrder: string[] = [];
 
-  const now = new Date();
-  const activeAlerts = alerts
-    .filter((alert) => alert.windowEnd > now)
-    .sort((left, right) => {
-      const severityDifference = severityRank(left.severity) - severityRank(right.severity);
+  if (demoMode) {
+    activeAlerts = getActiveDemoAlerts()
+      .filter((account) => accountIds.some((id) => getDemoAccountById(id)?.id === account.id))
+      .map((account) => ({
+        id: `demo-alert-${account.id}`,
+        type: account.alertType,
+        severity: account.severity === "high" ? "critical" : "warning",
+        message: account.message,
+        stripeAccountId: account.id,
+        detectedLabel: account.detectedAt,
+        cta: account.cta,
+      }));
 
-      if (severityDifference !== 0) {
-        return severityDifference;
+    const historyRecords = getDemoAlertHistory().map((entry, index) => ({
+      id: `demo-history-${index}`,
+      message: entry.message,
+      timestamp: entry.timestamp,
+      group: entry.group,
+    }));
+
+    groupedHistoryRecords = historyRecords.reduce<Record<string, HistoryRecord[]>>((groups, entry) => {
+      if (!groups[entry.group]) {
+        groups[entry.group] = [];
       }
-
-      return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
-    });
-  const resolvedAlerts = alerts.filter((alert) => alert.windowEnd <= now);
-
-  const groupedResolvedAlerts = resolvedAlerts.reduce<Record<string, typeof resolvedAlerts>>(
-    (groups, alert) => {
-      const label = groupHistoryLabel(alert.windowEnd);
-      if (!groups[label]) {
-        groups[label] = [];
-      }
-      groups[label].push(alert);
+      groups[entry.group].push(entry);
       return groups;
-    },
-    {}
-  );
+    }, {});
 
-  const resolvedGroupOrder = ["Today", "Yesterday", "This week", "Older"].filter(
-    (label) => groupedResolvedAlerts[label]?.length
+    historyOrder = ["Today", "Yesterday", "Earlier this week", "Last week", "Older"].filter(
+      (label) => groupedHistoryRecords[label]?.length
+    );
+  } else {
+    const alerts = accountIds.length
+      ? await prisma.alert.findMany({
+          where: { stripeAccountId: { in: accountIds } },
+          orderBy: { createdAt: "desc" },
+          take: 200,
+        })
+      : [];
+
+    const now = new Date();
+    activeAlerts = alerts
+      .filter((alert) => alert.windowEnd > now)
+      .sort((left, right) => {
+        const severityDifference = severityRank(left.severity) - severityRank(right.severity);
+        if (severityDifference !== 0) return severityDifference;
+        return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+      })
+      .map((alert) => ({
+        ...alert,
+        severity: alert.severity === "critical" ? "critical" : "warning",
+      }));
+
+    const historyRecords = alerts
+      .filter((alert) => !alert.windowEnd || alert.windowEnd <= now)
+      .map((alert) => ({
+        id: alert.id,
+        message: `${alertLabel(alert.type)} for ${alert.stripeAccountId ? accountNameById.get(alert.stripeAccountId) ?? "Stripe account" : "Stripe account"}`,
+        timestamp: formatResolvedTime(alert.windowEnd as Date),
+        group: groupHistoryLabel(alert.windowEnd as Date),
+      }));
+
+    groupedHistoryRecords = historyRecords.reduce<Record<string, HistoryRecord[]>>((groups, entry) => {
+      if (!groups[entry.group]) {
+        groups[entry.group] = [];
+      }
+      groups[entry.group].push(entry);
+      return groups;
+    }, {});
+
+    historyOrder = ["Today", "Yesterday", "This week", "Older"].filter(
+      (label) => groupedHistoryRecords[label]?.length
+    );
+  }
+
+  const historyCount = Object.values(groupedHistoryRecords).reduce(
+    (count, entries) => count + entries.length,
+    0
   );
 
   return (
@@ -240,7 +288,7 @@ export default async function AlertsPage() {
           <div className={styles.header}>
             <div>
               <h1>Alerts</h1>
-              <p>Review current issues and resolved alert history across your connected accounts.</p>
+              <p>Review current issues and past alert activity across your connected accounts.</p>
             </div>
             <Link href="/dashboard" className={styles.backLink}>
               Back to dashboard
@@ -262,13 +310,10 @@ export default async function AlertsPage() {
                   const accountName = alert.stripeAccountId
                     ? accountNameById.get(alert.stripeAccountId) ?? "Stripe account"
                     : "Stripe account";
-                  const action = buildAlertAction(alert.type, alert.stripeAccountId);
+                  const action = buildAlertAction(alert);
 
                   return (
-                    <article
-                      key={alert.id}
-                      className={`${styles.card} ${severity.cardClass}`}
-                    >
+                    <article key={alert.id} className={`${styles.card} ${severity.cardClass}`}>
                       <div className={styles.cardHeader}>
                         <div>
                           <h3>{accountName}</h3>
@@ -282,7 +327,11 @@ export default async function AlertsPage() {
                       <p className={styles.cardBody}>{buildReadableAlertMessage(alert)}</p>
 
                       <div className={styles.cardFooter}>
-                        <span>Active for {formatActiveDuration(alert.createdAt)}</span>
+                        <span>
+                          {alert.detectedLabel
+                            ? `Detected ${alert.detectedLabel}`
+                            : `Active for ${formatActiveDuration(alert.createdAt as Date)}`}
+                        </span>
                         <Link href={action.href} className={styles.cardAction}>
                           {action.label}
                         </Link>
@@ -296,39 +345,26 @@ export default async function AlertsPage() {
 
           <section className={styles.section}>
             <div className={styles.sectionHeader}>
-              <h2>Resolved History</h2>
-              <span className={styles.sectionCount}>{resolvedAlerts.length}</span>
+              <h2>Alert History</h2>
+              <span className={styles.sectionCount}>{historyCount}</span>
             </div>
 
-            {resolvedAlerts.length === 0 ? (
-              <div className={styles.emptyState}>No resolved alerts yet.</div>
+            {historyCount === 0 ? (
+              <div className={styles.emptyState}>No alert history yet.</div>
             ) : (
               <div className={styles.historyGroups}>
-                {resolvedGroupOrder.map((groupLabel) => (
+                {historyOrder.map((groupLabel) => (
                   <div key={groupLabel} className={styles.historyGroup}>
                     <h3 className={styles.historyGroupTitle}>{groupLabel}</h3>
                     <div className={styles.historyList}>
-                      {groupedResolvedAlerts[groupLabel].map((alert) => {
-                        const accountName = alert.stripeAccountId
-                          ? accountNameById.get(alert.stripeAccountId) ?? "Stripe account"
-                          : "Stripe account";
-
-                        return (
-                          <article key={alert.id} className={styles.historyItem}>
-                            <div className={styles.historyCopy}>
-                              <p className={styles.historyText}>
-                                <strong>{resolvedLabel(alert.type)}</strong> for {accountName}.
-                              </p>
-                              <p className={styles.historyBody}>
-                                {buildReadableAlertMessage(alert)}
-                              </p>
-                            </div>
-                            <span className={styles.historyMeta}>
-                              {formatResolvedTime(alert.windowEnd)}
-                            </span>
-                          </article>
-                        );
-                      })}
+                      {groupedHistoryRecords[groupLabel].map((entry) => (
+                        <article key={entry.id} className={styles.historyItem}>
+                          <div className={styles.historyCopy}>
+                            <p className={styles.historyText}>{entry.message}</p>
+                          </div>
+                          <span className={styles.historyMeta}>{entry.timestamp}</span>
+                        </article>
+                      ))}
                     </div>
                   </div>
                 ))}

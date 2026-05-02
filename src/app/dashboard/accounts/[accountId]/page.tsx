@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import { getDemoAccountById, getDemoAlertHistory } from "@/lib/demoData";
 import { prisma } from "@/lib/prisma";
 import styles from "./page.module.css";
 
@@ -16,6 +17,8 @@ type AlertLike = {
   windowEnd?: Date;
   stripeAccountId?: string | null;
   accountName?: string | null;
+  detectedLabel?: string;
+  displayTimestamp?: string;
 };
 
 type RevenueContext = {
@@ -26,19 +29,19 @@ type RevenueContext = {
   threshold: number;
   alertThresholdAmount: number;
   baselineLabel: string;
-  baselineSampleCount: number | null;
   windowLabel: string;
-  hourOfDay: number | null;
 };
 
 type PaymentFailureContext = {
   failures: number;
+  normalFailures: number | null;
   threshold: number;
   windowLabel: string;
 };
 
 type ChartPoint = {
-  hour: number;
+  index: number;
+  label: string;
   expected: number;
   actual: number;
 };
@@ -48,27 +51,27 @@ type RevenueChartModel = {
   expectedValue: number;
   actualValue: number;
   thresholdValue: number;
-  dropThreshold: number;
   peakValue: number;
   lowValue: number;
-  activeHour: number;
-  baselineLabel: string;
+  activeIndex: number;
   windowLabel: string;
   isAlerting: boolean;
 };
 
 type FailureChartPoint = {
-  minute: number;
+  index: number;
+  label: string;
   failures: number;
 };
 
 type FailureChartModel = {
   points: FailureChartPoint[];
   failures: number;
+  normalFailures: number | null;
   threshold: number;
   windowLabel: string;
   peakFailures: number;
-  activeMinute: number;
+  activeIndex: number;
   windowStartLabel: string;
   windowEndLabel: string;
 };
@@ -102,27 +105,24 @@ function fmtDate(d?: Date | null) {
   return new Date(d).toLocaleString();
 }
 
-function fmtUtcHour(hour?: number | null) {
-  if (typeof hour !== "number") return "Current UTC hour";
-  return `${String(hour).padStart(2, "0")}:00 UTC`;
+function fmtUtcHour(hour: number) {
+  return `${String(hour).padStart(2, "0")}:00`;
 }
 
-function fmtUtcDayAndHour(d?: Date | null) {
-  if (!d) return "No event recorded";
-  const date = new Date(d);
-  const day = new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
-    timeZone: "UTC",
-  }).format(date);
-  return `${day}, ${String(date.getUTCHours()).padStart(2, "0")}:00 UTC`;
-}
+function buildTickIndexes(length: number) {
+  if (length <= 1) return [0];
 
-function fmtUtcTime(d?: Date | null) {
-  if (!d) return "No time";
-  const date = new Date(d);
-  return `${String(date.getUTCHours()).padStart(2, "0")}:${String(
-    date.getUTCMinutes()
-  ).padStart(2, "0")} UTC`;
+  if (length <= 6) {
+    return Array.from({ length }, (_, index) => index);
+  }
+
+  const candidates = [
+    0,
+    Math.floor((length - 1) / 3),
+    Math.floor(((length - 1) * 2) / 3),
+    length - 1,
+  ];
+  return [...new Set(candidates)];
 }
 
 function alertLabel(type: string) {
@@ -134,10 +134,6 @@ function alertLabel(type: string) {
 function getSeverityLabel(severity?: string) {
   if (severity === "critical") return "Critical";
   return "Warning";
-}
-
-function formatContextMoney(parsed: Record<string, unknown>, value: number) {
-  return formatMoneyAmount(parsed.amountUnit === "cents" ? value / 100 : value);
 }
 
 function getRevenueContext(alert?: AlertLike | null): RevenueContext | null {
@@ -152,7 +148,6 @@ function getRevenueContext(alert?: AlertLike | null): RevenueContext | null {
       : typeof parsed.expectedRevenue === "number"
         ? parsed.expectedRevenue
         : null;
-
   const currentAmount =
     typeof parsed.currentAmount === "number"
       ? parsed.currentAmount
@@ -164,11 +159,6 @@ function getRevenueContext(alert?: AlertLike | null): RevenueContext | null {
     return null;
   }
 
-  const currentWindowMinutes =
-    typeof parsed.currentWindowMinutes === "number"
-      ? parsed.currentWindowMinutes
-      : null;
-
   return {
     parsed,
     baselineAmount,
@@ -177,26 +167,20 @@ function getRevenueContext(alert?: AlertLike | null): RevenueContext | null {
       typeof parsed.dropRatio === "number"
         ? parsed.dropRatio
         : (baselineAmount - currentAmount) / baselineAmount,
-    threshold: typeof parsed.threshold === "number" ? parsed.threshold : 0.5,
+    threshold:
+      typeof parsed.threshold === "number"
+        ? parsed.threshold
+        : typeof parsed.alertThresholdAmount === "number"
+          ? 1 - parsed.alertThresholdAmount / baselineAmount
+          : 0.5,
     alertThresholdAmount:
       typeof parsed.alertThresholdAmount === "number"
         ? parsed.alertThresholdAmount
         : Math.round(baselineAmount * 0.5),
     baselineLabel:
-      typeof parsed.baselineLabel === "string"
-        ? parsed.baselineLabel
-        : "matched historical windows",
-    baselineSampleCount:
-      typeof parsed.baselineSampleCount === "number"
-        ? parsed.baselineSampleCount
-        : null,
+      typeof parsed.baselineLabel === "string" ? parsed.baselineLabel : "recent performance",
     windowLabel:
-      currentWindowMinutes !== null
-        ? `last ${currentWindowMinutes} minutes`
-        : typeof parsed.window === "string"
-          ? parsed.window
-          : "current window",
-    hourOfDay: typeof parsed.hourOfDay === "number" ? parsed.hourOfDay : null,
+      typeof parsed.window === "string" ? parsed.window : "current monitoring window",
   };
 }
 
@@ -215,149 +199,106 @@ function getPaymentFailureContext(alert?: AlertLike | null): PaymentFailureConte
 
   if (failures === null) return null;
 
-  const failureWindowMinutes =
-    typeof parsed.failureWindowMinutes === "number"
-      ? parsed.failureWindowMinutes
-      : null;
-
   return {
     failures,
+    normalFailures:
+      typeof parsed.normalFailures === "number"
+        ? parsed.normalFailures
+        : typeof parsed.baseline === "number"
+          ? parsed.baseline
+          : null,
     threshold:
-      typeof parsed.failureThreshold === "number"
-        ? parsed.failureThreshold
-        : 5,
+      typeof parsed.failureThreshold === "number" ? parsed.failureThreshold : 5,
     windowLabel:
-      failureWindowMinutes !== null
-        ? `last ${failureWindowMinutes} minutes`
-        : typeof parsed.window === "string"
-          ? parsed.window
-          : "recent window",
+      typeof parsed.window === "string" ? parsed.window : "current monitoring window",
   };
-}
-
-function normalizeWindowLabel(windowLabel: string) {
-  return windowLabel.replace(/^last /, "");
-}
-
-function getAccountDefaults(accountId: string) {
-  const defaults: Record<string, { expectedRevenue: number; baselineFailures: number }> = {
-    acct_sample_atlas: { expectedRevenue: 4200, baselineFailures: 3 },
-    acct_sample_northstar: { expectedRevenue: 8200, baselineFailures: 3 },
-    acct_sample_bluepeak: { expectedRevenue: 2200, baselineFailures: 2 },
-    acct_sample_meridian: { expectedRevenue: 3100, baselineFailures: 2 },
-    acct_sample_luma: { expectedRevenue: 2600, baselineFailures: 2 },
-    acct_sample_forge: { expectedRevenue: 2100, baselineFailures: 2 },
-    acct_sample_cedar: { expectedRevenue: 940, baselineFailures: 2 },
-    acct_sample_pixel: { expectedRevenue: 980, baselineFailures: 2 },
-    acct_sample_brightgrowth: { expectedRevenue: 1240, baselineFailures: 2 },
-    acct_sample_nova: { expectedRevenue: 1800, baselineFailures: 2 },
-  };
-
-  return defaults[accountId] ?? { expectedRevenue: 2400, baselineFailures: 2 };
 }
 
 function buildReadableAlertMessage(alert: AlertLike) {
+  const parsed = safeParseContext(alert.context);
+  if (parsed && typeof parsed.displayMessage === "string") {
+    return parsed.displayMessage;
+  }
+
   const revenueContext = getRevenueContext(alert);
   if (revenueContext) {
     const dropPercent = Math.round(revenueContext.dropRatio * 100);
-
     return `Sales are ${dropPercent}% lower than usual for this window.`;
   }
 
   const paymentContext = getPaymentFailureContext(alert);
   if (paymentContext) {
-    return `${formatCount(paymentContext.failures)} failed payments were detected in the ${paymentContext.windowLabel}, reaching the alert threshold of ${formatCount(paymentContext.threshold)}.`;
+    return alert.message ?? "Payment failures are significantly higher than usual compared to recent activity.";
   }
 
   return alert.message ?? "Alert details unavailable.";
 }
 
-function buildTriggerReason(alert: AlertLike) {
-  const revenueContext = getRevenueContext(alert);
-  if (revenueContext) {
-    const shortfall = revenueContext.baselineAmount - revenueContext.currentAmount;
-    const reasons = [
-      `Compared against ${revenueContext.baselineLabel}.`,
-      `Expected ${formatContextMoney(revenueContext.parsed, revenueContext.baselineAmount)} in the ${revenueContext.windowLabel}.`,
-      `Observed ${formatContextMoney(revenueContext.parsed, revenueContext.currentAmount)} instead.`,
-      `Shortfall: ${formatContextMoney(revenueContext.parsed, shortfall)}.`,
-    ];
-
-    if (revenueContext.baselineSampleCount !== null) {
-      reasons.push(
-        `Baseline used ${formatCount(revenueContext.baselineSampleCount)} matching historical windows.`
-      );
-    }
-
-    return reasons;
-  }
-
-  const paymentContext = getPaymentFailureContext(alert);
-  if (paymentContext) {
-    return [
-      `Observed ${formatCount(paymentContext.failures)} failed payments in the ${paymentContext.windowLabel}.`,
-      `Configured alert threshold is ${formatCount(paymentContext.threshold)} failed payments.`,
-      "Payment failure alerts use a fixed spike threshold, not a historical baseline.",
-    ];
-  }
-
-  return [];
-}
-
-function buildRevenueChartModel(
-  accountId: string,
-  topAlert: AlertLike | null,
-  now: Date
-): RevenueChartModel {
+function buildRevenueChartModel(accountId: string, topAlert: AlertLike | null, now: Date): RevenueChartModel {
+  const parsed = safeParseContext(topAlert?.context);
   const revenueContext = getRevenueContext(topAlert);
-  const defaults = getAccountDefaults(accountId);
-  const amountIsCents = revenueContext?.parsed.amountUnit === "cents";
-  const expectedValue = revenueContext
-    ? amountIsCents
-      ? revenueContext.baselineAmount / 100
-      : revenueContext.baselineAmount
-    : defaults.expectedRevenue;
-  const actualValue = revenueContext
-    ? amountIsCents
-      ? revenueContext.currentAmount / 100
-      : revenueContext.currentAmount
-    : Math.round(expectedValue * 0.94);
-  const threshold = revenueContext?.threshold ?? 0.5;
-  const thresholdValue = Math.round(expectedValue * (1 - threshold));
-  const activeHour = revenueContext?.hourOfDay ?? now.getUTCHours();
+  const defaultExpected = 2400;
+  const expectedValue = revenueContext?.baselineAmount ?? defaultExpected;
+  const actualValue = revenueContext?.currentAmount ?? Math.round(defaultExpected * 0.94);
+  const thresholdValue = revenueContext?.alertThresholdAmount ?? Math.round(expectedValue * 0.5);
+  const revenueSeries = Array.isArray(parsed?.revenueSeries)
+    ? parsed.revenueSeries
+        .filter(
+          (point): point is { time: string; revenue: number } =>
+            typeof point === "object" &&
+            point !== null &&
+            typeof (point as { time?: unknown }).time === "string" &&
+            typeof (point as { revenue?: unknown }).revenue === "number"
+        )
+    : null;
 
+  if (revenueSeries && revenueSeries.length > 0) {
+    const points = revenueSeries.map((point, index) => ({
+      index,
+      label: point.time,
+      expected: expectedValue,
+      actual: point.revenue,
+    }));
+    const actualValues = points.map((point) => point.actual);
+    const latestValue = actualValues[actualValues.length - 1] ?? actualValue;
+
+    return {
+      points,
+      expectedValue,
+      actualValue: latestValue,
+      thresholdValue,
+      peakValue: Math.max(...actualValues),
+      lowValue: Math.min(...actualValues),
+      activeIndex: points.length - 1,
+      windowLabel: revenueContext?.windowLabel ?? "current monitoring window",
+      isAlerting: latestValue < thresholdValue,
+    };
+  }
+
+  const activeHour = now.getUTCHours();
   const points = Array.from({ length: 24 }, (_, hour) => {
     const dayCurve = 0.86 + Math.sin((hour / 24) * Math.PI * 2 - 0.5) * 0.16;
     const workdayLift = hour >= 8 && hour <= 21 ? 1.1 : 0.74;
     const expected = Math.round(expectedValue * dayCurve * workdayLift);
-    const distance = Math.min(Math.abs(hour - activeHour), 24 - Math.abs(hour - activeHour));
-    const actual =
-      revenueContext && distance <= 1
-        ? Math.round(actualValue * (distance === 0 ? 1 : 1.08))
-        : Math.round(expected * (0.92 + (hour % 5) * 0.03));
+    const actual = hour === activeHour ? actualValue : Math.round(expected * (0.92 + (hour % 5) * 0.03));
 
-    return { hour, expected, actual };
+    return {
+      index: hour,
+      label: fmtUtcHour(hour),
+      expected,
+      actual,
+    };
   });
-
-  points[activeHour] = {
-    hour: activeHour,
-    expected: expectedValue,
-    actual: actualValue,
-  };
-
-  const actualValues = points.map((point) => point.actual);
 
   return {
     points,
     expectedValue,
     actualValue,
     thresholdValue,
-    dropThreshold: threshold,
-    peakValue: Math.max(...actualValues),
-    lowValue: Math.min(...actualValues),
-    activeHour,
-    baselineLabel: revenueContext?.baselineLabel ?? "same day and same hour",
-    windowLabel: revenueContext?.windowLabel ?? "current window",
+    peakValue: Math.max(...points.map((point) => point.actual)),
+    lowValue: Math.min(...points.map((point) => point.actual)),
+    activeIndex: activeHour,
+    windowLabel: revenueContext?.windowLabel ?? "current monitoring window",
     isAlerting: actualValue < thresholdValue,
   };
 }
@@ -378,6 +319,13 @@ function buildSmoothPath(points: Array<{ x: number; y: number }>) {
   }, "");
 }
 
+function buildLinePath(points: Array<{ x: number; y: number }>) {
+  if (points.length === 0) return "";
+  return points
+    .map((point, index) => `${index === 0 ? "M" : "L"}${point.x.toFixed(1)},${point.y.toFixed(1)}`)
+    .join(" ");
+}
+
 function buildMoneyTicks(maxValue: number) {
   const rawTicks = [0, maxValue * 0.33, maxValue * 0.66, maxValue];
 
@@ -388,46 +336,57 @@ function buildMoneyTicks(maxValue: number) {
   });
 }
 
-function buildFailureChartModel(
-  paymentContext: PaymentFailureContext | null,
-  lastEventAt?: Date | null
-): FailureChartModel {
+function buildFailureChartModel(topAlert: AlertLike | null, paymentContext: PaymentFailureContext | null): FailureChartModel {
+  const parsed = safeParseContext(topAlert?.context);
   const failures = paymentContext?.failures ?? 0;
   const threshold = paymentContext?.threshold ?? 5;
-  const activeMinute = 29;
-  const windowMinutesMatch = paymentContext?.windowLabel.match(/\d+/);
-  const windowMinutes = windowMinutesMatch ? Number(windowMinutesMatch[0]) : 30;
-  const windowEnd = lastEventAt ? new Date(lastEventAt) : null;
-  const windowStart = windowEnd
-    ? new Date(windowEnd.getTime() - windowMinutes * 60 * 1000)
+  const failureSeries = Array.isArray(parsed?.failureSeries)
+    ? parsed.failureSeries
+        .filter(
+          (point): point is { time: string; failures: number } =>
+            typeof point === "object" &&
+            point !== null &&
+            typeof (point as { time?: unknown }).time === "string" &&
+            typeof (point as { failures?: unknown }).failures === "number"
+        )
     : null;
-  const points = Array.from({ length: 30 }, (_, minute) => {
-    const lateWindow = minute >= 22;
-    const base = minute % 7 === 0 ? 1 : 0;
-    const failuresAtMinute = lateWindow
-      ? Math.max(1, Math.round((failures / 8) * (1 + ((minute - 22) % 3))))
-      : base;
+
+  if (failureSeries && failureSeries.length > 0) {
+    const points = failureSeries.map((point, index) => ({
+      index,
+      label: point.time,
+      failures: point.failures,
+    }));
 
     return {
-      minute,
-      failures: Math.min(failuresAtMinute, failures),
+      points,
+      failures,
+      normalFailures: paymentContext?.normalFailures ?? null,
+      threshold,
+      windowLabel: paymentContext?.windowLabel ?? "current monitoring window",
+      peakFailures: Math.max(...points.map((point) => point.failures)),
+      activeIndex: points.length - 1,
+      windowStartLabel: points[0].label,
+      windowEndLabel: points[points.length - 1].label,
     };
-  });
+  }
 
-  points[activeMinute] = {
-    minute: activeMinute,
-    failures,
-  };
+  const points = Array.from({ length: 12 }, (_, index) => ({
+    index,
+    label: index === 0 ? "Start" : index === 11 ? "Now" : "",
+    failures: index === 11 ? failures : Math.max(0, Math.round(failures * (index / 16))),
+  }));
 
   return {
     points,
     failures,
+    normalFailures: paymentContext?.normalFailures ?? null,
     threshold,
-    windowLabel: paymentContext?.windowLabel ?? "last 30 minutes",
+    windowLabel: paymentContext?.windowLabel ?? "current monitoring window",
     peakFailures: Math.max(...points.map((point) => point.failures)),
-    activeMinute,
-    windowStartLabel: fmtUtcTime(windowStart),
-    windowEndLabel: fmtUtcTime(windowEnd),
+    activeIndex: points.length - 1,
+    windowStartLabel: points[0].label,
+    windowEndLabel: points[points.length - 1].label,
   };
 }
 
@@ -443,19 +402,15 @@ function FailureChart({ model }: { model: FailureChartModel }) {
             bottom: `${Math.min(86, Math.max(12, (model.threshold / maxValue) * 100))}%`,
           }}
         />
-        <div
-          className={styles.failureThreshold}
-        >
-          Threshold: {formatCount(model.threshold)}
-        </div>
+        <div className={styles.failureThreshold}>Threshold: {formatCount(model.threshold)}</div>
 
         <div className={styles.failureBars} aria-label="Failed payments over the current window">
           {model.points.map((point) => {
-            const isActive = point.minute === model.activeMinute;
+            const isActive = point.index === model.activeIndex;
             const height = Math.max(8, (point.failures / maxValue) * 100);
 
             return (
-              <div key={point.minute} className={styles.failureBarSlot}>
+              <div key={`${point.index}-${point.label}`} className={styles.failureBarSlot}>
                 <span
                   className={isActive ? styles.failureBarActive : styles.failureBar}
                   style={{ height: `${height}%` }}
@@ -478,7 +433,7 @@ function FailureChart({ model }: { model: FailureChartModel }) {
             <i className={styles.legendRed} /> Failed payments
           </span>
           <span>
-            <i className={styles.legendGray} /> Threshold
+            <i className={styles.legendBlue} /> Threshold
           </span>
         </div>
       </div>
@@ -489,18 +444,16 @@ function FailureChart({ model }: { model: FailureChartModel }) {
 function MonitorInsightPanel({
   model,
   topAlert,
-  revenueContext,
   paymentContext,
   lastEventAt,
 }: {
   model?: RevenueChartModel | null;
   topAlert: AlertLike | null;
-  revenueContext: RevenueContext | null;
   paymentContext: PaymentFailureContext | null;
   lastEventAt?: Date | null;
 }) {
   const isPaymentFailure = topAlert?.type === "payment_failed" && paymentContext;
-  const isRevenueDrop = topAlert?.type === "revenue_drop" && revenueContext && model;
+  const isRevenueDrop = topAlert?.type === "revenue_drop" && model;
 
   const panelClassName = `${styles.monitorPanel} ${
     topAlert ? styles.monitorPanelIssue : styles.monitorPanelNormal
@@ -509,13 +462,11 @@ function MonitorInsightPanel({
   return (
     <aside className={panelClassName}>
       <div>
-          <span className={styles.panelEyebrow}>
-            <span className={styles.panelStatusDot} aria-hidden="true" />
-            {topAlert ? "Current issue" : "Current state"}
-          </span>
-        <h3>
-          {topAlert ? alertLabel(topAlert.type) : "Monitoring active"}
-        </h3>
+        <span className={styles.panelEyebrow}>
+          <span className={styles.panelStatusDot} aria-hidden="true" />
+          {topAlert ? "Current issue" : "Current state"}
+        </span>
+        <h3>{topAlert ? alertLabel(topAlert.type) : "Monitoring active"}</h3>
         <p>
           {topAlert
             ? buildReadableAlertMessage(topAlert)
@@ -527,30 +478,28 @@ function MonitorInsightPanel({
         {isPaymentFailure ? (
           <>
             <div className={styles.panelMetric}>
-              <span>Failures seen</span>
-              <strong className={styles.dangerText}>
-                {formatCount(paymentContext.failures)}
-              </strong>
+              <span>Current failed payments</span>
+              <strong className={styles.dangerText}>{formatCount(paymentContext.failures)}</strong>
+            </div>
+            <div className={styles.panelMetric}>
+              <span>Usual failed payments</span>
+              <strong>{formatCount(paymentContext.normalFailures ?? paymentContext.threshold)}</strong>
             </div>
             <div className={styles.panelMetric}>
               <span>Alert threshold</span>
               <strong>{formatCount(paymentContext.threshold)}</strong>
             </div>
-            <div className={styles.panelMetric}>
-              <span>Measured over</span>
-              <strong>{paymentContext.windowLabel}</strong>
-            </div>
           </>
-        ) : isRevenueDrop ? (
+        ) : isRevenueDrop && model ? (
           <>
             <div className={styles.panelMetric}>
-              <span>Current revenue</span>
-              <strong className={model?.isAlerting ? styles.dangerText : undefined}>
+              <span>Current window revenue</span>
+              <strong className={model.isAlerting ? styles.dangerText : undefined}>
                 {formatMoneyAmount(model.actualValue)}
               </strong>
             </div>
             <div className={styles.panelMetric}>
-              <span>Usual revenue</span>
+              <span>Usual window revenue</span>
               <strong>{formatMoneyAmount(model.expectedValue)}</strong>
             </div>
             <div className={styles.panelMetric}>
@@ -576,9 +525,7 @@ function MonitorInsightPanel({
         <div className={styles.panelContext}>
           <div>
             <span>Comparison basis</span>
-            <strong>
-              Usual revenue is based on normal performance over similar recent windows
-            </strong>
+            <strong>Usual revenue is based on normal performance over similar recent windows</strong>
           </div>
         </div>
       ) : null}
@@ -586,11 +533,7 @@ function MonitorInsightPanel({
   );
 }
 
-function HealthyMonitorCard({
-  lastEventAt,
-}: {
-  lastEventAt?: Date | null;
-}) {
+function HealthyMonitorCard({ lastEventAt }: { lastEventAt?: Date | null }) {
   return (
     <section className={styles.chartCard}>
       <div className={styles.chartLayoutSingle}>
@@ -604,12 +547,7 @@ function HealthyMonitorCard({
           </div>
         </div>
 
-        <MonitorInsightPanel
-          topAlert={null}
-          revenueContext={null}
-          paymentContext={null}
-          lastEventAt={lastEventAt}
-        />
+        <MonitorInsightPanel topAlert={null} paymentContext={null} lastEventAt={lastEventAt} />
       </div>
     </section>
   );
@@ -624,7 +562,7 @@ function PaymentFailureMonitor({
   paymentContext: PaymentFailureContext;
   lastEventAt?: Date | null;
 }) {
-  const failureModel = buildFailureChartModel(paymentContext, lastEventAt);
+  const failureModel = buildFailureChartModel(topAlert, paymentContext);
 
   return (
     <section className={styles.chartCard}>
@@ -632,14 +570,9 @@ function PaymentFailureMonitor({
         <div className={styles.chartMain}>
           <div className={styles.chartHeader}>
             <div>
-              <h2>Payment Failure Monitor</h2>
-              <p>
-                Failed payment events counted during the current{" "}
-                {normalizeWindowLabel(paymentContext.windowLabel)} monitoring window.
-              </p>
-              <div className={styles.chartMeta}>
-                Current window: {failureModel.windowStartLabel} - {failureModel.windowEndLabel}
-              </div>
+              <h2>Payment failures during this monitoring window</h2>
+              <p>Payment failures increased above normal levels during this window.</p>
+              <div className={styles.chartMeta}>Monitoring window: {paymentContext.windowLabel}</div>
             </div>
             <span className={styles.liveBadge}>
               <span />
@@ -649,16 +582,16 @@ function PaymentFailureMonitor({
 
           <div className={styles.failureSummaryCard}>
             <div className={styles.failureMiniBlock}>
-              <span>Failed payments</span>
+              <span>Current failed payments</span>
               <strong>{formatCount(paymentContext.failures)}</strong>
             </div>
             <div className={styles.failureMiniBlock}>
-              <span>Threshold</span>
-              <strong>{formatCount(paymentContext.threshold)}</strong>
+              <span>Usual failed payments</span>
+              <strong>{formatCount(paymentContext.normalFailures ?? paymentContext.threshold)}</strong>
             </div>
             <div className={styles.failureMiniBlock}>
-              <span>Measured over</span>
-              <strong>{paymentContext.windowLabel}</strong>
+              <span>Alert threshold</span>
+              <strong>{formatCount(paymentContext.threshold)}</strong>
             </div>
           </div>
 
@@ -667,12 +600,7 @@ function PaymentFailureMonitor({
           </div>
         </div>
 
-        <MonitorInsightPanel
-          topAlert={topAlert}
-          revenueContext={null}
-          paymentContext={paymentContext}
-          lastEventAt={lastEventAt}
-        />
+        <MonitorInsightPanel topAlert={topAlert} paymentContext={paymentContext} lastEventAt={lastEventAt} />
       </div>
     </section>
   );
@@ -681,13 +609,11 @@ function PaymentFailureMonitor({
 function RevenueAlertMonitor({
   model,
   topAlert,
-  revenueContext,
   paymentContext,
   lastEventAt,
 }: {
   model: RevenueChartModel;
   topAlert: AlertLike;
-  revenueContext: RevenueContext;
   paymentContext: PaymentFailureContext | null;
   lastEventAt?: Date | null;
 }) {
@@ -704,23 +630,25 @@ function RevenueAlertMonitor({
   const maxValue =
     Math.max(
       ...model.points.flatMap((point) => [point.expected, point.actual]),
-      ...model.points.map((point) => Math.round(point.expected * (1 - model.dropThreshold))),
       model.thresholdValue
     ) * 1.18;
 
-  const x = (hour: number) => plot.left + (hour / 23) * plotWidth;
+  const domain = Math.max(1, model.points.length - 1);
+  const x = (index: number) => plot.left + (index / domain) * plotWidth;
   const y = (value: number) => plot.bottom - (value / maxValue) * plotHeight;
   const actualCoordinates = model.points.map((point) => ({
-    x: x(point.hour),
+    x: x(point.index),
     y: y(point.actual),
   }));
-  const actualPath = buildSmoothPath(actualCoordinates);
-  const activePoint = model.points[model.activeHour];
+  const actualPath = buildLinePath(actualCoordinates);
+  const activePoint = model.points[model.activeIndex];
   const triggerPoint =
-    model.points.find((point) => point.actual < model.thresholdValue) ?? activePoint;
+    model.points.find((point) => point.actual <= model.thresholdValue) ?? activePoint;
   const thresholdY = y(model.thresholdValue);
   const yTicks = buildMoneyTicks(maxValue);
-  const xTicks = [0, 6, 12, 18, 23];
+  const xTickIndexes = buildTickIndexes(model.points.length);
+  const triggerX = x(triggerPoint.index);
+  const triggerY = y(triggerPoint.actual);
 
   return (
     <section className={styles.chartCard}>
@@ -728,9 +656,9 @@ function RevenueAlertMonitor({
         <div className={styles.chartMain}>
           <div className={styles.chartHeader}>
             <div>
-              <h2>Revenue during this monitoring window</h2>
-              <p>Sales dropped below the alert threshold during this window.</p>
-              <div className={styles.chartMeta}>Monitoring window: {revenueContext.windowLabel}</div>
+              <h2>Revenue per monitoring window</h2>
+              <p>Each point shows revenue measured during a recent monitoring window.</p>
+              <div className={styles.chartMeta}>Monitoring window: {model.windowLabel}</div>
             </div>
             <span className={styles.liveBadge}>
               <span />
@@ -740,8 +668,11 @@ function RevenueAlertMonitor({
 
           <div className={styles.chartWrap}>
             <div
-              className={styles.thresholdLabel}
-              style={{ top: `${(thresholdY / height) * 100}%` }}
+              className={styles.thresholdPill}
+              style={{
+                top: `${(thresholdY / height) * 100}%`,
+                left: "68%",
+              }}
             >
               Alert threshold
             </div>
@@ -763,33 +694,24 @@ function RevenueAlertMonitor({
 
                 return (
                   <g key={`${tick}-${index}`}>
-                    <line
-                      x1={plot.left}
-                      x2={plot.right}
-                      y1={tickY}
-                      y2={tickY}
-                      className={styles.gridLine}
-                    />
-                    <text
-                      x={plot.left - 14}
-                      y={tickY + 4}
-                      textAnchor="end"
-                      className={styles.axisLabel}
-                    >
+                    <line x1={plot.left} x2={plot.right} y1={tickY} y2={tickY} className={styles.gridLine} />
+                    <text x={plot.left - 14} y={tickY + 4} textAnchor="end" className={styles.axisLabel}>
                       {formatMoneyAmount(tick)}
                     </text>
                   </g>
                 );
               })}
-              {xTicks.map((tick) => (
+              {xTickIndexes.map((tickIndex) => (
                 <text
-                  key={tick}
-                  x={x(tick)}
+                  key={tickIndex}
+                  x={x(tickIndex)}
                   y={height - 12}
-                  textAnchor={tick === 0 ? "start" : tick === 23 ? "end" : "middle"}
+                  textAnchor={
+                    tickIndex === 0 ? "start" : tickIndex === model.points.length - 1 ? "end" : "middle"
+                  }
                   className={styles.axisLabel}
                 >
-                  {fmtUtcHour(tick)}
+                  {model.points[tickIndex]?.label}
                 </text>
               ))}
               <rect
@@ -800,49 +722,17 @@ function RevenueAlertMonitor({
                 className={styles.issueZone}
               />
               {model.isAlerting ? (
-                <line
-                  x1={x(triggerPoint.hour)}
-                  x2={x(triggerPoint.hour)}
-                  y1={plot.top}
-                  y2={plot.bottom}
-                  className={styles.triggerLine}
-                />
+                <line x1={x(triggerPoint.index)} x2={x(triggerPoint.index)} y1={plot.top} y2={plot.bottom} className={styles.triggerLine} />
               ) : null}
-              <path
-                d={`${actualPath} L${plot.right},${plot.bottom} L${plot.left},${plot.bottom} Z`}
-                fill="url(#accountChartFill)"
-              />
-              <line
-                x1={plot.left}
-                x2={plot.right}
-                y1={thresholdY}
-                y2={thresholdY}
-                className={styles.thresholdLine}
-              />
+              <path d={`${actualPath} L${plot.right},${plot.bottom} L${plot.left},${plot.bottom} Z`} fill="url(#accountChartFill)" />
+              <line x1={plot.left} x2={plot.right} y1={thresholdY} y2={thresholdY} className={styles.thresholdLine} />
               <path d={actualPath} className={styles.actualPath} />
               {model.isAlerting ? (
                 <>
-                  <circle
-                    cx={x(triggerPoint.hour)}
-                    cy={y(triggerPoint.actual)}
-                    r="4"
-                    className={styles.alertPoint}
-                  />
-                  <text
-                    x={Math.min(plot.right - 10, x(triggerPoint.hour) + 12)}
-                    y={Math.max(plot.top + 14, y(triggerPoint.actual) - 12)}
-                    className={styles.triggerLabel}
-                  >
-                    Alert triggered
-                  </text>
+                  <circle cx={triggerX} cy={triggerY} r="4" className={styles.alertPoint} />
                 </>
               ) : (
-                <circle
-                  cx={x(activePoint.hour)}
-                  cy={y(activePoint.actual)}
-                  r="4"
-                  className={styles.activePoint}
-                />
+                <circle cx={x(activePoint.index)} cy={y(activePoint.actual)} r="4" className={styles.activePoint} />
               )}
             </svg>
           </div>
@@ -853,19 +743,13 @@ function RevenueAlertMonitor({
                 <i className={styles.legendBlue} /> Current revenue
               </span>
               <span>
-                <i className={styles.legendRed} /> Alert threshold
+                <i className={styles.legendRed} /> Alert threshold ({formatMoneyAmount(model.thresholdValue)})
               </span>
             </div>
           </div>
         </div>
 
-        <MonitorInsightPanel
-          model={model}
-          topAlert={topAlert}
-          revenueContext={revenueContext}
-          paymentContext={paymentContext}
-          lastEventAt={lastEventAt}
-        />
+        <MonitorInsightPanel model={model} topAlert={topAlert} paymentContext={paymentContext} lastEventAt={lastEventAt} />
       </div>
     </section>
   );
@@ -874,13 +758,11 @@ function RevenueAlertMonitor({
 function AccountMonitor({
   model,
   topAlert,
-  revenueContext,
   paymentContext,
   lastEventAt,
 }: {
   model: RevenueChartModel;
   topAlert: AlertLike | null;
-  revenueContext: RevenueContext | null;
   paymentContext: PaymentFailureContext | null;
   lastEventAt?: Date | null;
 }) {
@@ -889,72 +771,40 @@ function AccountMonitor({
   }
 
   if (topAlert.type === "payment_failed" && paymentContext) {
-    return (
-      <PaymentFailureMonitor
-        topAlert={topAlert}
-        paymentContext={paymentContext}
-        lastEventAt={lastEventAt}
-      />
-    );
+    return <PaymentFailureMonitor topAlert={topAlert} paymentContext={paymentContext} lastEventAt={lastEventAt} />;
   }
 
-  if (topAlert.type === "revenue_drop" && revenueContext) {
-    return (
-      <RevenueAlertMonitor
-        model={model}
-        topAlert={topAlert}
-        revenueContext={revenueContext}
-        paymentContext={paymentContext}
-        lastEventAt={lastEventAt}
-      />
-    );
-  }
-
-  return <HealthyMonitorCard lastEventAt={lastEventAt} />;
+  return <RevenueAlertMonitor model={model} topAlert={topAlert} paymentContext={paymentContext} lastEventAt={lastEventAt} />;
 }
 
 function ActiveAlertRow({ alert, now }: { alert: AlertLike; now: Date }) {
   const isCritical = alert.severity === "critical";
-  const reasons = buildTriggerReason(alert);
-  const isPaymentFailure = alert.type === "payment_failed";
   const activeUntil =
-    alert.windowEnd && alert.windowEnd > now
-      ? ` - Active until ${fmtDate(alert.windowEnd)}`
-      : "";
+    alert.windowEnd && alert.windowEnd > now ? ` - Active until ${fmtDate(alert.windowEnd)}` : "";
 
   return (
     <article className={styles.alertRow}>
-      <div className={isCritical ? styles.alertIconCritical : styles.alertIconWarning}>
-        !
-      </div>
+      <div className={isCritical ? styles.alertIconCritical : styles.alertIconWarning}>!</div>
       <div>
         <h3>{alertLabel(alert.type)}</h3>
-        <p>
-          {isPaymentFailure
-            ? "Open alert. Review recent failed payment events."
-            : "Open alert. Review recent revenue activity."}
-        </p>
-        <span>{getSeverityLabel(alert.severity)} - Triggered {fmtDate(alert.createdAt)}{activeUntil}</span>
-        {reasons.length > 0 && !isPaymentFailure ? (
-          <ul className={styles.reasonList}>
-            {reasons.slice(0, 3).map((reason) => (
-              <li key={reason}>{reason}</li>
-            ))}
-          </ul>
-        ) : null}
+        <p>{buildReadableAlertMessage(alert)}</p>
+        <span>
+          {getSeverityLabel(alert.severity)} - {alert.detectedLabel ? `Detected ${alert.detectedLabel}` : `Triggered ${fmtDate(alert.createdAt)}`}
+          {activeUntil}
+        </span>
       </div>
     </article>
   );
 }
 
-function ResolvedAlertRow({ alert }: { alert: AlertLike }) {
+function HistoryRow({ alert }: { alert: AlertLike }) {
   return (
     <article className={styles.resolvedRow}>
       <span className={styles.resolvedIcon}>OK</span>
       <div>
         <h3>{alertLabel(alert.type)}</h3>
-        <p>{buildReadableAlertMessage(alert)}</p>
-        <span>Ended {fmtDate(alert.windowEnd)}</span>
+        <p>{alert.message}</p>
+        <span>{alert.displayTimestamp ?? `Ended ${fmtDate(alert.windowEnd)}`}</span>
       </div>
     </article>
   );
@@ -981,18 +831,80 @@ export default async function AccountDetailPage({
     }),
   ]);
 
-  if (!account) {
+  const demoAccount = getDemoAccountById(accountId);
+
+  if (!account && !demoAccount) {
     notFound();
   }
 
   const now = new Date();
-  const activeAlerts = alerts.filter((alert) => alert.windowEnd && alert.windowEnd > now);
-  const historicalAlerts = alerts.filter((alert) => !alert.windowEnd || alert.windowEnd <= now);
+  const activeAlerts =
+    demoAccount && demoAccount.status === "active_issue"
+      ? [
+          {
+            id: `demo-alert-${demoAccount.id}`,
+            type: demoAccount.alertType,
+            severity: demoAccount.severity === "high" ? "critical" : "warning",
+            message: demoAccount.message,
+            stripeAccountId: demoAccount.id,
+            accountName: demoAccount.name,
+            detectedLabel: demoAccount.detectedAt,
+            context: JSON.stringify(
+              demoAccount.alertType === "revenue_drop"
+                ? {
+                    baselineAmount: demoAccount.usualRevenue,
+                    expectedRevenue: demoAccount.usualRevenue,
+                    currentAmount: demoAccount.currentRevenue,
+                    currentRevenue: demoAccount.currentRevenue,
+                    alertThresholdAmount: demoAccount.alertThreshold,
+                    threshold:
+                      typeof demoAccount.alertThreshold === "number" &&
+                      typeof demoAccount.usualRevenue === "number"
+                        ? 1 - demoAccount.alertThreshold / demoAccount.usualRevenue
+                        : 0.5,
+                    baselineLabel: "recent performance",
+                    window: "current monitoring window",
+                    revenueSeries: demoAccount.revenueSeries,
+                    displayMessage: demoAccount.message,
+                  }
+                : {
+                    failedPayments: demoAccount.currentFailures,
+                    failuresCounted: demoAccount.currentFailures,
+                    baseline: demoAccount.normalFailures,
+                    normalFailures: demoAccount.normalFailures,
+                    failureThreshold:
+                      typeof demoAccount.normalFailures === "number" ? demoAccount.normalFailures * 2 : 5,
+                    window: "current monitoring window",
+                    failureSeries: demoAccount.failureSeries,
+                    displayMessage: demoAccount.message,
+                  }
+            ),
+          } satisfies AlertLike,
+        ]
+      : alerts.filter((alert) => alert.windowEnd && alert.windowEnd > now);
+
+  const historicalAlerts =
+    demoAccount
+      ? getDemoAlertHistory()
+          .filter((entry) => entry.accountName === demoAccount.name)
+          .map(
+            (entry, index) =>
+              ({
+                id: `demo-history-${index}`,
+                type: entry.type,
+                severity: "warning",
+                message: entry.message,
+                stripeAccountId: demoAccount.id,
+                accountName: demoAccount.name,
+                displayTimestamp: entry.timestamp,
+              }) satisfies AlertLike
+          )
+      : alerts.filter((alert) => !alert.windowEnd || alert.windowEnd <= now);
+
   const topAlert = activeAlerts[0] ?? null;
   const chartModel = buildRevenueChartModel(accountId, topAlert, now);
   const paymentContext = getPaymentFailureContext(topAlert);
-  const revenueContext = getRevenueContext(topAlert);
-  const accountName = account.name ?? accountId;
+  const accountName = account?.name ?? demoAccount?.name ?? accountId;
 
   return (
     <main className={styles.page}>
@@ -1022,13 +934,7 @@ export default async function AccountDetailPage({
           </div>
         </header>
 
-        <AccountMonitor
-          model={chartModel}
-          topAlert={topAlert}
-          revenueContext={revenueContext}
-          paymentContext={paymentContext}
-          lastEventAt={lastEvent?.createdAt}
-        />
+        <AccountMonitor model={chartModel} topAlert={topAlert} paymentContext={paymentContext} lastEventAt={lastEvent?.createdAt} />
 
         <section className={styles.lowerGrid}>
           <div>
@@ -1039,30 +945,24 @@ export default async function AccountDetailPage({
 
             <div className={styles.alertStack} id="current-alert">
               {activeAlerts.length > 0 ? (
-                activeAlerts.map((alert) => (
-                  <ActiveAlertRow key={alert.id ?? alert.type} alert={alert} now={now} />
-                ))
+                activeAlerts.map((alert) => <ActiveAlertRow key={alert.id ?? alert.type} alert={alert} now={now} />)
               ) : (
-                <div className={styles.emptyState}>
-                  No active alerts for this account right now.
-                </div>
+                <div className={styles.emptyState}>No active alerts for this account right now.</div>
               )}
             </div>
           </div>
 
           <div>
             <div className={styles.sectionHeading}>
-              <h2>Resolved Alerts</h2>
-              <span>Last known events</span>
+              <h2>Alert History</h2>
+              <span>Past alert activity</span>
             </div>
 
             <div className={styles.resolvedStack}>
               {historicalAlerts.length > 0 ? (
-                historicalAlerts.map((alert) => (
-                  <ResolvedAlertRow key={alert.id ?? alert.type} alert={alert} />
-                ))
+                historicalAlerts.map((alert) => <HistoryRow key={alert.id} alert={alert} />)
               ) : (
-                <div className={styles.emptyState}>No resolved alerts yet.</div>
+                <div className={styles.emptyState}>No alert history yet.</div>
               )}
             </div>
           </div>

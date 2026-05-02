@@ -3,6 +3,13 @@ import Navbar from "@/components/Navbar";
 import AccountNameEditor from "@/components/AccountNameEditor";
 import ExpandableIssueList from "@/components/ExpandableIssueList";
 import { getPlanLabel, getPlanLimit } from "@/lib/billing";
+import {
+  getActiveDemoAlerts,
+  getDemoAccountById,
+  getDemoAlertHistory,
+  getDemoDashboardStats,
+  hasDemoAccount,
+} from "@/lib/demoData";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -10,7 +17,7 @@ import styles from "./page.module.css";
 
 export const dynamic = "force-dynamic";
 
-type AlertRecord = {
+type PrismaAlertRecord = {
   id: string;
   type: string;
   severity: string;
@@ -22,12 +29,37 @@ type AlertRecord = {
   context?: string | null;
 };
 
-type AccountRecord = {
+type PrismaAccountRecord = {
   id: string;
   name: string | null;
   stripeAccountId: string;
   status: string;
   createdAt: Date;
+};
+
+type DisplayAlert = {
+  id: string;
+  type: string;
+  severity: "critical" | "warning";
+  message: string;
+  stripeAccountId: string | null;
+  accountName?: string | null;
+  createdAt?: Date;
+  detectedLabel?: string;
+  cta?: string;
+  context?: string | null;
+};
+
+type DisplayAccount = PrismaAccountRecord & {
+  displayName: string;
+  lastActivityLabel: string;
+  topAlert: DisplayAlert | null;
+};
+
+type DisplayHistoryItem = {
+  id: string;
+  message: string;
+  timestampLabel: string;
 };
 
 function alertLabel(type: string) {
@@ -36,7 +68,13 @@ function alertLabel(type: string) {
   return type.replace(/_/g, " ");
 }
 
-function severityMeta(severity: string) {
+function severityRank(severity: "critical" | "warning" | string) {
+  if (severity === "critical") return 0;
+  if (severity === "warning") return 1;
+  return 2;
+}
+
+function severityMeta(severity: "critical" | "warning" | string) {
   if (severity === "critical") {
     return {
       label: "High Severity",
@@ -66,13 +104,13 @@ function safeParseContext(input?: string | null) {
   if (!input) return null;
 
   try {
-    return JSON.parse(input);
+    return JSON.parse(input) as Record<string, unknown>;
   } catch {
     return null;
   }
 }
 
-function buildReadableAlertMessage(alert: Pick<AlertRecord, "type" | "message" | "context">) {
+function buildReadableAlertMessage(alert: Pick<DisplayAlert, "type" | "message" | "context">) {
   const parsed = safeParseContext(alert.context);
 
   if (!parsed) return alert.message;
@@ -154,24 +192,6 @@ function formatHistoryTime(date: Date) {
   });
 }
 
-function getAlertAccountName(
-  alert: {
-    stripeAccountId?: string | null;
-    accountName?: string | null;
-  },
-  accountNameById: Map<string, string>
-) {
-  if (alert.accountName && alert.accountName.trim() !== "") {
-    return alert.accountName;
-  }
-
-  if (alert.stripeAccountId) {
-    return accountNameById.get(alert.stripeAccountId) ?? "Stripe account";
-  }
-
-  return "Stripe account";
-}
-
 function buildStatusCopy(activeAlertsCount: number, accountCount: number) {
   if (activeAlertsCount > 0) {
     return {
@@ -192,34 +212,12 @@ function buildStatusCopy(activeAlertsCount: number, accountCount: number) {
   };
 }
 
-function severityRank(severity: string) {
-  if (severity === "critical") return 0;
-  if (severity === "warning") return 1;
-  return 2;
+function buildIssueCta(alert: DisplayAlert) {
+  return alert.cta ?? "Review Account";
 }
 
-function buildFallbackAlertBody(alert: AlertRecord) {
-  if (alert.type === "revenue_drop") {
-    return "Revenue has dropped below the normal range for this Stripe account. Review recent payment activity and integration changes.";
-  }
-
-  if (alert.type === "payment_failed") {
-    return "Payment failures are above the normal range for this Stripe account. This may indicate a checkout or API issue.";
-  }
-
-  return alert.message;
-}
-
-function buildIssueCta(alert: AlertRecord) {
-  if (alert.type === "revenue_drop") return "Review Account";
-  if (alert.type === "payment_failed") return "Review Account";
-  return "Review Account";
-}
-
-function resolvedHistoryLabel(type: string) {
-  if (type === "revenue_drop") return "Revenue drop resolved";
-  if (type === "payment_failed") return "Payment failures returned to normal";
-  return "Alert resolved";
+function demoSeverityToDisplaySeverity(severity: string): "critical" | "warning" {
+  return severity === "high" ? "critical" : "warning";
 }
 
 function ShieldIcon() {
@@ -239,17 +237,6 @@ function WarningIcon() {
       <path
         fill="currentColor"
         d="M1 21h22L12 2 1 21Zm12-3h-2v-2h2v2Zm0-4h-2v-4h2v4Z"
-      />
-    </svg>
-  );
-}
-
-function InfoIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.issueIconSvg}>
-      <path
-        fill="currentColor"
-        d="M11 7h2V5h-2v2Zm0 12h2V9h-2v10Zm1-17a10 10 0 1 0 10 10A10.01 10.01 0 0 0 12 2Z"
       />
     </svg>
   );
@@ -304,12 +291,12 @@ function IssueCard({
   alert,
   featured = false,
 }: {
-  account: AccountRecord & { lastActivity: Date | null };
-  alert: AlertRecord;
+  account: DisplayAccount;
+  alert: DisplayAlert;
   featured?: boolean;
 }) {
   const severity = severityMeta(alert.severity);
-  const body = buildReadableAlertMessage(alert) || buildFallbackAlertBody(alert);
+  const body = buildReadableAlertMessage(alert);
   const severityClass =
     alert.severity === "critical" ? styles.issueCardCritical : styles.issueCardWarning;
 
@@ -317,19 +304,25 @@ function IssueCard({
     <article
       className={`${styles.issueCard} ${severityClass}${featured ? ` ${styles.issueCardFeatured}` : ""}`}
     >
-      <div className={styles.issueIconWrap} style={{ background: severity.iconBg, color: severity.iconColor }}>
+      <div
+        className={styles.issueIconWrap}
+        style={{ background: severity.iconBg, color: severity.iconColor }}
+      >
         <WarningIcon />
       </div>
 
       <div className={styles.issueBody}>
         <div className={styles.issueHeader}>
-          <h3 className={styles.issueTitle}>{account.name ?? "Stripe account"}</h3>
+          <h3 className={styles.issueTitle}>{account.displayName}</h3>
           <div className={styles.issueMetaRow}>
             <p className={styles.issueType} style={{ color: severity.statusColor }}>
               {alertLabel(alert.type)}
             </p>
             <span className={styles.issueMetaDivider}>·</span>
-            <span className={styles.issuePill} style={{ color: severity.pillText, background: severity.pillBg }}>
+            <span
+              className={styles.issuePill}
+              style={{ color: severity.pillText, background: severity.pillBg }}
+            >
               {severity.label}
             </span>
           </div>
@@ -340,7 +333,7 @@ function IssueCard({
         <div className={styles.issueFooter}>
           <span className={styles.issueMeta}>
             <ClockIcon />
-            Active since {new Date(alert.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+            {alert.detectedLabel ? `Detected ${alert.detectedLabel}` : "Active now"}
           </span>
 
           <Link
@@ -359,7 +352,7 @@ function ActiveAlertRow({
   alert,
   accountName,
 }: {
-  alert: AlertRecord;
+  alert: DisplayAlert;
   accountName: string;
 }) {
   const severity = severityMeta(alert.severity);
@@ -378,9 +371,7 @@ function ActiveAlertRow({
         <span className={styles.activeAlertSeverity} style={{ color: severity.pillText }}>
           {severity.label}
         </span>
-        <span>
-          {new Date(alert.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} - Ongoing
-        </span>
+        <span>{alert.detectedLabel ? `Detected ${alert.detectedLabel}` : "Ongoing"}</span>
       </div>
     </div>
   );
@@ -388,13 +379,12 @@ function ActiveAlertRow({
 
 function ConnectedAccountRow({
   account,
-  alert,
   isMuted,
 }: {
-  account: AccountRecord & { lastActivity: Date | null };
-  alert: AlertRecord | null;
+  account: DisplayAccount;
   isMuted: boolean;
 }) {
+  const alert = account.topAlert;
   const isPaused = account.status === "paused";
   const stateLabel = isPaused
     ? "Paused"
@@ -413,30 +403,21 @@ function ConnectedAccountRow({
       : "#0058bc";
 
   return (
-    <div
-      className={`${styles.connectedRow} ${isMuted ? styles.connectedRowAlt : ""}`}
-    >
+    <div className={`${styles.connectedRow} ${isMuted ? styles.connectedRowAlt : ""}`}>
       <div className={styles.connectedCopy}>
         <AccountNameEditor
           accountId={account.id}
           stripeAccountId={account.stripeAccountId}
-          currentName={account.name}
+          currentName={account.displayName}
           currentStatus={account.status}
         />
-        <span className={styles.connectedMeta}>
-          {account.lastActivity ? `Last event: ${formatRelativeTime(account.lastActivity)}` : "No events yet"}
-        </span>
+        <span className={styles.connectedMeta}>{account.lastActivityLabel}</span>
       </div>
 
       <div className={styles.connectedStateWrap}>
         <div className={styles.connectedState}>
-          <span
-            className={styles.connectedDot}
-            style={{ background: dotColor }}
-          />
-          <span style={{ color: stateColor }}>
-            {stateLabel}
-          </span>
+          <span className={styles.connectedDot} style={{ background: dotColor }} />
+          <span style={{ color: stateColor }}>{stateLabel}</span>
         </div>
       </div>
     </div>
@@ -497,93 +478,165 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
+  const demoMode = hasDemoAccount(stripeAccounts.map((account) => account.stripeAccountId));
   const realLastEventByAccount = new Map(
     lastEvents.map((event) => [event.stripeAccountId, event._max.createdAt ?? null])
   );
 
-  const displayStripeAccounts = stripeAccounts;
-  const displayAlerts = alerts;
-  const lastEventByAccount = realLastEventByAccount;
+  let activeAlerts: DisplayAlert[] = [];
+  let monitoredAccounts: DisplayAccount[] = [];
+  let activeAccountsCount = 0;
+  let recentHistory: DisplayHistoryItem[] = [];
 
-  const accountNameById = new Map(
-    displayStripeAccounts.map((account) => [
-      account.stripeAccountId,
-      account.name ?? "Stripe account",
-    ])
-  );
-
-  const now = new Date();
-  const activeAlerts = displayAlerts
-    .filter((alert) => alert.windowEnd > now)
-    .sort((left, right) => {
-      const severityDifference = severityRank(left.severity) - severityRank(right.severity);
-
-      if (severityDifference !== 0) {
-        return severityDifference;
-      }
-
-      return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
-    });
-  const historicalAlerts = displayAlerts.filter((alert) => alert.windowEnd <= now);
-  const activeAccounts = displayStripeAccounts.filter((account) => account.status === "active");
-
-  const alertsByAccount = new Map<string, AlertRecord[]>();
-  for (const account of displayStripeAccounts) {
-    alertsByAccount.set(
-      account.stripeAccountId,
-      activeAlerts.filter((alert) => alert.stripeAccountId === account.stripeAccountId)
+  if (demoMode) {
+    const demoActiveAlerts = getActiveDemoAlerts();
+    const demoStats = getDemoDashboardStats();
+    const alertByAccountId = new Map(
+      demoActiveAlerts.map((account) => [
+        account.id,
+        {
+          id: `demo-alert-${account.id}`,
+          type: account.alertType,
+          severity: demoSeverityToDisplaySeverity(account.severity),
+          message: account.message,
+          stripeAccountId: account.id,
+          accountName: account.name,
+          detectedLabel: account.detectedAt,
+          cta: account.cta,
+        } satisfies DisplayAlert,
+      ])
     );
-  }
 
-  const monitoredAccounts = displayStripeAccounts
-    .filter((account) => account.status !== "disconnected")
-    .map((account) => {
-      const accountAlerts = (alertsByAccount.get(account.stripeAccountId) ?? []).sort((left, right) => {
-        const severityDifference = severityRank(left.severity) - severityRank(right.severity);
+    monitoredAccounts = stripeAccounts
+      .flatMap((account) => {
+        const demoAccount = getDemoAccountById(account.stripeAccountId);
+        if (!demoAccount) return [];
 
-        if (severityDifference !== 0) {
-          return severityDifference;
+        const mappedAccount: DisplayAccount = {
+          id: account.id,
+          name: account.name,
+          stripeAccountId: account.stripeAccountId,
+          status: account.status,
+          createdAt: account.createdAt,
+          displayName: account.name?.trim() || demoAccount.name,
+          lastActivityLabel: `Last event: ${demoAccount.lastEvent}`,
+          topAlert: account.status === "paused" ? null : alertByAccountId.get(demoAccount.id) ?? null,
+        };
+
+        return [mappedAccount];
+      })
+      .sort((left, right) => {
+        if (left.topAlert && right.topAlert) {
+          const severityDifference =
+            severityRank(left.topAlert.severity) - severityRank(right.topAlert.severity);
+          if (severityDifference !== 0) return severityDifference;
+          return left.displayName.localeCompare(right.displayName);
         }
 
+        if (left.topAlert && !right.topAlert) return -1;
+        if (!left.topAlert && right.topAlert) return 1;
+        return left.displayName.localeCompare(right.displayName);
+      });
+
+    activeAlerts = monitoredAccounts
+      .filter((account) => account.topAlert)
+      .map((account) => account.topAlert as DisplayAlert);
+    activeAccountsCount = demoStats.connectedAccounts;
+    recentHistory = getDemoAlertHistory()
+      .slice(0, 2)
+      .map((entry, index) => ({
+        id: `demo-history-${index}`,
+        message: entry.message,
+        timestampLabel: entry.timestamp,
+      }));
+  } else {
+    const now = new Date();
+    const displayAlerts = alerts;
+    const activeAlertRecords = displayAlerts
+      .filter((alert) => alert.windowEnd > now)
+      .sort((left, right) => {
+        const severityDifference = severityRank(left.severity) - severityRank(right.severity);
+        if (severityDifference !== 0) return severityDifference;
         return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
       });
-      const topAlert = accountAlerts[0] ?? null;
+    const historicalAlerts = displayAlerts.filter((alert) => alert.windowEnd <= now);
+    const alertsByAccount = new Map<string, PrismaAlertRecord[]>();
 
-      return {
-        ...account,
-        lastActivity: lastEventByAccount.get(account.stripeAccountId) ?? null,
-        topAlert,
-        hasCritical: accountAlerts.some((alert) => alert.severity === "critical"),
-      };
-    })
-    .sort((left, right) => {
-      if (left.topAlert && right.topAlert) {
-        const severityDifference =
-          severityRank(left.topAlert.severity) - severityRank(right.topAlert.severity);
+    for (const account of stripeAccounts) {
+      alertsByAccount.set(
+        account.stripeAccountId,
+        activeAlertRecords.filter((alert) => alert.stripeAccountId === account.stripeAccountId)
+      );
+    }
 
-        if (severityDifference !== 0) {
-          return severityDifference;
+    monitoredAccounts = stripeAccounts
+      .filter((account) => account.status !== "disconnected")
+      .map((account) => {
+        const accountAlerts = (alertsByAccount.get(account.stripeAccountId) ?? []).sort((left, right) => {
+          const severityDifference = severityRank(left.severity) - severityRank(right.severity);
+          if (severityDifference !== 0) return severityDifference;
+          return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+        });
+        const topAlert = accountAlerts[0]
+          ? ({
+              ...accountAlerts[0],
+              severity: accountAlerts[0].severity === "critical" ? "critical" : "warning",
+              cta: "Review Account",
+            } satisfies DisplayAlert)
+          : null;
+
+        return {
+          ...account,
+          displayName: account.name ?? "Stripe account",
+          lastActivityLabel: `Last event: ${formatRelativeTime(
+            realLastEventByAccount.get(account.stripeAccountId) ?? null
+          )}`,
+          topAlert,
+        } satisfies DisplayAccount;
+      })
+      .sort((left, right) => {
+        if (left.topAlert && right.topAlert) {
+          const severityDifference =
+            severityRank(left.topAlert.severity) - severityRank(right.topAlert.severity);
+          if (severityDifference !== 0) return severityDifference;
+          return (
+            new Date((right.topAlert.createdAt as Date)).getTime() -
+            new Date((left.topAlert.createdAt as Date)).getTime()
+          );
         }
 
-        return (
-          new Date(right.topAlert.createdAt).getTime() -
-          new Date(left.topAlert.createdAt).getTime()
-        );
-      }
+        if (left.topAlert && !right.topAlert) return -1;
+        if (!left.topAlert && right.topAlert) return 1;
+        return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+      });
 
-      if (left.topAlert && !right.topAlert) return -1;
-      if (!left.topAlert && right.topAlert) return 1;
-      return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
-    });
+    activeAlerts = activeAlertRecords.map(
+      (alert) =>
+        ({
+          ...alert,
+          severity: alert.severity === "critical" ? "critical" : "warning",
+          cta: "Review Account",
+        }) satisfies DisplayAlert
+    );
+    activeAccountsCount = stripeAccounts.filter((account) => account.status === "active").length;
+    recentHistory = historicalAlerts.slice(0, 2).map((alert) => ({
+      id: alert.id,
+      message: `${alertLabel(alert.type)} for ${
+        alert.stripeAccountId
+          ? monitoredAccounts.find((account) => account.stripeAccountId === alert.stripeAccountId)
+              ?.displayName ?? "Stripe account"
+          : "Stripe account"
+      }`,
+      timestampLabel: formatHistoryTime(alert.windowEnd),
+    }));
+  }
 
   const issueAccounts = monitoredAccounts.filter((account) => account.topAlert);
   const visibleIssueAccounts = issueAccounts.slice(0, 3);
   const moreIssueAccounts = issueAccounts.slice(3);
   const connectedAccounts = monitoredAccounts.slice(0, 6);
   const connectedAccountsMore = monitoredAccounts.slice(6);
-  const activeIncidentRows = activeAlerts;
-  const recentHistory = historicalAlerts.slice(0, 2);
-  const statusCopy = buildStatusCopy(activeAlerts.length, activeAccounts.length);
+  const statusCopy = buildStatusCopy(activeAlerts.length, activeAccountsCount);
   const currentPlanLabel = getPlanLabel(user.plan);
   const currentPlanLimit = getPlanLimit(user.plan);
   const topStatusSeverity =
@@ -591,51 +644,49 @@ export default async function DashboardPage() {
 
   return (
     <>
-    <Navbar mode="app" />
-    <main className={styles.page}>
-      <div className={styles.main} id="overview-top">
-        <section aria-label="Global Status" className={styles.globalStatus}>
-          <div className={styles.globalStatusInner}>
-            <div className={styles.globalStatusLead}>
-              <div className={styles.statusIconStack}>
-                <span
-                  className={`${styles.statusPulse} ${
-                    topStatusSeverity === "critical"
-                      ? styles.statusPulseCritical
-                      : topStatusSeverity === "warning"
-                        ? styles.statusPulseWarning
-                        : ""
-                  }`}
-                />
-                <div
-                  className={`${styles.statusBadge} ${
-                    topStatusSeverity === "critical"
-                      ? styles.statusBadgeCritical
-                      : topStatusSeverity === "warning"
-                        ? styles.statusBadgeWarning
-                        : ""
-                  }`}
-                >
-                  {topStatusSeverity ? <WarningIcon /> : <ShieldIcon />}
-                </div>
-              </div>
-
-              <div>
-                <div className={styles.statusHeadingRow}>
-                  <h1 className={styles.statusTitle}>{statusCopy.title}</h1>
-                  <span className={styles.livePill}>LIVE</span>
+      <Navbar mode="app" />
+      <main className={styles.page}>
+        <div className={styles.main} id="overview-top">
+          <section aria-label="Global Status" className={styles.globalStatus}>
+            <div className={styles.globalStatusInner}>
+              <div className={styles.globalStatusLead}>
+                <div className={styles.statusIconStack}>
+                  <span
+                    className={`${styles.statusPulse} ${
+                      topStatusSeverity === "critical"
+                        ? styles.statusPulseCritical
+                        : topStatusSeverity === "warning"
+                          ? styles.statusPulseWarning
+                          : ""
+                    }`}
+                  />
+                  <div
+                    className={`${styles.statusBadge} ${
+                      topStatusSeverity === "critical"
+                        ? styles.statusBadgeCritical
+                        : topStatusSeverity === "warning"
+                          ? styles.statusBadgeWarning
+                          : ""
+                    }`}
+                  >
+                    {topStatusSeverity ? <WarningIcon /> : <ShieldIcon />}
+                  </div>
                 </div>
 
-                <p className={styles.statusSummary}>
-                  {statusCopy.summary}
-                </p>
+                <div>
+                  <div className={styles.statusHeadingRow}>
+                    <h1 className={styles.statusTitle}>{statusCopy.title}</h1>
+                    <span className={styles.livePill}>LIVE</span>
+                  </div>
+
+                  <p className={styles.statusSummary}>{statusCopy.summary}</p>
+                </div>
               </div>
-            </div>
 
               <div className={styles.quickStats}>
                 <div className={styles.quickStat}>
                   <span>CONNECTED</span>
-                  <strong>{activeAccounts.length}</strong>
+                  <strong>{activeAccountsCount}</strong>
                 </div>
                 <div className={styles.quickDivider} />
                 <div className={styles.quickStat}>
@@ -655,30 +706,30 @@ export default async function DashboardPage() {
             </div>
           </section>
 
-        <div className={styles.layoutGrid}>
-          <div className={styles.leftRail}>
-            <section aria-label="Active Issues" className={styles.sectionPanel}>
-              <header className={styles.sectionHeaderPanel}>
-                <div className={styles.sectionHeaderTitle}>
-                  <AccountsIcon />
-                  <h2 className={styles.sectionTitle}>Active Issues</h2>
-                </div>
-                {issueAccounts.length > visibleIssueAccounts.length ? (
-                  <p className={styles.sectionNote}>
-                    Showing the most urgent issues first. {issueAccounts.length - visibleIssueAccounts.length} more active alert{issueAccounts.length - visibleIssueAccounts.length === 1 ? "" : "s"} can be expanded below.
-                  </p>
-                ) : null}
-              </header>
+          <div className={styles.layoutGrid}>
+            <div className={styles.leftRail}>
+              <section aria-label="Active Issues" className={styles.sectionPanel}>
+                <header className={styles.sectionHeaderPanel}>
+                  <div className={styles.sectionHeaderTitle}>
+                    <AccountsIcon />
+                    <h2 className={styles.sectionTitle}>Active Issues</h2>
+                  </div>
+                  {issueAccounts.length > visibleIssueAccounts.length ? (
+                    <p className={styles.sectionNote}>
+                      Showing the most urgent issues first. {issueAccounts.length - visibleIssueAccounts.length} more active alert
+                      {issueAccounts.length - visibleIssueAccounts.length === 1 ? "" : "s"} can be expanded below.
+                    </p>
+                  ) : null}
+                </header>
 
-              <div className={styles.stack}>
-                {visibleIssueAccounts.length === 0 ? (
-                  <EmptyStateCard
-                    icon={<AccountsIcon />}
-                    title="No accounts need attention"
-                    body="Monitoring is active across all connected accounts."
-                  />
-                ) : (
-                  moreIssueAccounts.length > 0 ? (
+                <div className={styles.stack}>
+                  {visibleIssueAccounts.length === 0 ? (
+                    <EmptyStateCard
+                      icon={<AccountsIcon />}
+                      title="No accounts need attention"
+                      body="Monitoring is active across all connected accounts."
+                    />
+                  ) : moreIssueAccounts.length > 0 ? (
                     <ExpandableIssueList
                       totalCount={issueAccounts.length}
                       toggleClassName={styles.sectionFooterButton}
@@ -688,7 +739,7 @@ export default async function DashboardPage() {
                         <IssueCard
                           key={account.id}
                           account={account}
-                          alert={account.topAlert as AlertRecord}
+                          alert={account.topAlert as DisplayAlert}
                         />
                       ))}
                     >
@@ -696,7 +747,7 @@ export default async function DashboardPage() {
                         <IssueCard
                           key={account.id}
                           account={account}
-                          alert={account.topAlert as AlertRecord}
+                          alert={account.topAlert as DisplayAlert}
                           featured={index === 0}
                         />
                       ))}
@@ -706,147 +757,138 @@ export default async function DashboardPage() {
                       <IssueCard
                         key={account.id}
                         account={account}
-                        alert={account.topAlert as AlertRecord}
+                        alert={account.topAlert as DisplayAlert}
                         featured={index === 0}
                       />
                     ))
-                  )
-                )}
-              </div>
-            </section>
-
-            <section aria-label="Active Alerts" className={styles.sectionPanel}>
-              <header className={styles.sectionHeaderPanel}>
-                <div className={styles.sectionHeaderTitle}>
-                  <BellIcon />
-                  <h2 className={styles.alertLogTitle}>Active Alerts</h2>
+                  )}
                 </div>
-                <p className={styles.sectionNote}>
-                  Current alerts across your connected accounts.
-                </p>
-              </header>
+              </section>
 
-              <div className={styles.stack}>
-                {activeIncidentRows.length === 0 ? (
-                  <EmptyStateCard
-                    icon={<BellIcon />}
-                    title="No active alerts"
-                    body="We'll notify you immediately if anything requires attention."
-                  />
-                ) : (
-                  activeIncidentRows.map((alert) => (
-                    <ActiveAlertRow
-                      key={alert.id}
-                      alert={alert}
-                      accountName={getAlertAccountName(alert, accountNameById)}
+              <section aria-label="Active Alerts" className={styles.sectionPanel}>
+                <header className={styles.sectionHeaderPanel}>
+                  <div className={styles.sectionHeaderTitle}>
+                    <BellIcon />
+                    <h2 className={styles.alertLogTitle}>Active Alerts</h2>
+                  </div>
+                  <p className={styles.sectionNote}>Current alerts across your connected accounts.</p>
+                </header>
+
+                <div className={styles.stack}>
+                  {activeAlerts.length === 0 ? (
+                    <EmptyStateCard
+                      icon={<BellIcon />}
+                      title="No active alerts"
+                      body="We'll notify you immediately if anything requires attention."
                     />
-                  ))
-                )}
-              </div>
-            </section>
-          </div>
-
-          <div className={styles.rightRail}>
-            <section aria-label="Connected Accounts" id="connected-accounts">
-              <header className={styles.sectionHeaderInline}>
-                <h2 className={styles.sectionTitle}>Connected Accounts</h2>
-                <div className={styles.connectedActions}>
-                  <Link href="/api/stripe/connect" className={styles.addAccountLink}>
-                    Add Account
-                  </Link>
-                </div>
-              </header>
-
-              <div className={styles.connectedPanel}>
-                {connectedAccounts.length === 0 ? (
-                  <EmptyCard>Connect a Stripe account to start monitoring.</EmptyCard>
-                ) : (
-                  <>
-                    {connectedAccounts.map((account, index) => (
-                      <ConnectedAccountRow
-                        key={account.id}
-                        account={account}
-                        alert={account.topAlert}
-                        isMuted={index % 2 === 1}
+                  ) : (
+                    activeAlerts.map((alert) => (
+                      <ActiveAlertRow
+                        key={alert.id}
+                        alert={alert}
+                        accountName={
+                          monitoredAccounts.find((account) => account.stripeAccountId === alert.stripeAccountId)
+                            ?.displayName ?? "Stripe account"
+                        }
                       />
-                    ))}
-                    {connectedAccountsMore.length > 0 ? (
-                      <>
-                        <input
-                          id="connected-accounts-toggle"
-                          className={styles.connectedToggleInput}
-                          type="checkbox"
-                        />
-                        <div className={styles.connectedMoreList}>
-                          {connectedAccountsMore.map((account, index) => (
-                            <ConnectedAccountRow
-                              key={account.id}
-                              account={account}
-                              alert={account.topAlert}
-                              isMuted={(index + connectedAccounts.length) % 2 === 1}
-                            />
-                          ))}
-                        </div>
-                        <label
-                          htmlFor="connected-accounts-toggle"
-                          className={styles.connectedToggle}
-                        >
-                          <span className={styles.showAccountsLabel}>
-                            Show all {monitoredAccounts.length} accounts
-                          </span>
-                          <span className={styles.hideAccountsLabel}>
-                            Show fewer accounts
-                          </span>
-                        </label>
-                      </>
-                    ) : null}
-                  </>
-                )}
-              </div>
-            </section>
-
-            <section aria-label="Recent History" className={styles.sectionPanel}>
-              <header className={styles.sectionHeaderPanel}>
-                <div className={styles.sectionHeaderTitle}>
-                  <HistoryIcon />
-                  <h2 className={styles.historyTitle}>Recent History</h2>
+                    ))
+                  )}
                 </div>
-                <Link href="/alerts" className={styles.historyLink}>
-                  View full history
-                </Link>
-              </header>
+              </section>
+            </div>
 
-              <div className={styles.historyStack}>
-                {recentHistory.length === 0 ? (
-                  <EmptyStateCard
-                    icon={<HistoryIcon />}
-                    title="No recent history yet"
-                    body="Resolved alerts and recovered activity will appear here."
-                  />
-                ) : (
-                  recentHistory.map((alert) => (
-                    <div key={alert.id} className={styles.historyItem}>
-                      <div className={styles.historyIconWrap}>
-                        <HistoryIcon />
+            <div className={styles.rightRail}>
+              <section aria-label="Connected Accounts" id="connected-accounts">
+                <header className={styles.sectionHeaderInline}>
+                  <h2 className={styles.sectionTitle}>Connected Accounts</h2>
+                  <div className={styles.connectedActions}>
+                    <Link href="/api/stripe/connect" className={styles.addAccountLink}>
+                      Add Account
+                    </Link>
+                  </div>
+                </header>
+
+                <div className={styles.connectedPanel}>
+                  {connectedAccounts.length === 0 ? (
+                    <EmptyCard>Connect a Stripe account to start monitoring.</EmptyCard>
+                  ) : (
+                    <>
+                      {connectedAccounts.map((account, index) => (
+                        <ConnectedAccountRow
+                          key={account.id}
+                          account={account}
+                          isMuted={index % 2 === 1}
+                        />
+                      ))}
+                      {connectedAccountsMore.length > 0 ? (
+                        <>
+                          <input
+                            id="connected-accounts-toggle"
+                            className={styles.connectedToggleInput}
+                            type="checkbox"
+                          />
+                          <div className={styles.connectedMoreList}>
+                            {connectedAccountsMore.map((account, index) => (
+                              <ConnectedAccountRow
+                                key={account.id}
+                                account={account}
+                                isMuted={(index + connectedAccounts.length) % 2 === 1}
+                              />
+                            ))}
+                          </div>
+                          <label
+                            htmlFor="connected-accounts-toggle"
+                            className={styles.connectedToggle}
+                          >
+                            <span className={styles.showAccountsLabel}>
+                              Show all {monitoredAccounts.length} accounts
+                            </span>
+                            <span className={styles.hideAccountsLabel}>Show fewer accounts</span>
+                          </label>
+                        </>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              </section>
+
+              <section aria-label="Recent History" className={styles.sectionPanel}>
+                <header className={styles.sectionHeaderPanel}>
+                  <div className={styles.sectionHeaderTitle}>
+                    <HistoryIcon />
+                    <h2 className={styles.historyTitle}>Recent History</h2>
+                  </div>
+                  <Link href="/alerts" className={styles.historyLink}>
+                    View full history
+                  </Link>
+                </header>
+
+                <div className={styles.historyStack}>
+                  {recentHistory.length === 0 ? (
+                    <EmptyStateCard
+                      icon={<HistoryIcon />}
+                      title="No recent history yet"
+                      body="Past alert activity will appear here."
+                    />
+                  ) : (
+                    recentHistory.map((item) => (
+                      <div key={item.id} className={styles.historyItem}>
+                        <div className={styles.historyIconWrap}>
+                          <HistoryIcon />
+                        </div>
+                        <div className={styles.historyCopy}>
+                          <p className={styles.historyText}>{item.message}</p>
+                          <span className={styles.historyMeta}>{item.timestampLabel}</span>
+                        </div>
                       </div>
-                      <div className={styles.historyCopy}>
-                        <p className={styles.historyText}>
-                          <strong>{resolvedHistoryLabel(alert.type)}</strong> for{" "}
-                          {getAlertAccountName(alert, accountNameById)}.
-                        </p>
-                        <span className={styles.historyMeta}>
-                          {formatHistoryTime(alert.windowEnd)}
-                        </span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
+                    ))
+                  )}
+                </div>
+              </section>
+            </div>
           </div>
         </div>
-      </div>
-    </main>
+      </main>
     </>
   );
 }
