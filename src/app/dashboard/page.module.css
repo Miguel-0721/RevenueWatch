@@ -218,6 +218,19 @@
   gap: 12px;
 }
 
+.historyLink {
+  display: inline-flex;
+  margin-top: 12px;
+  color: #0058bc;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.historyLink:hover {
+  color: #00479a;
+}
+
 .sectionHeaderInline {
   display: flex;
   align-items: center;

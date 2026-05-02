@@ -212,8 +212,8 @@ function buildFallbackAlertBody(alert: AlertRecord) {
 
 function buildIssueCta(alert: AlertRecord) {
   if (alert.type === "revenue_drop") return "Review Account";
-  if (alert.type === "payment_failed") return "View Logs";
-  return "Open Details";
+  if (alert.type === "payment_failed") return "Review Account";
+  return "Review Account";
 }
 
 function resolvedHistoryLabel(type: string) {
@@ -811,6 +811,9 @@ export default async function DashboardPage() {
                   <HistoryIcon />
                   <h2 className={styles.historyTitle}>Recent History</h2>
                 </div>
+                <Link href="/alerts" className={styles.historyLink}>
+                  View full history
+                </Link>
               </header>
 
               <div className={styles.historyStack}>
