@@ -54,6 +54,14 @@
   animation: pulse 2.4s ease-out infinite;
 }
 
+.statusPulseCritical {
+  background: rgba(186, 26, 26, 0.1);
+}
+
+.statusPulseWarning {
+  background: rgba(181, 119, 31, 0.12);
+}
+
 .statusBadge {
   position: relative;
   display: flex;
@@ -66,6 +74,18 @@
   background: linear-gradient(180deg, #edf4ff 0%, #e7f0fb 100%);
   color: #0058bc;
   box-shadow: 0 6px 16px rgba(25, 28, 29, 0.04);
+}
+
+.statusBadgeCritical {
+  border-color: rgba(186, 26, 26, 0.14);
+  background: linear-gradient(180deg, #ffeceb 0%, #ffe0dc 100%);
+  color: #ba1a1a;
+}
+
+.statusBadgeWarning {
+  border-color: rgba(181, 119, 31, 0.16);
+  background: linear-gradient(180deg, #fff7df 0%, #ffefc1 100%);
+  color: #8a5a00;
 }
 
 .statusShield {
@@ -281,7 +301,7 @@
 .stack {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 18px;
 }
 
 .issueCard {
@@ -291,9 +311,25 @@
   padding: 28px;
   border-radius: 8px;
   background: #ffffff;
-  box-shadow: 0 4px 8px rgba(25, 28, 29, 0.02), 0 12px 32px rgba(25, 28, 29, 0.04);
   box-shadow: 0 4px 8px rgba(25, 28, 29, 0.02), 0 12px 32px rgba(25, 28, 29, 0.04),
     inset 0 0 0 1px rgba(193, 198, 215, 0.15);
+}
+
+.issueCardCritical {
+  background: linear-gradient(180deg, #fff8f7 0%, #ffffff 100%);
+  box-shadow: 0 4px 8px rgba(25, 28, 29, 0.02), 0 12px 32px rgba(25, 28, 29, 0.04),
+    inset 0 0 0 1px rgba(186, 26, 26, 0.18);
+}
+
+.issueCardWarning {
+  background: linear-gradient(180deg, #fffaf0 0%, #ffffff 100%);
+  box-shadow: 0 4px 8px rgba(25, 28, 29, 0.02), 0 12px 32px rgba(25, 28, 29, 0.04),
+    inset 0 0 0 1px rgba(181, 119, 31, 0.2);
+}
+
+.issueCardFeatured {
+  box-shadow: 0 6px 14px rgba(25, 28, 29, 0.03), 0 14px 36px rgba(25, 28, 29, 0.04),
+    inset 0 0 0 1.5px rgba(25, 28, 29, 0.05);
 }
 
 .issueIconWrap {
@@ -311,16 +347,21 @@
   height: 24px;
 }
 
+.statusBadge .issueIconSvg {
+  width: 30px;
+  height: 30px;
+}
+
 .issueBody {
   flex: 1;
 }
 
 .issueHeader {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 12px;
+  gap: 6px;
+  margin-bottom: 10px;
 }
 
 .issueTitle {
@@ -331,26 +372,39 @@
 }
 
 .issueType {
-  margin-top: 4px;
   font-size: 0.875rem;
   font-weight: 600;
+}
+
+.issueMetaRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.issueMetaDivider {
+  color: #8b91a1;
+  font-size: 0.9rem;
+  line-height: 1;
 }
 
 .issuePill {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   padding: 6px 12px;
   border-radius: 999px;
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: 0.78rem;
+  font-weight: 700;
   white-space: nowrap;
 }
 
 .issueText {
-  margin-bottom: 22px;
+  margin-bottom: 16px;
   color: #414755;
-  font-size: 1rem;
-  line-height: 1.7;
+  font-size: 0.96rem;
+  line-height: 1.62;
 }
 
 .issueFooter {
@@ -358,7 +412,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding-top: 18px;
+  padding-top: 14px;
   border-top: 1px solid #e7e8e9;
 }
 
@@ -380,6 +434,45 @@
   color: #0058bc;
   font-size: 0.875rem;
   font-weight: 700;
+}
+
+.sectionFooterButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin-top: 12px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 10px;
+  background: #f3f4f5;
+  color: #0058bc;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.sectionFooterButton:hover {
+  background: #edeeef;
+}
+
+.issueMoreList {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: max-height 0.32s ease, opacity 0.22s ease, transform 0.22s ease;
+}
+
+.issueMoreListExpanded {
+  max-height: 1200px;
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .activeAlertRow {

@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import Navbar from "@/components/Navbar";
 import AccountNameEditor from "@/components/AccountNameEditor";
+import ExpandableIssueList from "@/components/ExpandableIssueList";
 import { getPlanLabel, getPlanLimit } from "@/lib/billing";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
@@ -40,24 +41,24 @@ function severityMeta(severity: string) {
     return {
       label: "High Severity",
       shortLabel: "Attention Needed",
-      statusColor: "#9e3d00",
+      statusColor: "#ba1a1a",
       pillText: "#ba1a1a",
       pillBg: "#ffdad6",
       iconBg: "#ffdad6",
       iconColor: "#ba1a1a",
-      dotColor: "#9e3d00",
+      dotColor: "#ba1a1a",
     };
   }
 
   return {
     label: "Review Needed",
     shortLabel: "Review Needed",
-    statusColor: "#9e3d00",
-    pillText: "#9e3d00",
-    pillBg: "#ffdbcc",
-    iconBg: "#ffdbcc",
-    iconColor: "#9e3d00",
-    dotColor: "#c64f00",
+    statusColor: "#8a5a00",
+    pillText: "#8a5a00",
+    pillBg: "#fff1c2",
+    iconBg: "#fff5d6",
+    iconColor: "#8a5a00",
+    dotColor: "#b7791f",
   };
 }
 
@@ -81,16 +82,7 @@ function buildReadableAlertMessage(alert: Pick<AlertRecord, "type" | "message" |
     typeof parsed.failedPayments === "number" &&
     typeof parsed.baseline === "number"
   ) {
-    const ratio =
-      parsed.baseline > 0
-        ? (parsed.failedPayments / parsed.baseline).toFixed(1)
-        : null;
-
-    if (ratio) {
-      return `Payment failures are ${ratio}x higher than normal (${parsed.failedPayments} vs ${parsed.baseline}) in the recent window.`;
-    }
-
-    return `Payment failures increased to ${parsed.failedPayments} in the recent monitoring window.`;
+    return `Payment failures are much higher than usual (${parsed.failedPayments} vs ${parsed.baseline}).`;
   }
 
   if (
@@ -103,7 +95,7 @@ function buildReadableAlertMessage(alert: Pick<AlertRecord, "type" | "message" |
       ((parsed.expectedRevenue - parsed.currentRevenue) / parsed.expectedRevenue) * 100
     );
 
-    return `A significant ${dropPercent}% drop in processed transactions compared to the previous 7-day average.`;
+    return `Sales are ${dropPercent}% lower than normal compared to your usual performance over the past week.`;
   }
 
   return alert.message;
@@ -198,6 +190,12 @@ function buildStatusCopy(activeAlertsCount: number, accountCount: number) {
       accountCount === 1 ? "" : "s"
     }. No issues detected in the last 24 hours.`,
   };
+}
+
+function severityRank(severity: string) {
+  if (severity === "critical") return 0;
+  if (severity === "warning") return 1;
+  return 2;
 }
 
 function buildFallbackAlertBody(alert: AlertRecord) {
@@ -304,31 +302,37 @@ function BellIcon() {
 function IssueCard({
   account,
   alert,
+  featured = false,
 }: {
   account: AccountRecord & { lastActivity: Date | null };
   alert: AlertRecord;
+  featured?: boolean;
 }) {
   const severity = severityMeta(alert.severity);
   const body = buildReadableAlertMessage(alert) || buildFallbackAlertBody(alert);
+  const severityClass =
+    alert.severity === "critical" ? styles.issueCardCritical : styles.issueCardWarning;
 
   return (
-    <article className={styles.issueCard}>
+    <article
+      className={`${styles.issueCard} ${severityClass}${featured ? ` ${styles.issueCardFeatured}` : ""}`}
+    >
       <div className={styles.issueIconWrap} style={{ background: severity.iconBg, color: severity.iconColor }}>
-        {alert.severity === "critical" ? <WarningIcon /> : <InfoIcon />}
+        <WarningIcon />
       </div>
 
       <div className={styles.issueBody}>
         <div className={styles.issueHeader}>
-          <div>
-            <h3 className={styles.issueTitle}>{account.name ?? "Stripe account"}</h3>
+          <h3 className={styles.issueTitle}>{account.name ?? "Stripe account"}</h3>
+          <div className={styles.issueMetaRow}>
             <p className={styles.issueType} style={{ color: severity.statusColor }}>
               {alertLabel(alert.type)}
             </p>
+            <span className={styles.issueMetaDivider}>·</span>
+            <span className={styles.issuePill} style={{ color: severity.pillText, background: severity.pillBg }}>
+              {severity.label}
+            </span>
           </div>
-
-          <span className={styles.issuePill} style={{ color: severity.pillText, background: severity.pillBg }}>
-            {severity.label}
-          </span>
         </div>
 
         <p className={styles.issueText}>{body}</p>
@@ -509,7 +513,17 @@ export default async function DashboardPage() {
   );
 
   const now = new Date();
-  const activeAlerts = displayAlerts.filter((alert) => alert.windowEnd > now);
+  const activeAlerts = displayAlerts
+    .filter((alert) => alert.windowEnd > now)
+    .sort((left, right) => {
+      const severityDifference = severityRank(left.severity) - severityRank(right.severity);
+
+      if (severityDifference !== 0) {
+        return severityDifference;
+      }
+
+      return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+    });
   const historicalAlerts = displayAlerts.filter((alert) => alert.windowEnd <= now);
   const activeAccounts = displayStripeAccounts.filter((account) => account.status === "active");
 
@@ -524,7 +538,15 @@ export default async function DashboardPage() {
   const monitoredAccounts = displayStripeAccounts
     .filter((account) => account.status !== "disconnected")
     .map((account) => {
-      const accountAlerts = alertsByAccount.get(account.stripeAccountId) ?? [];
+      const accountAlerts = (alertsByAccount.get(account.stripeAccountId) ?? []).sort((left, right) => {
+        const severityDifference = severityRank(left.severity) - severityRank(right.severity);
+
+        if (severityDifference !== 0) {
+          return severityDifference;
+        }
+
+        return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+      });
       const topAlert = accountAlerts[0] ?? null;
 
       return {
@@ -535,15 +557,28 @@ export default async function DashboardPage() {
       };
     })
     .sort((left, right) => {
-      if (left.hasCritical && !right.hasCritical) return -1;
-      if (!left.hasCritical && right.hasCritical) return 1;
+      if (left.topAlert && right.topAlert) {
+        const severityDifference =
+          severityRank(left.topAlert.severity) - severityRank(right.topAlert.severity);
+
+        if (severityDifference !== 0) {
+          return severityDifference;
+        }
+
+        return (
+          new Date(right.topAlert.createdAt).getTime() -
+          new Date(left.topAlert.createdAt).getTime()
+        );
+      }
+
       if (left.topAlert && !right.topAlert) return -1;
       if (!left.topAlert && right.topAlert) return 1;
-      return 0;
+      return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
     });
 
   const issueAccounts = monitoredAccounts.filter((account) => account.topAlert);
-  const accountsNeedingAttention = issueAccounts.slice(0, 2);
+  const visibleIssueAccounts = issueAccounts.slice(0, 3);
+  const moreIssueAccounts = issueAccounts.slice(3);
   const connectedAccounts = monitoredAccounts.slice(0, 6);
   const connectedAccountsMore = monitoredAccounts.slice(6);
   const activeIncidentRows = activeAlerts;
@@ -551,6 +586,8 @@ export default async function DashboardPage() {
   const statusCopy = buildStatusCopy(activeAlerts.length, activeAccounts.length);
   const currentPlanLabel = getPlanLabel(user.plan);
   const currentPlanLimit = getPlanLimit(user.plan);
+  const topStatusSeverity =
+    activeAlerts.length === 0 ? null : activeAlerts[0].severity === "critical" ? "critical" : "warning";
 
   return (
     <>
@@ -561,9 +598,25 @@ export default async function DashboardPage() {
           <div className={styles.globalStatusInner}>
             <div className={styles.globalStatusLead}>
               <div className={styles.statusIconStack}>
-                <span className={styles.statusPulse} />
-                <div className={styles.statusBadge}>
-                  <ShieldIcon />
+                <span
+                  className={`${styles.statusPulse} ${
+                    topStatusSeverity === "critical"
+                      ? styles.statusPulseCritical
+                      : topStatusSeverity === "warning"
+                        ? styles.statusPulseWarning
+                        : ""
+                  }`}
+                />
+                <div
+                  className={`${styles.statusBadge} ${
+                    topStatusSeverity === "critical"
+                      ? styles.statusBadgeCritical
+                      : topStatusSeverity === "warning"
+                        ? styles.statusBadgeWarning
+                        : ""
+                  }`}
+                >
+                  {topStatusSeverity ? <WarningIcon /> : <ShieldIcon />}
                 </div>
               </div>
 
@@ -604,34 +657,60 @@ export default async function DashboardPage() {
 
         <div className={styles.layoutGrid}>
           <div className={styles.leftRail}>
-            <section aria-label="Accounts Needing Attention" className={styles.sectionPanel}>
+            <section aria-label="Active Issues" className={styles.sectionPanel}>
               <header className={styles.sectionHeaderPanel}>
                 <div className={styles.sectionHeaderTitle}>
                   <AccountsIcon />
-                  <h2 className={styles.sectionTitle}>Accounts Needing Attention</h2>
+                  <h2 className={styles.sectionTitle}>Active Issues</h2>
                 </div>
-                {issueAccounts.length > accountsNeedingAttention.length ? (
+                {issueAccounts.length > visibleIssueAccounts.length ? (
                   <p className={styles.sectionNote}>
-                    Showing the most urgent accounts. {issueAccounts.length - accountsNeedingAttention.length} more active alert{issueAccounts.length - accountsNeedingAttention.length === 1 ? "" : "s"} appear below.
+                    Showing the most urgent issues first. {issueAccounts.length - visibleIssueAccounts.length} more active alert{issueAccounts.length - visibleIssueAccounts.length === 1 ? "" : "s"} can be expanded below.
                   </p>
                 ) : null}
               </header>
 
               <div className={styles.stack}>
-                {accountsNeedingAttention.length === 0 ? (
+                {visibleIssueAccounts.length === 0 ? (
                   <EmptyStateCard
                     icon={<AccountsIcon />}
                     title="No accounts need attention"
                     body="Monitoring is active across all connected accounts."
                   />
                 ) : (
-                  accountsNeedingAttention.map((account) => (
-                    <IssueCard
-                      key={account.id}
-                      account={account}
-                      alert={account.topAlert as AlertRecord}
-                    />
-                  ))
+                  moreIssueAccounts.length > 0 ? (
+                    <ExpandableIssueList
+                      totalCount={issueAccounts.length}
+                      toggleClassName={styles.sectionFooterButton}
+                      moreListClassName={styles.issueMoreList}
+                      moreListExpandedClassName={styles.issueMoreListExpanded}
+                      hiddenChildren={moreIssueAccounts.map((account) => (
+                        <IssueCard
+                          key={account.id}
+                          account={account}
+                          alert={account.topAlert as AlertRecord}
+                        />
+                      ))}
+                    >
+                      {visibleIssueAccounts.map((account, index) => (
+                        <IssueCard
+                          key={account.id}
+                          account={account}
+                          alert={account.topAlert as AlertRecord}
+                          featured={index === 0}
+                        />
+                      ))}
+                    </ExpandableIssueList>
+                  ) : (
+                    visibleIssueAccounts.map((account, index) => (
+                      <IssueCard
+                        key={account.id}
+                        account={account}
+                        alert={account.topAlert as AlertRecord}
+                        featured={index === 0}
+                      />
+                    ))
+                  )
                 )}
               </div>
             </section>
