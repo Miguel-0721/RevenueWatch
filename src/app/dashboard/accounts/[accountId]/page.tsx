@@ -261,13 +261,7 @@ function buildReadableAlertMessage(alert: AlertLike) {
   if (revenueContext) {
     const dropPercent = Math.round(revenueContext.dropRatio * 100);
 
-    return `Revenue is down ${dropPercent}% vs expected (${formatContextMoney(
-      revenueContext.parsed,
-      revenueContext.currentAmount
-    )} vs ${formatContextMoney(
-      revenueContext.parsed,
-      revenueContext.baselineAmount
-    )}) in the ${revenueContext.windowLabel}.`;
+    return `Sales are ${dropPercent}% lower than usual for this window.`;
   }
 
   const paymentContext = getPaymentFailureContext(alert);
@@ -550,17 +544,17 @@ function MonitorInsightPanel({
         ) : isRevenueDrop ? (
           <>
             <div className={styles.panelMetric}>
-              <span>Actual revenue</span>
+              <span>Current revenue</span>
               <strong className={model?.isAlerting ? styles.dangerText : undefined}>
                 {formatMoneyAmount(model.actualValue)}
               </strong>
             </div>
             <div className={styles.panelMetric}>
-              <span>Expected baseline</span>
+              <span>Usual revenue</span>
               <strong>{formatMoneyAmount(model.expectedValue)}</strong>
             </div>
             <div className={styles.panelMetric}>
-              <span>Alert if below</span>
+              <span>Alert threshold</span>
               <strong>{formatMoneyAmount(model.thresholdValue)}</strong>
             </div>
           </>
@@ -583,7 +577,7 @@ function MonitorInsightPanel({
           <div>
             <span>Comparison basis</span>
             <strong>
-              Compared against {model.baselineLabel} history
+              Usual revenue is based on normal performance over similar recent windows
             </strong>
           </div>
         </div>
@@ -720,18 +714,11 @@ function RevenueAlertMonitor({
     x: x(point.hour),
     y: y(point.actual),
   }));
-  const expectedCoordinates = model.points.map((point) => ({
-    x: x(point.hour),
-    y: y(point.expected),
-  }));
-  const thresholdCoordinates = model.points.map((point) => ({
-    x: x(point.hour),
-    y: y(Math.round(point.expected * (1 - model.dropThreshold))),
-  }));
   const actualPath = buildSmoothPath(actualCoordinates);
-  const expectedPath = buildSmoothPath(expectedCoordinates);
-  const thresholdPath = buildSmoothPath(thresholdCoordinates);
   const activePoint = model.points[model.activeHour];
+  const triggerPoint =
+    model.points.find((point) => point.actual < model.thresholdValue) ?? activePoint;
+  const thresholdY = y(model.thresholdValue);
   const yTicks = buildMoneyTicks(maxValue);
   const xTicks = [0, 6, 12, 18, 23];
 
@@ -741,9 +728,9 @@ function RevenueAlertMonitor({
         <div className={styles.chartMain}>
           <div className={styles.chartHeader}>
             <div>
-              <h2>Revenue Monitor</h2>
-              <p>Actual revenue against the historical baseline for the same day and hour.</p>
-              <div className={styles.chartMeta}>Time context: {fmtUtcHour(model.activeHour)}</div>
+              <h2>Revenue during this monitoring window</h2>
+              <p>Sales dropped below the alert threshold during this window.</p>
+              <div className={styles.chartMeta}>Monitoring window: {revenueContext.windowLabel}</div>
             </div>
             <span className={styles.liveBadge}>
               <span />
@@ -752,16 +739,22 @@ function RevenueAlertMonitor({
           </div>
 
           <div className={styles.chartWrap}>
+            <div
+              className={styles.thresholdLabel}
+              style={{ top: `${(thresholdY / height) * 100}%` }}
+            >
+              Alert threshold
+            </div>
             <svg
               viewBox={`0 0 ${width} ${height}`}
               preserveAspectRatio="none"
               className={styles.chartSvg}
               role="img"
-              aria-label="Revenue chart showing actual revenue, expected baseline, and alert threshold"
+              aria-label="Revenue chart showing current revenue and the alert threshold"
             >
               <defs>
                 <linearGradient id="accountChartFill" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stopColor="#0058bc" stopOpacity="0.2" />
+                  <stop offset="0%" stopColor="#0058bc" stopOpacity="0.14" />
                   <stop offset="100%" stopColor="#0058bc" stopOpacity="0" />
                 </linearGradient>
               </defs>
@@ -799,42 +792,65 @@ function RevenueAlertMonitor({
                   {fmtUtcHour(tick)}
                 </text>
               ))}
-              <line
-                x1={x(activePoint.hour)}
-                x2={x(activePoint.hour)}
-                y1={plot.top}
-                y2={plot.bottom}
-                className={styles.activeHourLine}
+              <rect
+                x={plot.left}
+                y={thresholdY}
+                width={plot.right - plot.left}
+                height={plot.bottom - thresholdY}
+                className={styles.issueZone}
               />
+              {model.isAlerting ? (
+                <line
+                  x1={x(triggerPoint.hour)}
+                  x2={x(triggerPoint.hour)}
+                  y1={plot.top}
+                  y2={plot.bottom}
+                  className={styles.triggerLine}
+                />
+              ) : null}
               <path
                 d={`${actualPath} L${plot.right},${plot.bottom} L${plot.left},${plot.bottom} Z`}
                 fill="url(#accountChartFill)"
               />
-              <path d={expectedPath} className={styles.expectedPath} />
-              <path d={thresholdPath} className={styles.thresholdLine} />
-              <path d={actualPath} className={styles.actualPath} />
-              <circle
-                cx={x(activePoint.hour)}
-                cy={y(activePoint.actual)}
-                r="5"
-                className={model.isAlerting ? styles.alertPoint : styles.activePoint}
+              <line
+                x1={plot.left}
+                x2={plot.right}
+                y1={thresholdY}
+                y2={thresholdY}
+                className={styles.thresholdLine}
               />
+              <path d={actualPath} className={styles.actualPath} />
+              {model.isAlerting ? (
+                <>
+                  <circle
+                    cx={x(triggerPoint.hour)}
+                    cy={y(triggerPoint.actual)}
+                    r="4"
+                    className={styles.alertPoint}
+                  />
+                  <text
+                    x={Math.min(plot.right - 10, x(triggerPoint.hour) + 12)}
+                    y={Math.max(plot.top + 14, y(triggerPoint.actual) - 12)}
+                    className={styles.triggerLabel}
+                  >
+                    Alert triggered
+                  </text>
+                </>
+              ) : (
+                <circle
+                  cx={x(activePoint.hour)}
+                  cy={y(activePoint.actual)}
+                  r="4"
+                  className={styles.activePoint}
+                />
+              )}
             </svg>
-            <div
-              className={styles.activeHourLabel}
-              style={{ left: `${Math.max(3, Math.min(91, (x(activePoint.hour) / width) * 100))}%` }}
-            >
-              {fmtUtcHour(model.activeHour)}
-            </div>
           </div>
 
           <div className={`${styles.chartFooter} ${styles.chartFooterCompact}`}>
             <div className={styles.legend}>
               <span>
-                <i className={styles.legendBlue} /> Current
-              </span>
-              <span>
-                <i className={styles.legendGray} /> Expected baseline
+                <i className={styles.legendBlue} /> Current revenue
               </span>
               <span>
                 <i className={styles.legendRed} /> Alert threshold

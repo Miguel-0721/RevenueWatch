@@ -218,31 +218,20 @@
 .thresholdLine {
   fill: none;
   stroke: #ba1a1a;
-  stroke-width: 1.7;
+  stroke-width: 1.5;
   stroke-dasharray: 9 6;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
-.activeHourLine {
-  stroke: rgba(0, 88, 188, 0.18);
-  stroke-width: 1;
-  stroke-dasharray: 4 7;
-}
-
-.expectedPath {
-  fill: none;
-  stroke: #c1c6d7;
-  stroke-width: 3;
-  stroke-dasharray: 7 8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.issueZone {
+  fill: rgba(186, 26, 26, 0.03);
 }
 
 .actualPath {
   fill: none;
   stroke: #0058bc;
-  stroke-width: 4;
+  stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -250,7 +239,7 @@
 .activePoint,
 .alertPoint {
   stroke: #ffffff;
-  stroke-width: 3;
+  stroke-width: 2;
 }
 
 .activePoint {
@@ -259,6 +248,19 @@
 
 .alertPoint {
   fill: #ba1a1a;
+}
+
+.triggerLine {
+  stroke: rgba(186, 26, 26, 0.34);
+  stroke-width: 1;
+  stroke-dasharray: 4 7;
+}
+
+.triggerLabel {
+  fill: #ba1a1a;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
 }
 
 .thresholdLabel {
@@ -273,21 +275,6 @@
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.activeHourLabel {
-  position: absolute;
-  bottom: 34px;
-  transform: translateX(-50%);
-  padding: 4px 8px;
-  border-radius: 4px;
-  background: rgba(0, 88, 188, 0.08);
-  color: #0058bc;
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  white-space: nowrap;
 }
 
 .chartFooter {
@@ -350,8 +337,7 @@
 }
 
 .legendBlue,
-.legendRed,
-.legendGray {
+.legendRed {
   width: 8px;
   height: 8px;
   border-radius: 999px;
@@ -363,10 +349,6 @@
 
 .legendRed {
   background: #ba1a1a;
-}
-
-.legendGray {
-  background: #c1c6d7;
 }
 
 .failureChartWrap {
