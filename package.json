@@ -7,7 +7,9 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "seed:local-stripe-account": "node scripts/ensureLocalStripeAccount.js",
+    "reset:local-payment-alert-test": "node scripts/resetLocalPaymentAlertTest.js"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

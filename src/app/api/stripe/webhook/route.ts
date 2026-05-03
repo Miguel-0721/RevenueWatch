@@ -799,9 +799,13 @@ Current (${REVENUE_WINDOW_MINUTES} min): €${(currentAmount / 100).toFixed(2)}`
 
 
 
-void sendAlertEmail({
+await sendAlertEmail({
   type: alert.type,
+  severity: alert.severity,
   message: alert.message,
+  stripeAccountId: alert.stripeAccountId,
+  detectedAt: alert.createdAt,
+  context: alert.context,
 });
 
 
@@ -1008,9 +1012,13 @@ if (event.type === "payment_intent.payment_failed") {
     return NextResponse.json({ received: true });
   }
 
-  void sendAlertEmail({
+  await sendAlertEmail({
     type: alert.type,
+    severity: alert.severity,
     message: alert.message,
+    stripeAccountId: alert.stripeAccountId,
+    detectedAt: alert.createdAt,
+    context: alert.context,
   });
 }
 
