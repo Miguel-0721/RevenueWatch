@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Navbar from "@/components/Navbar";
+import SeverityHelpPopover from "@/components/SeverityHelpPopover";
 import { getDemoAccountById, getDemoAlertHistory } from "@/lib/demoData";
 import { prisma } from "@/lib/prisma";
 import styles from "./page.module.css";
@@ -603,10 +604,15 @@ function MonitorInsightPanel({
   return (
     <aside className={panelClassName}>
       <div>
-        <span className={styles.panelEyebrow}>
-          <span className={styles.panelStatusDot} aria-hidden="true" />
-          {topAlert ? "Current issue" : "Current state"}
-        </span>
+        <div className={styles.panelEyebrowRow}>
+          <span className={styles.panelEyebrow}>
+            <span className={styles.panelStatusDot} aria-hidden="true" />
+            {topAlert ? "Current issue" : "Current state"}
+          </span>
+          {topAlert && (topAlert.type === "payment_failed" || topAlert.type === "revenue_drop") ? (
+            <SeverityHelpPopover alertType={topAlert.type} />
+          ) : null}
+        </div>
         <h3>{topAlert ? alertLabel(topAlert.type) : "Monitoring active"}</h3>
         <p>
           {topAlert

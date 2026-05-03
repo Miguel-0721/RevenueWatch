@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import Navbar from "@/components/Navbar";
 import AccountNameEditor from "@/components/AccountNameEditor";
 import ExpandableIssueList from "@/components/ExpandableIssueList";
+import SeverityHelpPopover from "@/components/SeverityHelpPopover";
 import { getPlanLabel, getPlanLimit } from "@/lib/billing";
 import {
   getActiveDemoAlerts,
@@ -141,6 +142,72 @@ function buildReadableAlertMessage(alert: Pick<DisplayAlert, "type" | "message" 
   }
 
   return alert.message;
+}
+
+function formatSeverityMultiple(value: number) {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+function buildSeverityReason(alert: Pick<DisplayAlert, "type" | "severity" | "context">) {
+  const parsed = safeParseContext(alert.context);
+
+  if (alert.type === "revenue_drop") {
+    const dropRatio =
+      parsed && typeof parsed.dropRatio === "number"
+        ? parsed.dropRatio
+        : parsed &&
+            typeof parsed.currentAmount === "number" &&
+            typeof parsed.baselineAmount === "number" &&
+            parsed.baselineAmount > 0
+          ? (parsed.baselineAmount - parsed.currentAmount) / parsed.baselineAmount
+          : parsed &&
+              typeof parsed.currentRevenue === "number" &&
+              typeof parsed.expectedRevenue === "number" &&
+              parsed.expectedRevenue > 0
+            ? (parsed.expectedRevenue - parsed.currentRevenue) / parsed.expectedRevenue
+            : null;
+
+    if (typeof dropRatio === "number" && Number.isFinite(dropRatio)) {
+      return `Sales are ${Math.round(dropRatio * 100)}% lower than usual.`;
+    }
+
+    return alert.severity === "critical"
+      ? "Sales are 50%+ lower than usual."
+      : "Sales are 30% lower than usual.";
+  }
+
+  if (alert.type === "payment_failed") {
+    const multiple =
+      parsed && typeof parsed.spikeMultiple === "number"
+        ? parsed.spikeMultiple
+        : parsed &&
+            typeof parsed.currentFailures === "number" &&
+            typeof parsed.effectiveUsualFailures === "number" &&
+            parsed.effectiveUsualFailures > 0
+          ? parsed.currentFailures / parsed.effectiveUsualFailures
+          : parsed &&
+              typeof parsed.failuresCounted === "number" &&
+              typeof parsed.normalFailures === "number" &&
+              parsed.normalFailures > 0
+            ? parsed.failuresCounted / parsed.normalFailures
+            : parsed &&
+                typeof parsed.failedPayments === "number" &&
+                typeof parsed.baseline === "number" &&
+                parsed.baseline > 0
+              ? parsed.failedPayments / parsed.baseline
+              : null;
+
+    if (typeof multiple === "number" && Number.isFinite(multiple)) {
+      return `Payment failures are ${formatSeverityMultiple(multiple)}× higher than usual.`;
+    }
+
+    return alert.severity === "critical"
+      ? "Payment failures are 4× higher than usual."
+      : "Payment failures are 2× higher than usual.";
+  }
+
+  return null;
 }
 
 function formatRelativeTime(date: Date | null | undefined) {
@@ -301,6 +368,7 @@ function IssueCard({
 }) {
   const severity = severityMeta(alert.severity);
   const body = buildReadableAlertMessage(alert);
+  const reason = buildSeverityReason(alert);
   const severityClass =
     alert.severity === "critical" ? styles.issueCardCritical : styles.issueCardWarning;
 
@@ -308,6 +376,12 @@ function IssueCard({
     <article
       className={`${styles.issueCard} ${severityClass}${featured ? ` ${styles.issueCardFeatured}` : ""}`}
     >
+      {alert.type === "payment_failed" || alert.type === "revenue_drop" ? (
+        <div className={styles.issueHelp}>
+          <SeverityHelpPopover alertType={alert.type} />
+        </div>
+      ) : null}
+
       <div
         className={styles.issueIconWrap}
         style={{ background: severity.iconBg, color: severity.iconColor }}
@@ -333,6 +407,7 @@ function IssueCard({
         </div>
 
         <p className={styles.issueText}>{body}</p>
+        {reason ? <p className={styles.issueReason}>{reason}</p> : null}
 
         <div className={styles.issueFooter}>
           <span className={styles.issueMeta}>

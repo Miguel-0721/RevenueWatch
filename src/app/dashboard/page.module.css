@@ -318,6 +318,7 @@
 }
 
 .issueCard {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 20px;
@@ -343,6 +344,12 @@
 .issueCardFeatured {
   box-shadow: 0 6px 14px rgba(25, 28, 29, 0.03), 0 14px 36px rgba(25, 28, 29, 0.04),
     inset 0 0 0 1.5px rgba(25, 28, 29, 0.05);
+}
+
+.issueHelp {
+  position: absolute;
+  top: 18px;
+  right: 18px;
 }
 
 .issueIconWrap {
@@ -414,10 +421,18 @@
 }
 
 .issueText {
-  margin-bottom: 16px;
+  margin-bottom: 8px;
   color: #414755;
   font-size: 0.96rem;
   line-height: 1.62;
+}
+
+.issueReason {
+  margin-bottom: 16px;
+  color: #5a6170;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  font-weight: 600;
 }
 
 .issueFooter {

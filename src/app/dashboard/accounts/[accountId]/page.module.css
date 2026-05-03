@@ -551,6 +551,13 @@
   border-color: rgba(193, 198, 215, 0.3);
 }
 
+.panelEyebrowRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .panelEyebrow {
   display: inline-flex;
   align-items: center;
