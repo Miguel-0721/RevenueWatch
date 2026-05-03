@@ -74,6 +74,10 @@ function buildReadableAlertMessage(alert: Pick<AlertRecord, "type" | "message" |
 
   if (!parsed) return alert.message;
 
+  if (typeof parsed.displayMessage === "string") {
+    return parsed.displayMessage;
+  }
+
   if (
     alert.type === "payment_failed" &&
     typeof parsed.failedPayments === "number" &&

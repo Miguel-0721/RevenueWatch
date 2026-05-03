@@ -355,7 +355,8 @@
 }
 
 .legendBlue,
-.legendRed {
+.legendRed,
+.legendDash {
   width: 8px;
   height: 8px;
   border-radius: 999px;
@@ -367,6 +368,13 @@
 
 .legendRed {
   background: #ba1a1a;
+}
+
+.legendDash {
+  width: 16px;
+  height: 0;
+  border-radius: 0;
+  border-top: 2px dashed #ba1a1a;
 }
 
 .failureChartWrap {
@@ -385,39 +393,58 @@
     linear-gradient(180deg, rgba(255, 248, 248, 0.86) 0%, rgba(255, 255, 255, 0.9) 100%);
 }
 
-.failureBars {
+.failureYAxis {
   position: absolute;
-  inset: 22px 22px 48px;
-  display: grid;
-  grid-template-columns: repeat(30, minmax(0, 1fr));
-  gap: 5px;
-  align-items: end;
+  top: 22px;
+  left: 0;
+  bottom: 48px;
+  width: 38px;
+  z-index: 2;
+  pointer-events: none;
 }
 
-.failureBarSlot {
-  height: 100%;
-  display: flex;
-  align-items: end;
+.failureYAxis span {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  color: #717786;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.failureBars {
+  position: absolute;
+  inset: 22px 22px 48px 46px;
+  z-index: 1;
 }
 
 .failureBar,
+.failureBarThreshold,
 .failureBarActive {
-  display: block;
-  width: 100%;
+  position: absolute;
+  bottom: 0;
   min-height: 6px;
-  border-radius: 999px 999px 3px 3px;
-  background: rgba(186, 26, 26, 0.24);
+  border-radius: 4px 4px 0 0;
+}
+
+.failureBar {
+  background: rgba(255, 188, 188, 0.62);
+}
+
+.failureBarThreshold {
+  background: rgba(186, 26, 26, 0.82);
 }
 
 .failureBarActive {
   background: #ba1a1a;
-  box-shadow: 0 14px 26px rgba(186, 26, 26, 0.22);
+  box-shadow: 0 8px 16px rgba(186, 26, 26, 0.14);
 }
 
 .failureThresholdLine {
   position: absolute;
   right: 22px;
-  left: 22px;
+  left: 46px;
   z-index: 2;
   border-top: 2px dashed rgba(186, 26, 26, 0.72);
   pointer-events: none;
@@ -425,32 +452,36 @@
 
 .failureThreshold {
   position: absolute;
-  right: 22px;
-  top: 18px;
   z-index: 2;
-  padding: 4px 8px;
-  border-radius: 4px;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border-radius: 999px;
   background: #ffdad6;
   color: #ba1a1a;
   font-size: 10px;
   font-weight: 900;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .failureTimeAxis {
   position: absolute;
-  left: 22px;
+  left: 46px;
   right: 22px;
   bottom: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  height: 16px;
   color: #717786;
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.failureTimeAxis span {
+  position: absolute;
+  bottom: 0;
+  white-space: nowrap;
 }
 
 .failureSummaryCard {

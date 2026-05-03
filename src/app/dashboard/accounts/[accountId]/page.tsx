@@ -72,8 +72,6 @@ type FailureChartModel = {
   windowLabel: string;
   peakFailures: number;
   activeIndex: number;
-  windowStartLabel: string;
-  windowEndLabel: string;
 };
 
 function safeParseContext(input?: string | null) {
@@ -144,6 +142,14 @@ function buildApproxDateFromRelativeLabel(label?: string, now: Date = new Date()
 
 function fmtUtcHour(hour: number) {
   return `${String(hour).padStart(2, "0")}:00`;
+}
+
+function nextHourLabel(label: string) {
+  const match = label.match(/^(\d{2}):(\d{2})$/);
+  if (!match) return label;
+
+  const hour = Number(match[1]);
+  return `${String((hour + 1) % 24).padStart(2, "0")}:${match[2]}`;
 }
 
 function buildTickIndexes(length: number) {
@@ -373,6 +379,15 @@ function buildMoneyTicks(maxValue: number) {
   });
 }
 
+function buildCountTicks(maxValue: number) {
+  const roughStep = Math.max(1, maxValue / 3);
+  const niceSteps = [5, 10, 20, 25, 50, 100, 200];
+  const step = niceSteps.find((candidate) => candidate >= roughStep) ?? niceSteps[niceSteps.length - 1];
+  const top = Math.max(step, Math.ceil(maxValue / step) * step);
+
+  return Array.from({ length: Math.floor(top / step) + 1 }, (_, index) => index * step);
+}
+
 function buildFailureChartModel(topAlert: AlertLike | null, paymentContext: PaymentFailureContext | null): FailureChartModel {
   const parsed = safeParseContext(topAlert?.context);
   const failures = paymentContext?.failures ?? 0;
@@ -389,7 +404,8 @@ function buildFailureChartModel(topAlert: AlertLike | null, paymentContext: Paym
     : null;
 
   if (failureSeries && failureSeries.length > 0) {
-    const points = failureSeries.map((point, index) => ({
+    const visibleSeries = failureSeries.slice(-6);
+    const points = visibleSeries.map((point, index) => ({
       index,
       label: point.time,
       failures: point.failures,
@@ -403,8 +419,6 @@ function buildFailureChartModel(topAlert: AlertLike | null, paymentContext: Paym
       windowLabel: paymentContext?.windowLabel ?? "current monitoring window",
       peakFailures: Math.max(...points.map((point) => point.failures)),
       activeIndex: points.length - 1,
-      windowStartLabel: points[0].label,
-      windowEndLabel: points[points.length - 1].label,
     };
   }
 
@@ -422,45 +436,135 @@ function buildFailureChartModel(topAlert: AlertLike | null, paymentContext: Paym
     windowLabel: paymentContext?.windowLabel ?? "current monitoring window",
     peakFailures: Math.max(...points.map((point) => point.failures)),
     activeIndex: points.length - 1,
-    windowStartLabel: points[0].label,
-    windowEndLabel: points[points.length - 1].label,
   };
 }
 
 function FailureChart({ model }: { model: FailureChartModel }) {
-  const maxValue = Math.max(model.peakFailures, model.threshold) * 1.25;
+  const scaleMax = Math.max(model.peakFailures, model.threshold);
+  const countTicks = buildCountTicks(scaleMax);
+  const maxValue = countTicks[countTicks.length - 1] ?? scaleMax;
+  const thresholdPercent = Math.min(86, Math.max(12, (model.threshold / maxValue) * 100));
+  const bucketCount = model.points.length;
+  const timeBoundaryLabels = [
+    ...model.points.map((point) => point.label),
+    nextHourLabel(model.points[model.points.length - 1]?.label ?? "00:00"),
+  ];
+  const barLayouts = model.points.map((point, index) => {
+    const startPercent = (index / Math.max(1, bucketCount)) * 100;
+    const endPercent = ((index + 1) / Math.max(1, bucketCount)) * 100;
+    const bucketWidthPercent = endPercent - startPercent;
+    const barWidthPercent = bucketWidthPercent * 0.56;
+    const leftPercent = startPercent + (bucketWidthPercent - barWidthPercent) / 2;
+
+    return {
+      point,
+      leftPercent,
+      widthPercent: barWidthPercent,
+    };
+  });
+
+  const thresholdChipWidthPercent = 16;
+  const thresholdChipHalfWidth = thresholdChipWidthPercent / 2;
+  const thresholdChipBuffer = 2.5;
+  const thresholdChipMinCenter = Math.max(55, thresholdChipHalfWidth + 2);
+  const thresholdChipMaxCenter = 100 - thresholdChipHalfWidth - 2;
+
+  let thresholdChipCenter = Math.min(78, thresholdChipMaxCenter);
+
+  for (const bar of [...barLayouts].reverse()) {
+    const barLeft = bar.leftPercent;
+    const barRight = bar.leftPercent + bar.widthPercent;
+    const chipLeft = thresholdChipCenter - thresholdChipHalfWidth;
+    const chipRight = thresholdChipCenter + thresholdChipHalfWidth;
+    const collides =
+      chipRight >= barLeft - thresholdChipBuffer &&
+      chipLeft <= barRight + thresholdChipBuffer;
+
+    if (collides) {
+      thresholdChipCenter = Math.max(
+        thresholdChipMinCenter,
+        thresholdChipCenter - 4
+      );
+    }
+  }
+
+  thresholdChipCenter = Math.min(thresholdChipMaxCenter, thresholdChipCenter);
 
   return (
     <>
       <div className={styles.failureChartWrap}>
+        <div className={styles.failureYAxis}>
+          {countTicks.map((tick) => (
+            <span
+              key={tick}
+              style={{
+                top: `${100 - Math.min(100, Math.max(0, (tick / maxValue) * 100))}%`,
+              }}
+            >
+              {formatCount(tick)}
+            </span>
+          ))}
+        </div>
         <div
           className={styles.failureThresholdLine}
           style={{
-            bottom: `${Math.min(86, Math.max(12, (model.threshold / maxValue) * 100))}%`,
+            bottom: `${thresholdPercent}%`,
           }}
         />
-        <div className={styles.failureThreshold}>Threshold: {formatCount(model.threshold)}</div>
+        <div
+          className={styles.failureThreshold}
+          style={{
+            left: `${thresholdChipCenter}%`,
+            bottom: `calc(${thresholdPercent}% - 10px)`,
+          }}
+        >
+          Threshold: {formatCount(model.threshold)}
+        </div>
 
-        <div className={styles.failureBars} aria-label="Failed payments over the current window">
-          {model.points.map((point) => {
+        <div className={styles.failureBars} aria-label="Failed payments over the current period">
+          {barLayouts.map(({ point, leftPercent, widthPercent }) => {
             const isActive = point.index === model.activeIndex;
             const height = Math.max(8, (point.failures / maxValue) * 100);
+            const isAboveThreshold = point.failures >= model.threshold;
+            const barClassName =
+              isActive && isAboveThreshold
+                ? styles.failureBarActive
+                : isAboveThreshold
+                  ? styles.failureBarThreshold
+                  : styles.failureBar;
 
             return (
-              <div key={`${point.index}-${point.label}`} className={styles.failureBarSlot}>
-                <span
-                  className={isActive ? styles.failureBarActive : styles.failureBar}
-                  style={{ height: `${height}%` }}
-                  title={`${formatCount(point.failures)} failures`}
-                />
-              </div>
+              <span
+                key={`${point.index}-${point.label}`}
+                className={barClassName}
+                style={{
+                  height: `${height}%`,
+                  left: `${leftPercent}%`,
+                  width: `${widthPercent}%`,
+                }}
+                title={`${point.label}–${nextHourLabel(point.label)}: ${formatCount(point.failures)} failed payment${point.failures === 1 ? "" : "s"}`}
+              />
             );
           })}
         </div>
 
         <div className={styles.failureTimeAxis}>
-          <span>{model.windowStartLabel}</span>
-          <span>{model.windowEndLabel}</span>
+          {timeBoundaryLabels.map((label, index) => (
+            <span
+              key={`${index}-${label}`}
+              style={{
+                left: `${(index / Math.max(1, timeBoundaryLabels.length - 1)) * 100}%`,
+                transform:
+                  index === 0
+                    ? "translateX(0)"
+                    : index === timeBoundaryLabels.length - 1
+                      ? "translateX(-100%)"
+                      : "translateX(-50%)",
+              }}
+            >
+              {label}
+            </span>
+          ))}
         </div>
       </div>
 
@@ -470,7 +574,7 @@ function FailureChart({ model }: { model: FailureChartModel }) {
             <i className={styles.legendRed} /> Failed payments
           </span>
           <span>
-            <i className={styles.legendBlue} /> Threshold
+            <i className={styles.legendDash} /> Threshold
           </span>
         </div>
       </div>
@@ -612,29 +716,14 @@ function PaymentFailureMonitor({
         <div className={styles.chartMain}>
           <div className={styles.chartHeader}>
             <div>
-              <h2>Payment failures during this monitoring window</h2>
-              <p>Payment failures increased above normal levels during this window.</p>
-              <div className={styles.chartMeta}>Monitoring window: {paymentContext.windowLabel}</div>
+              <h2>Failed payments during this period</h2>
+              <p>Each bar shows how many failed payments happened during that time period.</p>
+              <div className={styles.chartMeta}>Current period</div>
             </div>
             <span className={styles.liveBadge}>
               <span />
               Live issue
             </span>
-          </div>
-
-          <div className={styles.failureSummaryCard}>
-            <div className={styles.failureMiniBlock}>
-              <span>Current failed payments</span>
-              <strong>{formatCount(paymentContext.failures)}</strong>
-            </div>
-            <div className={styles.failureMiniBlock}>
-              <span>Usual failed payments</span>
-              <strong>{formatCount(paymentContext.normalFailures ?? paymentContext.threshold)}</strong>
-            </div>
-            <div className={styles.failureMiniBlock}>
-              <span>Alert threshold</span>
-              <strong>{formatCount(paymentContext.threshold)}</strong>
-            </div>
           </div>
 
           <div className={styles.failureMiniChart}>

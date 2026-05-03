@@ -188,8 +188,13 @@ const MIN_CURRENT_REVENUE = 10000;  // €100
 
 // Payment failure alert (production-safe defaults)
 
-const FAILURE_WINDOW_MINUTES = 30;  // sustained failures, not spikes
-const FAILURE_THRESHOLD = 5;        // meaningful failure volume
+const FAILURE_WINDOW_MINUTES = 60;
+const FAILURE_LOOKBACK_DAYS = 14;
+const FAILURE_MIN_CURRENT = 5;
+const FAILURE_BASELINE_FLOOR = 3;
+const FAILURE_SPIKE_MULTIPLIER = 2;
+const FAILURE_CRITICAL_MULTIPLIER = 4;
+const FAILURE_MIN_SAMPLES = 5;
 const MIN_SAMPLES = 5;
 
 
@@ -225,6 +230,8 @@ type RevenueBaselineLevel =
   | "same_day_type_and_hour"
   | "same_hour";
 
+type FailureBaselineLevel = RevenueBaselineLevel;
+
 type RevenueMetricSample = {
   amount: number;
   periodEnd: Date;
@@ -258,6 +265,52 @@ function summarizeRevenueWindows(samples: RevenueMetricSample[]) {
     average: totals.length > 0 ? total / totals.length : 0,
     sampleCount: totals.length,
   };
+}
+
+function median(values: number[]) {
+  if (values.length === 0) return 0;
+
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+
+  return sorted.length % 2 === 0
+    ? (sorted[middle - 1] + sorted[middle]) / 2
+    : sorted[middle];
+}
+
+function shiftDateByDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function countEventsInWindow(eventDates: Date[], start: Date, end: Date) {
+  return eventDates.filter((date) => date >= start && date < end).length;
+}
+
+function summarizeFailureWindows(counts: number[]) {
+  return {
+    median: median(counts),
+    sampleCount: counts.length,
+  };
+}
+
+function buildFailureSeries(eventDates: Date[], now: Date, bucketCount = 6) {
+  const currentBucketStart = new Date(now);
+  currentBucketStart.setUTCMinutes(0, 0, 0);
+
+  return Array.from({ length: bucketCount }, (_, index) => {
+    const bucketStart = new Date(currentBucketStart);
+    bucketStart.setUTCHours(currentBucketStart.getUTCHours() - (bucketCount - 1 - index));
+
+    const bucketEnd = new Date(bucketStart);
+    bucketEnd.setUTCHours(bucketStart.getUTCHours() + 1);
+
+    return {
+      time: `${String(bucketStart.getUTCHours()).padStart(2, "0")}:00`,
+      failures: countEventsInWindow(eventDates, bucketStart, bucketEnd),
+    };
+  });
 }
 
 // ---------------- WEBHOOK ----------------
@@ -770,26 +823,133 @@ void sendAlertEmail({
 if (event.type === "payment_intent.payment_failed") {
   console.log("🔴 PAYMENT FAILED EVENT RECEIVED");
 
-  const windowStart = new Date(
-    Date.now() - FAILURE_WINDOW_MINUTES * 60 * 1000
+  const now = new Date();
+  const currentWindowStart = new Date(
+    now.getTime() - FAILURE_WINDOW_MINUTES * 60 * 1000
   );
 
   const failures = await prisma.stripeEvent.count({
     where: {
       stripeAccountId,
       type: "payment_intent.payment_failed",
-      createdAt: { gte: windowStart },
+      createdAt: { gte: currentWindowStart },
     },
   });
 
   console.log("🔴 FAILURE COUNT:", failures);
 
-  if (failures < FAILURE_THRESHOLD) {
+  if (false) {
     console.log("⏭️ BELOW FAILURE THRESHOLD");
     return NextResponse.json({ received: true });
   }
 
   console.log("🟠 FAILURE THRESHOLD REACHED");
+
+  const historyStart = new Date(
+    currentWindowStart.getTime() - FAILURE_LOOKBACK_DAYS * 24 * 60 * 60 * 1000
+  );
+  const failureEvents = await prisma.stripeEvent.findMany({
+    where: {
+      stripeAccountId,
+      type: "payment_intent.payment_failed",
+      createdAt: { gte: historyStart, lte: now },
+    },
+    select: {
+      createdAt: true,
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
+  });
+  const failureDates = failureEvents.map((failureEvent) => new Date(failureEvent.createdAt));
+  const recentFailureSeries = buildFailureSeries(failureDates, now);
+  const currentDay = currentWindowStart.getUTCDay();
+
+  const comparisonWindows = Array.from({ length: FAILURE_LOOKBACK_DAYS }, (_, index) => {
+    const daysAgo = index + 1;
+    const comparisonStart = shiftDateByDays(currentWindowStart, -daysAgo);
+    const comparisonEnd = shiftDateByDays(now, -daysAgo);
+
+    return {
+      dayOfWeek: comparisonStart.getUTCDay(),
+      count: countEventsInWindow(failureDates, comparisonStart, comparisonEnd),
+    };
+  });
+
+  const comparisonCandidates: Array<{
+    level: FailureBaselineLevel;
+    windows: typeof comparisonWindows;
+  }> = [
+    {
+      level: "same_day_and_hour",
+      windows: comparisonWindows.filter((window) => window.dayOfWeek === currentDay),
+    },
+    {
+      level: "same_day_type_and_hour",
+      windows: comparisonWindows.filter((window) =>
+        dayTypeDays(currentDay).includes(window.dayOfWeek)
+      ),
+    },
+    {
+      level: "same_hour",
+      windows: comparisonWindows,
+    },
+  ];
+
+  let selectedBaseline:
+    | {
+        level: FailureBaselineLevel;
+        usualFailures: number;
+        sampleCount: number;
+      }
+    | null = null;
+
+  for (const candidate of comparisonCandidates) {
+    const summary = summarizeFailureWindows(candidate.windows.map((window) => window.count));
+
+    console.log("PAYMENT FAILURE BASELINE CHECK", {
+      level: candidate.level,
+      sampleCount: summary.sampleCount,
+      median: summary.median,
+    });
+
+    if (summary.sampleCount >= FAILURE_MIN_SAMPLES) {
+      selectedBaseline = {
+        level: candidate.level,
+        usualFailures: summary.median,
+        sampleCount: summary.sampleCount,
+      };
+      break;
+    }
+  }
+
+  if (!selectedBaseline) {
+    console.log("SKIPPING PAYMENT FAILURE ALERT: not enough historical comparison windows");
+    return NextResponse.json({ received: true });
+  }
+
+  const usualFailures = selectedBaseline.usualFailures;
+  const effectiveUsualFailures = Math.max(usualFailures, FAILURE_BASELINE_FLOOR);
+  const threshold = effectiveUsualFailures * FAILURE_SPIKE_MULTIPLIER;
+  const spikeMultiple = failures / effectiveUsualFailures;
+  const wouldTrigger =
+    failures >= FAILURE_MIN_CURRENT &&
+    failures >= threshold;
+
+  console.log("PAYMENT FAILURE DEBUG", {
+    currentFailures: failures,
+    usualFailures,
+    effectiveUsualFailures,
+    spikeMultiple,
+    threshold,
+    historicalSampleCount: selectedBaseline.sampleCount,
+    wouldTrigger,
+  });
+
+  if (!wouldTrigger) {
+    console.log("SKIPPING PAYMENT FAILURE ALERT: current period is not unusually high enough");
+    return NextResponse.json({ received: true });
+  }
 
   const allowed = await canTriggerAlert({
     stripeAccountId,
@@ -803,23 +963,42 @@ if (event.type === "payment_intent.payment_failed") {
   }
 
   let alert;
+  const severity = spikeMultiple >= FAILURE_CRITICAL_MULTIPLIER ? "critical" : "warning";
+  const displayMessage =
+    severity === "critical"
+      ? "Payment failures are significantly higher than usual compared to recent activity."
+      : "Payment failures are higher than usual compared to recent activity.";
 
   try {
     alert = await prisma.alert.create({
       data: {
         type: "payment_failed",
-        severity: "warning",
+        severity,
         stripeEventId: event.id,
         stripeAccountId,
-        message: `Multiple payment failures detected in the last ${FAILURE_WINDOW_MINUTES} minutes`,
+        message: displayMessage,
         context: JSON.stringify({
           failureWindowMinutes: FAILURE_WINDOW_MINUTES,
-          failureThreshold: FAILURE_THRESHOLD,
+          currentWindowStart: currentWindowStart.toISOString(),
+          currentWindowEnd: now.toISOString(),
+          currentFailures: failures,
           failuresCounted: failures,
+          usualFailures,
+          normalFailures: usualFailures,
+          baseline: usualFailures,
+          effectiveUsualFailures,
+          spikeMultiple,
+          failureThreshold: threshold,
+          comparisonWindowCount: selectedBaseline.sampleCount,
+          comparisonLevel: selectedBaseline.level,
+          failureSpikeMultiplier: FAILURE_SPIKE_MULTIPLIER,
+          baselineFloor: FAILURE_BASELINE_FLOOR,
+          failureSeries: recentFailureSeries,
+          displayMessage,
         }),
-        windowStart,
+        windowStart: currentWindowStart,
         windowEnd: new Date(
-          Date.now() + FAILURE_WINDOW_MINUTES * 60 * 1000
+          now.getTime() + FAILURE_WINDOW_MINUTES * 60 * 1000
         ),
         cooldownUntil: getCooldownUntil("payment_failed"),
       },
