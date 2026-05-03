@@ -159,10 +159,6 @@ function buildKeyAlertValues(type: string, context?: string | null) {
             : null;
     const threshold =
       typeof parsed.failureThreshold === "number" ? parsed.failureThreshold : null;
-    const effectiveUsualFailures =
-      typeof parsed.effectiveUsualFailures === "number"
-        ? parsed.effectiveUsualFailures
-        : null;
 
     return [
       currentFailures !== null
@@ -170,11 +166,6 @@ function buildKeyAlertValues(type: string, context?: string | null) {
         : null,
       usualFailures !== null
         ? `Usual failed payments: ${formatCount(usualFailures)}`
-        : null,
-      effectiveUsualFailures !== null &&
-      usualFailures !== null &&
-      effectiveUsualFailures > usualFailures
-        ? `Minimum comparison level: ${formatCount(effectiveUsualFailures)}`
         : null,
       threshold !== null ? `Alert threshold: ${formatCount(threshold)}` : null,
     ].filter((line): line is string => Boolean(line));
@@ -311,18 +302,35 @@ export async function sendAlertEmail({
     return;
   }
 
-  if (!process.env.ALERT_EMAIL_TO) {
-    console.error("ALERT_EMAIL_TO missing - email not sent");
-    return;
-  }
-
-  const recipient = process.env.ALERT_EMAIL_TO;
   const account = stripeAccountId
     ? await prisma.stripeAccount.findUnique({
         where: { stripeAccountId },
-        select: { name: true, stripeAccountId: true },
+        select: {
+          name: true,
+          stripeAccountId: true,
+          user: {
+            select: {
+              email: true,
+            },
+          },
+        },
       })
     : null;
+  const isProduction = process.env.NODE_ENV === "production";
+  const recipient =
+    account?.user?.email ||
+    (!isProduction ? process.env.ALERT_EMAIL_TO ?? null : null);
+
+  if (!recipient) {
+    console.error("Alert email recipient missing - email not sent", {
+      stripeAccountId,
+      environment: process.env.NODE_ENV ?? "unknown",
+      hasOwnerEmail: Boolean(account?.user?.email),
+      hasAlertEmailFallback: Boolean(process.env.ALERT_EMAIL_TO),
+    });
+    return;
+  }
+
   const accountLabel =
     account?.name?.trim() || account?.stripeAccountId || stripeAccountId || "Stripe account";
   const keyValues = buildKeyAlertValues(type, context);
