@@ -1,5 +1,5 @@
 import Link from "next/link";
-import StitchIcon from "./StitchIcon";
+import RevenueWatchLogo from "./RevenueWatchLogo";
 
 export default function MarketingFooter() {
   return (
@@ -7,8 +7,7 @@ export default function MarketingFooter() {
       <div className="rw-shell rw-footer-inner">
         <div className="rw-footer-brand">
           <div className="rw-footer-logo">
-            <StitchIcon name="monitoring" className="rw-icon" />
-            <span className="rw-wordmark">RevenueWatch</span>
+            <RevenueWatchLogo compact />
           </div>
           <p>{"\u00A9 2024 RevenueWatch \u2022 Operated by Parmora"}</p>
         </div>

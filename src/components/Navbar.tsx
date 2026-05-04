@@ -1,6 +1,6 @@
 import Link from "next/link";
 import AppNavLinks from "./AppNavLinks";
-import StitchIcon from "./StitchIcon";
+import RevenueWatchLogo from "./RevenueWatchLogo";
 import { auth, signOut } from "../auth";
 
 type NavbarProps = {
@@ -13,8 +13,7 @@ type NavbarProps = {
 function Brand() {
   return (
     <Link href="/" className="rw-brand">
-      <StitchIcon name="monitoring" className="rw-icon" />
-      <span className="rw-wordmark">RevenueWatch</span>
+      <RevenueWatchLogo />
     </Link>
   );
 }

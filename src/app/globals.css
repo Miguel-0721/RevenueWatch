@@ -105,19 +105,31 @@ img {
 .rw-footer-logo {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 10px;
 }
 
-.rw-icon {
-  color: var(--primary);
-  font-size: 18px;
+.rw-brand {
+  transition: opacity 0.18s ease;
 }
 
-.rw-wordmark {
-  color: var(--primary);
-  font-size: 1.08rem;
-  font-weight: 700;
-  letter-spacing: -0.045em;
+.rw-brand:hover {
+  opacity: 0.92;
+}
+
+.rw-logo {
+  display: inline-flex;
+  align-items: center;
+}
+
+.rw-logo-image {
+  width: auto;
+  height: 46px;
+  max-width: none;
+  object-fit: contain;
+}
+
+.rw-logo-compact .rw-logo-image {
+  height: 50px;
 }
 
 .rw-nav-links {
@@ -366,7 +378,12 @@ img {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+}
+
+.rw-footer-brand p {
+  color: #64748b;
+  text-align: center;
 }
 
 .rw-footer-links {

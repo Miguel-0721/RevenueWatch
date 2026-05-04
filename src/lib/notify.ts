@@ -201,7 +201,6 @@ function buildKeyAlertValues(type: string, context?: string | null) {
       currentRevenue !== null ? `Current revenue: ${formatMoneyAmount(currentRevenue)}` : null,
       usualRevenue !== null ? `Usual revenue: ${formatMoneyAmount(usualRevenue)}` : null,
       threshold !== null ? `Alert threshold: ${formatMoneyAmount(threshold)}` : null,
-      dropPercent !== null ? `Drop: ${dropPercent}% lower than usual` : null,
     ].filter((line): line is string => Boolean(line));
   }
 
@@ -213,6 +212,10 @@ function buildContextSection(type: string, context?: string | null) {
   return values.length > 0 ? `\nKey alert values:\n${values.join("\n")}` : "";
 }
 
+function buildEmailBrandHeader(wordmarkSrc: string) {
+  return `<img src="${escapeHtml(wordmarkSrc)}" alt="RevenueWatch" width="292" style="display:block;width:auto;max-width:292px;height:32px;object-fit:contain;" />`;
+}
+
 function buildHtmlEmail({
   accountLabel,
   alertType,
@@ -221,6 +224,7 @@ function buildHtmlEmail({
   mainMessage,
   keyValues,
   detailsUrl,
+  wordmarkSrc,
 }: {
   accountLabel: string;
   alertType: string;
@@ -229,6 +233,7 @@ function buildHtmlEmail({
   mainMessage: string;
   keyValues: string[];
   detailsUrl: string | null;
+  wordmarkSrc: string;
 }) {
   const isCritical = severityLabel === "High Severity";
   const badgeBg = isCritical ? "#ffdad6" : "#fff1c2";
@@ -258,10 +263,7 @@ function buildHtmlEmail({
     <div style="max-width:640px;margin:0 auto;">
       <div style="background:#ffffff;border:1px solid rgba(193,198,215,0.28);border-radius:18px;box-shadow:0 8px 24px rgba(25,28,29,0.06);overflow:hidden;">
         <div style="padding:18px 28px;border-bottom:1px solid rgba(193,198,215,0.18);background:linear-gradient(180deg,#f8fbff 0%,#ffffff 100%);">
-          <div style="display:inline-flex;align-items:center;gap:10px;">
-            <span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:999px;background:#e7f0fb;color:#0058bc;font-size:12px;font-weight:800;">↺</span>
-            <span style="font-size:20px;font-weight:800;letter-spacing:-0.03em;color:#0058bc;">RevenueWatch</span>
-          </div>
+          ${buildEmailBrandHeader(wordmarkSrc)}
         </div>
         <div style="padding:28px;">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap;">
@@ -317,9 +319,7 @@ export async function sendAlertEmail({
       })
     : null;
   const isProduction = process.env.NODE_ENV === "production";
-  const recipient =
-    account?.user?.email ||
-    (!isProduction ? process.env.ALERT_EMAIL_TO ?? null : null);
+  const recipient = account?.user?.email || (!isProduction ? process.env.ALERT_EMAIL_TO ?? null : null);
 
   if (!recipient) {
     console.error("Alert email recipient missing - email not sent", {
@@ -331,8 +331,7 @@ export async function sendAlertEmail({
     return;
   }
 
-  const accountLabel =
-    account?.name?.trim() || account?.stripeAccountId || stripeAccountId || "Stripe account";
+  const accountLabel = account?.name?.trim() || account?.stripeAccountId || stripeAccountId || "Stripe account";
   const keyValues = buildKeyAlertValues(type, context);
   const contextSection = buildContextSection(type, context);
   const resolvedDetectedAt = getDetectedDate(context, detectedAt);
@@ -343,6 +342,7 @@ export async function sendAlertEmail({
     appUrl && stripeAccountId
       ? `${appUrl}/dashboard/accounts/${encodeURIComponent(stripeAccountId)}`
       : null;
+  const wordmarkSrc = `${appUrl}/brand/revenuewatch-wordmark.png`;
   const mainMessage = buildMainMessage(type, message, context);
   const alertTypeLabel = formatAlertType(type);
   const severityLabel = formatSeverity(severity);
@@ -355,6 +355,7 @@ export async function sendAlertEmail({
     mainMessage,
     keyValues,
     detailsUrl,
+    wordmarkSrc,
   });
 
   console.log("ALERT EMAIL START", {
