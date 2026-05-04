@@ -14,7 +14,7 @@ export default function RevenueWatchLogo({
   return (
     <span className={classes}>
       <img
-        src="/brand/revenuewatch-wordmark.png.png"
+        src="/brand/revenuewatch-wordmark.png"
         alt="RevenueWatch"
         className="rw-logo-image"
       />
