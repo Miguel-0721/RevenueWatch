@@ -342,7 +342,7 @@ export async function sendAlertEmail({
     appUrl && stripeAccountId
       ? `${appUrl}/dashboard/accounts/${encodeURIComponent(stripeAccountId)}`
       : null;
-  const wordmarkSrc = `${appUrl}/brand/revenuewatch-wordmark.png`;
+  const wordmarkSrc = `${appUrl}/brand/revenuewatch-wordmark.png.png`;
   const mainMessage = buildMainMessage(type, message, context);
   const alertTypeLabel = formatAlertType(type);
   const severityLabel = formatSeverity(severity);
