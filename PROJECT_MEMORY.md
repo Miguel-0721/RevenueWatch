@@ -1871,3 +1871,833 @@ Do not forget:
 - The user wants future chats to remember all of this.
 - Do not delete old memory sections when updating this file.
 - Append new dated sections instead.
+
+---
+
+## 2026-05-02 Session Update
+
+This section appends the important state and decisions from the 2026-05-02 session. Keep all earlier history above. This section is the current reference for demo-data centralization, dashboard/account-detail demo behavior, revenue chart direction, and payment-failure detail cleanup.
+
+### Git / Recovery / Push Behavior
+
+Important pushed commits from this session:
+- `291cf9a` — `Centralize demo monitoring data`
+- `42fe7d4` — `Polish account detail issue view`
+
+Important current behavior change from the user:
+- The user explicitly said pushes to GitHub do not need a separate permission question in chat.
+- Practical meaning:
+  - still work locally first
+  - but if the user says `push to github`, proceed through add/commit/push directly
+  - keep `.codex-temp/` out of commits
+
+Current last pushed commit at the end of the pushed part of this session:
+- `42fe7d4`
+
+Important current local state after that push:
+- Additional account-detail changes were made **after** `42fe7d4`
+- Those later changes are local unless pushed in a later session
+- They mainly affect:
+  - payment-failure detail chart cleanup
+  - wording and timestamp consistency on the account detail page
+
+### Central Demo Data System
+
+Major architectural cleanup implemented:
+- All scattered hardcoded demo presentation values were replaced with one central demo dataset:
+  - `src/lib/demoData.ts`
+
+This file now drives demo behavior for:
+- dashboard connected accounts
+- dashboard active issues
+- dashboard recent history
+- alerts page active alerts
+- alerts page alert history
+- account detail pages
+- revenue-drop demo charts
+- payment-failure demo charts / issue summaries
+
+Important exported helpers now exist in `src/lib/demoData.ts`:
+- `getActiveDemoAlerts()`
+- `getDemoAccountById(id)`
+- `getDemoAlertHistory()`
+- `getDemoDashboardStats()`
+- `getRevenueDropPercent(currentRevenue, usualRevenue)`
+- `getPaymentFailureMultiple(currentFailures, normalFailures)`
+- `getDemoSeverity(account)`
+- `hasDemoAccount(ids)`
+
+Alias support added:
+- `acct_demo_oak` maps to `acct_demo_oak_ember`
+
+Important product rule:
+- This demo system is for local/demo presentation only.
+- It must not alter:
+  - Stripe logic
+  - billing logic
+  - webhook logic
+  - Prisma schema
+  - production alert rules
+
+### Demo Account Set
+
+Current central demo set includes 10 accounts:
+- Northstar Commerce
+- BluePeak Studio
+- Cedar Labs
+- Harbor Retail
+- Oak & Ember
+- Riverline Fitness
+- Atlas Agency
+- Meridian Goods
+- Summit Learning
+- Lumen Health
+
+Current active issue accounts:
+- Northstar Commerce
+- BluePeak Studio
+- Cedar Labs
+- Harbor Retail
+
+Current healthy accounts:
+- Oak & Ember
+- Riverline Fitness
+- Atlas Agency
+- Meridian Goods
+- Summit Learning
+- Lumen Health
+
+Important ordering rules now implemented in demo mode:
+- Active issue accounts show first
+- Healthy accounts show after them
+- Dashboard active issues prioritize:
+  - high severity first
+  - review-needed after
+
+### Dashboard Demo Behavior
+
+Dashboard now reads demo mode from the central dataset when demo accounts are present.
+
+Important current dashboard behavior in demo mode:
+- Connected accounts list uses demo names/status/last-event data
+- DB names can still override demo names if the user renamed an account locally
+- Active Issues cards come from the central 4 active demo accounts
+- Recent History on the dashboard remains intentionally short
+- Dashboard recent history shows only the latest 2 items
+- `View full history` links to `/alerts`
+
+Important accepted dashboard UX rules that remain in effect:
+- Dashboard is a control center, not a log page
+- Keep Recent History short
+- Keep active issue ordering/prioritization clear
+- Keep normal connected account rows non-click-heavy
+
+### Alerts Page Demo Behavior
+
+Alerts page now also reads from `src/lib/demoData.ts` in demo mode.
+
+Important current behavior:
+- Top section shows all active demo alerts
+- History section title is:
+  - `Alert History`
+- History is intentionally neutral past activity, not framed as “resolved/fixed”
+
+Current demo history grouping order:
+- `Today`
+- `Yesterday`
+- `Earlier this week`
+- `Last week`
+- `Older`
+
+Important wording rule preserved:
+- History should describe that an alert happened in the past
+- It should not imply manual resolution or guaranteed recovery unless the system truly verifies that
+
+### Account Detail Page Direction
+
+The account detail page was heavily cleaned up during this session.
+
+Important header decisions now in effect:
+- Remove `Add account` from the account detail header
+- Keep only:
+  - `Back to dashboard`
+- Remove visible technical Stripe account ID from the main header
+- Main title should be just the account name
+- Subtitle should explain:
+  - `Review this account's current monitoring status and alert activity.`
+- Status pill should sit inline to the right of the account name
+- Status pill meanings:
+  - critical/high issue => `High severity`
+  - warning/review issue => `Review needed`
+  - healthy => `Monitoring active`
+
+Status pill color rules now used:
+- critical/high severity:
+  - pale red background
+  - red text
+- warning/review:
+  - pale yellow background
+  - amber text
+- healthy:
+  - pale blue background
+  - blue text
+
+Back button styling decision:
+- `Back to dashboard` should remain secondary
+- no icon
+- no arrow
+- blue text
+- subtle blue border
+- light blue hover is acceptable
+
+Spacing decision:
+- Top spacing between navbar and account header was reduced by about 20px
+
+### Lower Account Detail Section Cleanup
+
+Lower account detail section was simplified to feel clearer and more neutral.
+
+Current lower-section heading decisions:
+- Left section title:
+  - `Current Issue`
+- Remove helper count like:
+  - `1 flagged items`
+- Right section title:
+  - `Alert History`
+- Remove helper label like:
+  - `Past alert activity`
+
+Alert history presentation decisions:
+- Remove `OK` icon / badge from history rows
+- Keep history visually neutral and trustworthy
+- Alert History cards should use neutral white card styling rather than gray disabled-looking cards
+- History should not visually imply a manual resolution state
+
+### Exact Detected Timestamp Rules
+
+Important timestamp cleanup from this session:
+- Exact detected timestamps were added to the account detail page
+- The preferred format is:
+  - `Detected: May 2 at 3:33 PM`
+
+Current rule:
+- Use the alert's actual `createdAt` / detected time when available
+
+Where exact detected time should appear consistently:
+- right-side issue panel
+- Current Issue card timestamp line
+- any account-detail issue summary that references the same active alert
+
+Formatting decision:
+- prefer exact detected time over only relative time in the account detail lower section
+
+### Revenue-Drop Chart Direction
+
+This was refined repeatedly during the session and the final direction is important.
+
+Core product rule:
+- RevenueWatch is a monitoring/alerting tool, not an analytics dashboard
+- The chart should explain:
+  - revenue was normal
+  - revenue crossed the alert threshold
+  - this is why the alert opened
+
+Final revenue-chart structural rules:
+- one thin blue revenue line
+- one red dashed threshold line
+- soft red issue zone below threshold
+- one red breach dot
+- no expected/baseline line in the chart
+- no predictive/projected overlays
+
+Important demo-data behavior change:
+- Revenue data is now interpreted as revenue per recent period, not a stock-like curve or accumulated line
+- Northstar demo series was specifically reworked to use recent period values
+
+Northstar revenue-drop demo evolution:
+- at one point the series ended at `11:00`
+- later the user explicitly wanted continued monitoring after first breach
+- current intended Northstar demo shape:
+  - stable revenue through earlier points
+  - first breach at `11:00`
+  - later point at `12:00` to show ongoing issue
+
+Current important chart logic rules:
+1. The first breach point is the first point where revenue `<= threshold`
+2. The red breach dot must stay on that first breach point
+3. The blue line may continue after that point if later data exists
+4. The side panel should still show the **latest/current** revenue value from the latest point
+
+Important threshold annotation decisions:
+- Do not use a floating “Alert triggered” badge
+- Use one threshold pill on the dashed threshold line
+- Label text should be:
+  - `Threshold (€75,000)` or dynamic equivalent
+- The threshold pill should be fully opaque, not transparent
+- The threshold pill should be subtle and secondary
+- The threshold pill should not overlap the blue line or breach dot
+- Placement should be dynamic based on the actual first breach point:
+  - place left of the breach when there is room
+  - otherwise place right of the breach
+  - do not hardcode around example hours like `10:00` or `11:00`
+
+Current revenue-chart wording rules:
+- Title:
+  - `Revenue during this period`
+- Description:
+  - `Each point shows how much revenue came in during that time period.`
+- Blue metadata label:
+  - `Current period`
+- Side panel copy:
+  - `Sales are 45% lower than usual for this time period.`
+- Metric labels:
+  - `Current revenue`
+  - `Usual revenue`
+  - `Alert threshold`
+- Comparison basis:
+  - `Usual revenue is based on similar recent time periods.`
+
+### Payment-Failure Detail Chart Direction
+
+This area was also significantly refined and is still important current local state.
+
+High-level direction:
+- Payment-failure detail section should match the clarity level of the revenue chart
+- It should be understandable for non-technical users
+- It should not feel like a noisy analytics panel
+
+Current accepted wording:
+- Title:
+  - `Failed payments during this period`
+- Supporting text should say:
+  - each bar shows how many failed payments happened during that time period
+- Metadata label:
+  - `Current period`
+
+Important chart behavior decisions for payment failures:
+- show only a short recent range
+- use fixed recent hourly buckets
+- user strongly preferred a shorter range like the revenue chart
+- current target is the most recent 6 hourly buckets
+
+Important bar-meaning rule:
+- one bar = failed payments during that hour / bucket
+- not cumulative
+- not “so far”
+- not an event-by-event running sequence
+
+Important y-axis rule:
+- use clean rounded steps only
+- examples:
+  - `0, 10, 20, 30`
+  - or similar nice rounded numbers
+- do not use awkward steps like `13, 27, 40`
+
+Important bar-color rule:
+- below threshold = light pink
+- at/above threshold = red
+- latest/current bar can be darkest red if appropriate
+- do **not** use a decorative progressive darkening just because time passes
+
+Important threshold rule:
+- keep the dashed threshold line
+- keep threshold label
+- keep legend visually consistent with the threshold line
+
+Important duplication rule:
+- the user explicitly wanted to remove the duplicate 3-card stat row above the payment chart
+- the right-side issue panel is the main summary area and should remain:
+  - current failed payments
+  - usual failed payments
+  - alert threshold
+  - detected time
+
+Current note about payment-failure section state:
+- It was actively refined after commit `42fe7d4`
+- Depending on whether those latest local edits are pushed yet, the repo may contain:
+  - removal of duplicate mini summary cards
+  - 6 hourly buckets
+  - narrower cleaner bars
+  - cleaner y-axis scaling
+  - simpler non-cumulative wording
+
+Treat this as the intended direction even if a later revert is needed.
+
+### Demo Mode Account Detail Construction
+
+Important implementation behavior:
+- In demo mode, active alerts for demo accounts are synthesized from the demo account definitions
+- `context` JSON for demo alerts includes:
+  - revenue/failure data
+  - threshold
+  - display message
+
+Important consequence:
+- account detail pages for demo accounts are not random placeholders
+- they are intentionally generated from the central demo dataset
+- future changes to chart shape or summary messaging should generally start in:
+  - `src/lib/demoData.ts`
+  - then the account detail rendering logic
+
+### Current Local Files Most Relevant To This Session
+
+Primary files repeatedly edited during this session:
+- `PROJECT_MEMORY.md`
+- `src/lib/demoData.ts`
+- `src/app/dashboard/page.tsx`
+- `src/app/alerts/page.tsx`
+- `src/app/dashboard/accounts/[accountId]/page.tsx`
+- `src/app/dashboard/accounts/[accountId]/page.module.css`
+
+If a future chat needs to continue this direction, these are the first files to inspect.
+
+### Verification Habit Used This Session
+
+Repeated verification command used after nearly every chart/copy/layout edit:
+- `npx.cmd tsc --noEmit`
+
+This should continue to be the quick regression check for account-detail/chart/copy changes.
+
+---
+
+## 2026-05-04 Session Update
+
+This section appends the important state and decisions from the 2026-05-04 session. Keep all earlier history above. This section is the current reference for RevenueWatch branding assets, alert email design/recipient behavior, local revenue-drop webhook testing support, and the latest revenue-drop account-detail snapshot rules.
+
+### Git / Pushes / Recovery
+
+Important pushed commits across these recent sessions:
+- `3af35e9` - `Apply RevenueWatch brand assets`
+- `5397129` - `Fix RevenueWatch logo asset paths`
+- `ed8bb1e` - `Fix RevenueWatch asset references`
+- `cef1213` - `Rename RevenueWatch brand assets`
+- `ff32122` - `Refine revenue alert snapshots and local testing`
+
+Current latest known pushed commit:
+- `ff32122`
+
+Important push behavior still in effect:
+- If the user says `push to github`, proceed directly.
+- Keep `PROJECT_MEMORY.md` and `.codex-temp/` out of pushes unless explicitly requested.
+
+### RevenueWatch Brand Assets
+
+Brand asset direction changed from a reconstructed logo to real image assets in `public/brand`.
+
+Current real brand assets:
+- `public/brand/revenuewatch-wordmark.png`
+- `public/brand/revenuewatch-icon.png`
+
+Current usage rule:
+- Use the actual image assets directly.
+- Do not rebuild the RevenueWatch logo in code with CSS/text/icon approximations.
+
+Current implementation:
+- Shared UI brand component:
+  - `src/components/RevenueWatchLogo.tsx`
+- Wordmark is used in:
+  - website header
+  - dashboard/app navbar
+  - footer
+  - alert email header
+
+Important transparency note:
+- The current PNG files are **not transparent** assets.
+- They visually work, but if perfect transparent-background behavior is needed later, the files themselves must be replaced with transparent exports.
+
+Current local/prod asset-path lesson:
+- There was a period where brand files had mismatched names / double extensions.
+- The clean expected paths now are:
+  - `/brand/revenuewatch-wordmark.png`
+  - `/brand/revenuewatch-icon.png`
+- If production still returns `404` for the asset URL, assume deployment/domain state first, not the code path.
+
+Important domain note:
+- There was a production check where `https://revenuewatch.app/brand/revenuewatch-wordmark.png` returned `404`.
+- Local repo paths were correct at that point.
+- Most likely causes were:
+  - production serving an older deployment
+  - apex/root domain not matching the canonical deployed host
+  - Vercel domain/routing state
+
+### Alert Email System
+
+The alert email system was significantly expanded during these sessions.
+
+Current sender / reply-to:
+- Sender:
+  - `RevenueWatch <alerts@revenuewatch.app>`
+- Reply-To:
+  - `contact@revenuewatch.app`
+
+Current delivery behavior:
+- Email failures remain non-fatal.
+- Webhook should continue even if Resend email sending fails.
+- `sendAlertEmail(...)` is awaited in the webhook flow, but internal failures are caught/logged and do not break alert creation.
+
+Current logging in email helper should include:
+- email sending started
+- sender
+- reply-to
+- recipient
+- alert type
+- Resend success response
+- Resend failure response
+
+### Alert Email Recipient Rule
+
+Recipient behavior was updated away from a fixed test address.
+
+Current rule:
+- In production:
+  - send alert emails to the `User.email` associated with the `StripeAccount` that triggered the alert
+- In development:
+  - prefer the real owner email if available
+  - otherwise fall back to `ALERT_EMAIL_TO`
+
+Important:
+- `ALERT_EMAIL_TO` is now a local/dev fallback, not the intended production recipient destination.
+
+### Alert Email Design / Content
+
+Alert emails were upgraded from plain text only to:
+- HTML email
+- plain text fallback
+
+Current visual direction:
+- RevenueWatch-branded header
+- RevenueWatch blue as the main accent
+- calm white card layout
+- simple operational summary, not a marketing email
+- no charts inside email
+
+Current required email content:
+- connected account / business name
+- alert title
+- severity badge
+- detected time
+- main issue summary
+- key values
+- `Review this alert` button / link
+- simple informational footer
+
+Current informational footer line:
+- `This alert is informational only. RevenueWatch does not predict future performance or recommend any action.`
+
+Current revenue-drop email values:
+- `Current revenue`
+- `Usual revenue`
+- `Alert threshold`
+
+Important:
+- The extra `Drop` metric box was intentionally removed from revenue-drop emails.
+- The drop percentage should remain in the main summary sentence instead.
+
+Current payment-failure email values:
+- `Current failed payments`
+- `Usual failed payments`
+- `Alert threshold`
+
+Important payment email simplification:
+- `Minimum comparison level` was removed from the user-facing email.
+- It can stay in internal context/logs, but not in user-facing email content.
+
+### Alert Email Link / Logo Rules
+
+Current account detail link behavior in emails:
+- Use `NEXT_PUBLIC_APP_URL` when available.
+- In local development, fall back to:
+  - `http://localhost:3000`
+
+Example local detail link:
+- `http://localhost:3000/dashboard/accounts/test_account_local`
+
+Current email logo rule:
+- Use the real RevenueWatch wordmark asset.
+- Use a normal HTML `img` tag with an absolute URL.
+- Do not redraw the logo in email HTML/CSS.
+
+Current expected production asset URL:
+- `https://revenuewatch.app/brand/revenuewatch-wordmark.png`
+
+Important Gmail/local testing lesson:
+- Gmail cannot load `localhost` images from a real inbox context.
+- Local email tests may show a broken image if the logo URL points to `localhost`.
+- That is expected for local inbox rendering and not a reason to change production email behavior.
+
+### Local Stripe CLI Test Account
+
+Local Stripe CLI support was formalized around one safe local fallback account:
+- `test_account_local`
+
+Current ensured local test account behavior:
+- a local helper ensures it exists
+- it is forced to:
+  - `status = active`
+  - `name = Local Stripe CLI Test Account`
+
+Current script:
+- `scripts/ensureLocalStripeAccount.js`
+
+Important safety change:
+- local helper scripts should refuse production
+- `ensureLocalStripeAccount.js` now refuses to run in production
+
+### Local Revenue-Drop Webhook Testing Support
+
+This was a major addition in this session.
+
+Goal:
+- support full local `revenue_drop` testing through the real webhook path
+- not just the email template
+
+New npm/local scripts now exist:
+- `npm run seed:local-stripe-account`
+- `npm run reset:local-revenue-drop-test`
+- `npm run seed:revenue-baseline`
+- existing email-only script still exists:
+  - `npm run test:revenue-drop-email`
+
+New/updated files:
+- `scripts/ensureLocalStripeAccount.js`
+- `scripts/seedRevenueBaseline.js`
+- `scripts/resetLocalRevenueDropTest.js`
+- `scripts/seedBaseline.ts`
+- `package.json`
+
+Current `seed:revenue-baseline` rule:
+- local-only
+- refuses production
+- ensures `test_account_local` exists and is active
+- seeds only `revenueMetric` rows for `test_account_local`
+- does not touch real connected accounts
+
+Current `reset:local-revenue-drop-test` rule:
+- local-only
+- refuses production
+- deletes only:
+  - `Alert` rows where:
+    - `stripeAccountId = test_account_local`
+    - `type = revenue_drop`
+  - `revenueMetric` rows for:
+    - `stripeAccountId = test_account_local`
+- does **not** touch:
+  - payment-failure test data
+  - real accounts
+  - billing data
+  - Stripe Connect data
+
+### Revenue Baseline Seed Hour Fix
+
+An important local testing bug was found and fixed:
+- baseline seed used the wrong hour bucket
+- seeded hour did not match webhook `nowHour`
+
+Observed mismatch example:
+- seeded hour: `16`
+- webhook comparison hour: `15`
+- result:
+  - `sampleCount: 0` across revenue baseline candidates
+
+Current fix:
+- local revenue baseline scripts now seed for the exact current UTC hour used by the webhook
+- they use runtime UTC hour and align `revenueMetric.hourOfDay` with that hour
+
+Important result:
+- after reset + reseed, local `payment_intent.succeeded` webhook tests should now reach the revenue `DROP MATH` stage when the event amount is low enough
+
+### Full Local Revenue-Drop Test Flow
+
+Current intended local test order:
+1. `npm run seed:local-stripe-account`
+2. `npm run reset:local-revenue-drop-test`
+3. `npm run seed:revenue-baseline`
+4. `npm run dev`
+5. in another terminal:
+   - `stripe listen --forward-to localhost:3000/api/stripe/webhook`
+6. in another terminal:
+   - `stripe trigger payment_intent.succeeded --override payment_intent:amount=12000`
+
+Important reason for the override:
+- webhook ignores tiny current revenue windows below the minimum
+- a low but non-trivial succeeded amount is needed
+- `12000` cents (`€120`) is above the minimum current revenue guard while still being far below the seeded baseline
+
+### Revenue-Drop Detail Chart: Snapshot Rule
+
+The revenue-drop account detail page was refined heavily in this session.
+
+Core rule now in effect:
+- the account detail page is an **alert snapshot**, not a live analytics chart
+
+This applies to:
+- demo accounts
+- local Stripe CLI test account
+- real accounts
+
+Important desired behavior:
+- chart must be anchored to the alert detection time
+- chart must not keep sliding forward forever
+- chart exists to explain **why the alert fired**
+
+### Revenue-Drop Snapshot Data Source
+
+Important implementation change:
+- new webhook-created `revenue_drop` alerts now store a frozen `revenueSeries` snapshot in alert context
+
+Current behavior:
+- the detail page prefers `revenueSeries` from alert context
+- this makes local/test/real alerts behave more like the demo alerts
+- the detail page no longer has to invent a moving pseudo-live chart for new revenue-drop alerts
+
+Current right-side values should come from the same frozen snapshot context:
+- `Current revenue`
+- `Usual revenue`
+- `Alert threshold`
+
+### Revenue-Drop Snapshot Window Rule
+
+Current explicit snapshot count rule:
+- show exactly `5` visible hourly points when enough data exists
+- the final visible point must be the breach / alert point
+- do not show data after the breach point
+- if fewer than 5 earlier points exist, show whatever is available
+
+Example intended result:
+- `07:00, 08:00, 09:00, 10:00, 11:00`
+- not:
+  - `07:00, 08:00, 09:00, 10:00, 11:00, 12:00`
+
+Important clarification:
+- a display like `07:00` to `11:00` is still **5 points**
+- even though it spans 4 hours between endpoints
+- this is expected and not a missing-data bug
+
+### Revenue-Drop Snapshot Trimming
+
+Additional refinement:
+- if a `revenueSeries` includes data after the first breach, the detail chart now trims the visible window so the first breach is the final visible point
+- later post-breach buckets are not shown in the account detail snapshot
+
+This was specifically to prevent confusion where the chart kept showing later buckets after the original alert-triggering drop.
+
+### Revenue-Drop Display Consistency
+
+The dashboard/display severity wording for revenue-drop alerts was corrected to match the intended `30% / 50%` rules everywhere.
+
+Current intended severity wording:
+- `Review Needed`:
+  - revenue is `30%+` lower than usual
+- `High Severity`:
+  - revenue is `50%+` lower than usual
+
+Important inconsistency that was fixed:
+- previously some demo logic still used weaker thresholds like `25%` / `40%`
+- tooltip and badge wording used `30% / 50%`
+- that mismatch hurt trust
+
+Current fix:
+- demo severity logic now matches:
+  - `30%+` review
+  - `50%+` high
+
+Northstar demo account was updated to stay meaningfully consistent with `High Severity`:
+- `usualRevenue: 112000`
+- `currentRevenue: 53000`
+- displayed message:
+  - `Sales are 53% lower than usual for this window.`
+
+### Dashboard Revenue Alert Wording
+
+The active dashboard alert cards were refined to avoid repeating the exact same percentage twice.
+
+Current desired pattern for revenue-drop cards:
+- main sentence:
+  - plain-language summary
+  - `Sales are much lower than usual for this window.`
+- supporting line:
+  - exact measured severity
+  - `Sales are 53% lower than usual.`
+
+Payment-failure cards should continue to use the same structure:
+- main sentence:
+  - plain-language summary
+- supporting line:
+  - exact multiple such as `2.3× higher than usual`
+
+Important implementation note:
+- dashboard demo alert cards now include enough context JSON to compute/display the exact severity reason line consistently
+
+### Severity Help Popover Rules
+
+Severity help was refined in earlier recent sessions and remains current.
+
+Current popover rule:
+- no default browser tooltip
+- use a custom click popover
+- keep it small and calm
+
+Current revenue severity popover copy:
+- `Review Needed: revenue is 30%+ lower than usual.`
+- `High Severity: revenue is 50%+ lower than usual.`
+
+Current payment-failure popover copy:
+- `Review Needed: payment failures are around 2× higher than usual.`
+- `High Severity: payment failures are around 4× higher than usual.`
+
+### Payment-Failure Logic Upgrade
+
+Payment-failure alerting was significantly improved in these recent sessions and should be remembered here for future work.
+
+Current philosophy:
+- payment failures should be compared to the account's own normal historical behavior
+- similar in spirit to revenue-drop detection
+
+Current rules:
+- current period:
+  - last 60 minutes
+- historical comparison:
+  - last 14 days
+- comparison fallback order:
+  1. same day of week + same hour
+  2. same weekday/weekend type + same hour
+  3. same hour only
+- minimum sample count:
+  - `5`
+- minimum current failures:
+  - `5`
+- baseline floor:
+  - `3`
+- trigger threshold:
+  - `effectiveUsualFailures * 2`
+- critical threshold:
+  - around `4×`
+
+Important chart rule retained:
+- payment-failure chart bars represent failures in that specific bucket only
+- not cumulative totals
+
+### Verification Habit
+
+Repeated verification command used for almost every code change in these sessions:
+- `npx.cmd tsc --noEmit`
+
+Also used for script checks where relevant:
+- `node --check scripts/seedRevenueBaseline.js`
+- `node --check scripts/resetLocalRevenueDropTest.js`
+
+### Current Most Relevant Files After This Session
+
+If a future chat needs to continue from this exact state, inspect these first:
+- `PROJECT_MEMORY.md`
+- `package.json`
+- `scripts/ensureLocalStripeAccount.js`
+- `scripts/seedRevenueBaseline.js`
+- `scripts/resetLocalRevenueDropTest.js`
+- `scripts/seedBaseline.ts`
+- `src/lib/demoData.ts`
+- `src/app/dashboard/page.tsx`
+- `src/app/dashboard/accounts/[accountId]/page.tsx`
+- `src/app/api/stripe/webhook/route.ts`
+- `src/lib/notify.ts`
+- `src/components/RevenueWatchLogo.tsx`
