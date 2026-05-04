@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import MarketingFooter from "@/components/MarketingFooter";
+import ScrollReveal from "@/components/ScrollReveal";
 import StitchIcon from "@/components/StitchIcon";
 import type { IconName } from "@/components/StitchIcon";
 import styles from "./page.module.css";
@@ -298,7 +299,7 @@ export default function HomePage() {
       <section className={styles.heroSection}>
         <div className={styles.heroShell}>
           <div className={styles.heroGrid}>
-            <div className={styles.heroCopy}>
+            <ScrollReveal className={styles.heroCopy}>
               <span className={styles.partnerBadge}>
                 <StitchIcon name="verified" filled className={styles.partnerIcon} />
                 Stripe Verified Partner
@@ -331,92 +332,106 @@ export default function HomePage() {
                   How it works
                 </a>
               </div>
-            </div>
+            </ScrollReveal>
 
-            <HeroWidget />
+            <ScrollReveal delayMs={120}>
+              <HeroWidget />
+            </ScrollReveal>
           </div>
         </div>
       </section>
 
       <section className={styles.insightSection}>
         <div className={styles.shell}>
-          <div className={styles.centerHeading}>
+          <ScrollReveal className={styles.centerHeading}>
             <h2>What happens without RevenueWatch?</h2>
             <p>
               Stripe issues can sit quietly until they have already cost you
               revenue, time, or trust.
             </p>
-          </div>
+          </ScrollReveal>
 
           <div className={styles.insightGrid}>
-            <InsightCard
-              icon="warning"
-              title="Payment failures go unnoticed"
-              body="A broken payment flow can quietly drain revenue while Stripe still looks normal at a glance."
-            />
-            <InsightCard
-              icon="trending_down"
-              title="Revenue declines silently"
-              body="Small drops can run for hours before anyone notices the trend is turning."
-            />
-            <InsightCard
-              icon="notifications"
-              title="You find out too late"
-              body="Too many teams only learn about a problem after a client complains or monthly numbers look wrong."
-            />
+            <ScrollReveal delayMs={40}>
+              <InsightCard
+                icon="warning"
+                title="Payment failures go unnoticed"
+                body="A broken payment flow can quietly drain revenue while Stripe still looks normal at a glance."
+              />
+            </ScrollReveal>
+            <ScrollReveal delayMs={120}>
+              <InsightCard
+                icon="trending_down"
+                title="Revenue declines silently"
+                body="Small drops can run for hours before anyone notices the trend is turning."
+              />
+            </ScrollReveal>
+            <ScrollReveal delayMs={200}>
+              <InsightCard
+                icon="notifications"
+                title="You find out too late"
+                body="Too many teams only learn about a problem after a client complains or monthly numbers look wrong."
+              />
+            </ScrollReveal>
           </div>
         </div>
       </section>
 
       <section className={styles.valueSection}>
         <div className={styles.shell}>
-          <div className={styles.centerHeading}>
+          <ScrollReveal className={styles.centerHeading}>
             <span className={styles.valueEyebrow}>Value Proposition</span>
             <h2>What RevenueWatch saves.</h2>
             <p>
               The payoff is simple: less lost revenue, less manual checking,
               and fewer unpleasant surprises for clients.
             </p>
-          </div>
+          </ScrollReveal>
 
           <div className={styles.valueGrid}>
-            <ValueWidget
-              icon="trending_down"
-              label="Revenue Recovery"
-              metric="+$12,400"
-              title="Missed revenue"
-              body="Catch payment issues before they quietly drain MRR or spread across connected accounts."
-              variant="revenue"
-            />
-            <ValueWidget
-              icon="timer"
-              label="Operational Efficiency"
-              metric="10h Saved/mo"
-              title="Manual checking time"
-              body="Replace habitual Stripe spot-checks with passive visibility and only step in when action is required."
-              variant="time"
-            />
-            <ValueWidget
-              icon="verified_user"
-              label="Retention Index"
-              metric="100% Reliability"
-              title="Client trust"
-              body="Spot issues first, respond early, and avoid the awkward 'we just noticed' conversation."
-              variant="trust"
-            />
+            <ScrollReveal delayMs={40}>
+              <ValueWidget
+                icon="trending_down"
+                label="Revenue Recovery"
+                metric="+$12,400"
+                title="Missed revenue"
+                body="Catch payment issues before they quietly drain MRR or spread across connected accounts."
+                variant="revenue"
+              />
+            </ScrollReveal>
+            <ScrollReveal delayMs={120}>
+              <ValueWidget
+                icon="timer"
+                label="Operational Efficiency"
+                metric="10h Saved/mo"
+                title="Manual checking time"
+                body="Replace habitual Stripe spot-checks with passive visibility and only step in when action is required."
+                variant="time"
+              />
+            </ScrollReveal>
+            <ScrollReveal delayMs={200}>
+              <ValueWidget
+                icon="verified_user"
+                label="Retention Index"
+                metric="100% Reliability"
+                title="Client trust"
+                body="Spot issues first, respond early, and avoid the awkward 'we just noticed' conversation."
+                variant="trust"
+              />
+            </ScrollReveal>
           </div>
         </div>
       </section>
 
       <section id="how-it-works" className={styles.workflowSection}>
         <div className={styles.shell}>
-          <div className={styles.sectionHeading}>
+          <ScrollReveal className={styles.sectionHeading}>
             <h2>How it works.</h2>
             <div className={styles.headingBar} />
-          </div>
+          </ScrollReveal>
 
           <div className={styles.workflowGrid}>
-            <article className={styles.stepOne}>
+            <ScrollReveal as="article" className={styles.stepOne} delayMs={40}>
               <div>
                 <div className={styles.darkStep}>1</div>
                 <h3>Connect with Stripe.</h3>
@@ -439,9 +454,9 @@ export default function HomePage() {
                   <p>Read-only permissions active</p>
                 </div>
               </div>
-            </article>
+            </ScrollReveal>
 
-            <article className={styles.stepTwo}>
+            <ScrollReveal as="article" className={styles.stepTwo} delayMs={120}>
               <div className={styles.lightStep}>2</div>
 
               <div>
@@ -455,9 +470,9 @@ export default function HomePage() {
               <div className={styles.queryBubble}>
                 <StitchIcon name="query_stats" className={styles.queryIcon} />
               </div>
-            </article>
+            </ScrollReveal>
 
-            <article className={styles.stepThree}>
+            <ScrollReveal as="article" className={styles.stepThree} delayMs={200}>
               <div className={styles.stepThreeCopy}>
                 <div className={styles.darkStep}>3</div>
                 <h3>Get notified instantly.</h3>
@@ -505,23 +520,23 @@ export default function HomePage() {
                   </div>
                 </div>
               </div>
-            </article>
+            </ScrollReveal>
           </div>
         </div>
       </section>
 
       <section className={styles.trustSection}>
         <div className={styles.shell}>
-          <div className={styles.centerHeading}>
+          <ScrollReveal className={styles.centerHeading}>
             <h2>Secure, calm monitoring.</h2>
             <p>
               Built for Stripe OAuth, read-only monitoring, and clear alerting
               when your revenue needs attention.
             </p>
-          </div>
+          </ScrollReveal>
 
           <div className={styles.trustBento}>
-            <article className={styles.trustBentoPrimary}>
+            <ScrollReveal as="article" className={styles.trustBentoPrimary} delayMs={40}>
               <div className={styles.trustBentoContent}>
                 <div className={styles.trustBentoIconWrap}>
                   <StitchIcon name="visibility" className={styles.trustIcon} />
@@ -535,9 +550,9 @@ export default function HomePage() {
               <div className={styles.trustShield} aria-hidden="true">
                 <StitchIcon name="shield_lock" className={styles.trustShieldIcon} />
               </div>
-            </article>
+            </ScrollReveal>
 
-            <article className={styles.trustBentoDark}>
+            <ScrollReveal as="article" className={styles.trustBentoDark} delayMs={120}>
               <div className={styles.trustBentoIconWrapDark}>
                 <StitchIcon name="block" className={styles.trustDarkIcon} />
               </div>
@@ -548,9 +563,9 @@ export default function HomePage() {
                   financial actions inside your account.
                 </p>
               </div>
-            </article>
+            </ScrollReveal>
 
-            <article className={styles.trustBentoWide}>
+            <ScrollReveal as="article" className={styles.trustBentoWide} delayMs={180}>
               <div className={styles.trustBentoWideCopy}>
                 <div className={styles.trustBentoIconWrap}>
                   <StitchIcon name="notifications" className={styles.trustIcon} />
@@ -570,75 +585,81 @@ export default function HomePage() {
                 <div className={styles.trustNotificationLineLong} />
                 <div className={styles.trustNotificationLineShort} />
               </div>
-            </article>
+            </ScrollReveal>
           </div>
         </div>
       </section>
 
       <section id="pricing" className={styles.pricingSection}>
         <div className={styles.shell}>
-          <div className={styles.centerHeading}>
+          <ScrollReveal className={styles.centerHeading}>
             <h2>Simple pricing for the number of Stripe accounts you monitor</h2>
             <p>
               Choose the level of coverage you need, from one Stripe account to a
               larger portfolio of client accounts.
             </p>
-          </div>
+          </ScrollReveal>
 
           <div className={styles.pricingGrid}>
-            <PricingCard
-              tier="Starter"
-              description="For one Stripe account that needs simple early-warning coverage."
-              price="Free"
-              items={[
-                "1 Stripe account",
-                "Payment failure detection",
-                "Revenue drop detection",
-                "Read-only monitoring",
-              ]}
-              cta="Start free"
-            />
+            <ScrollReveal delayMs={40}>
+              <PricingCard
+                tier="Starter"
+                description="For one Stripe account that needs simple early-warning coverage."
+                price="Free"
+                items={[
+                  "1 Stripe account",
+                  "Payment failure detection",
+                  "Revenue drop detection",
+                  "Read-only monitoring",
+                ]}
+                cta="Start free"
+              />
+            </ScrollReveal>
 
-            <PricingCard
-              tier="Growth"
-              description="For teams or agencies watching multiple Stripe accounts in one place."
-              price={"\u20AC79"}
-              suffix="/mo"
-              items={[
-                "Up to 10 Stripe accounts",
-                "Revenue and failure alerts",
-                "Multi-account coverage",
-                "Instant email alerts",
-              ]}
-              cta="Protect your accounts"
-              featured
-            />
+            <ScrollReveal delayMs={120}>
+              <PricingCard
+                tier="Growth"
+                description="For teams or agencies watching multiple Stripe accounts in one place."
+                price={"\u20AC79"}
+                suffix="/mo"
+                items={[
+                  "Up to 10 Stripe accounts",
+                  "Revenue and failure alerts",
+                  "Multi-account coverage",
+                  "Instant email alerts",
+                ]}
+                cta="Protect your accounts"
+                featured
+              />
+            </ScrollReveal>
 
-            <PricingCard
-              tier="Pro"
-              description="For larger teams that need broader account coverage and more alert capacity."
-              price={"\u20AC149"}
-              suffix="/mo"
-              items={[
-                "Up to 25 Stripe accounts",
-                "Alerts across connected accounts",
-                "Higher account capacity",
-                "Best for larger teams",
-              ]}
-              cta="Contact us"
-            />
+            <ScrollReveal delayMs={200}>
+              <PricingCard
+                tier="Pro"
+                description="For larger teams that need broader account coverage and more alert capacity."
+                price={"\u20AC149"}
+                suffix="/mo"
+                items={[
+                  "Up to 25 Stripe accounts",
+                  "Alerts across connected accounts",
+                  "Higher account capacity",
+                  "Best for larger teams",
+                ]}
+                cta="Contact us"
+              />
+            </ScrollReveal>
           </div>
 
-          <p className={styles.pricingFootnote}>
+          <ScrollReveal as="p" className={styles.pricingFootnote} delayMs={120}>
             All plans use read-only Stripe access. RevenueWatch never moves money
             or modifies your account.
-          </p>
+          </ScrollReveal>
         </div>
       </section>
 
       <section className={styles.assuranceSection}>
         <div className={styles.shell}>
-          <div className={styles.assuranceBar}>
+          <ScrollReveal className={styles.assuranceBar}>
             <div>
               <StitchIcon name="shield_lock" filled className={styles.assuranceIcon} />
               <span>Read-Only Infrastructure</span>
@@ -655,7 +676,7 @@ export default function HomePage() {
               <StitchIcon name="encrypted" filled className={styles.assuranceIcon} />
               <span>256-bit AES Encryption</span>
             </div>
-          </div>
+          </ScrollReveal>
         </div>
       </section>
 
