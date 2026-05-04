@@ -9,7 +9,9 @@
     "lint": "eslint",
     "postinstall": "prisma generate",
     "seed:local-stripe-account": "node scripts/ensureLocalStripeAccount.js",
+    "seed:revenue-baseline": "node scripts/seedRevenueBaseline.js",
     "reset:local-payment-alert-test": "node scripts/resetLocalPaymentAlertTest.js",
+    "reset:local-revenue-drop-test": "node scripts/resetLocalRevenueDropTest.js",
     "test:revenue-drop-email": "node scripts/testRevenueDropEmail.mjs"
   },
   "dependencies": {

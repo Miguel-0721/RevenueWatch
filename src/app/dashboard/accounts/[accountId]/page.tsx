@@ -156,7 +156,7 @@ function nextHourLabel(label: string) {
 function buildTickIndexes(length: number) {
   if (length <= 1) return [0];
 
-  if (length <= 6) {
+  if (length <= 8) {
     return Array.from({ length }, (_, index) => index);
   }
 
@@ -285,6 +285,7 @@ function buildRevenueChartModel(accountId: string, topAlert: AlertLike | null, n
   const expectedValue = revenueContext?.baselineAmount ?? defaultExpected;
   const actualValue = revenueContext?.currentAmount ?? Math.round(defaultExpected * 0.94);
   const thresholdValue = revenueContext?.alertThresholdAmount ?? Math.round(expectedValue * 0.5);
+  const focusedBucketCount = 5;
   const revenueSeries = Array.isArray(parsed?.revenueSeries)
     ? parsed.revenueSeries
         .filter(
@@ -297,7 +298,11 @@ function buildRevenueChartModel(accountId: string, topAlert: AlertLike | null, n
     : null;
 
   if (revenueSeries && revenueSeries.length > 0) {
-    const points = revenueSeries.map((point, index) => ({
+    const triggerIndex = revenueSeries.findIndex((point) => point.revenue <= thresholdValue);
+    const anchorIndex = triggerIndex >= 0 ? triggerIndex : revenueSeries.length - 1;
+    const windowStart = Math.max(0, anchorIndex - (focusedBucketCount - 1));
+    const visibleSeries = revenueSeries.slice(windowStart, anchorIndex + 1);
+    const points = visibleSeries.map((point, index) => ({
       index,
       label: point.time,
       expected: expectedValue,
@@ -319,15 +324,22 @@ function buildRevenueChartModel(accountId: string, topAlert: AlertLike | null, n
     };
   }
 
-  const activeHour = now.getUTCHours();
-  const points = Array.from({ length: 24 }, (_, hour) => {
-    const dayCurve = 0.86 + Math.sin((hour / 24) * Math.PI * 2 - 0.5) * 0.16;
-    const workdayLift = hour >= 8 && hour <= 21 ? 1.1 : 0.74;
+  const anchorHour = topAlert?.createdAt?.getUTCHours() ?? now.getUTCHours();
+  const points = Array.from({ length: focusedBucketCount }, (_, index) => {
+    const relativeHour = focusedBucketCount - 1 - index;
+    const hour = (anchorHour - relativeHour + 24) % 24;
+    const bucketProgress = index / Math.max(1, focusedBucketCount - 1);
+    const dayCurve = 0.9 + Math.sin((hour / 24) * Math.PI * 2 - 0.5) * 0.08;
+    const workdayLift = hour >= 8 && hour <= 21 ? 1.05 : 0.88;
     const expected = Math.round(expectedValue * dayCurve * workdayLift);
-    const actual = hour === activeHour ? actualValue : Math.round(expected * (0.92 + (hour % 5) * 0.03));
+    const drift = 0.95 + ((index % 3) - 1) * 0.015;
+    const actual =
+      index === focusedBucketCount - 1
+        ? actualValue
+        : Math.round(expected * Math.min(1.02, drift + bucketProgress * 0.02));
 
     return {
-      index: hour,
+      index,
       label: fmtUtcHour(hour),
       expected,
       actual,
@@ -338,12 +350,12 @@ function buildRevenueChartModel(accountId: string, topAlert: AlertLike | null, n
     points,
     expectedValue,
     actualValue,
-    thresholdValue,
-    peakValue: Math.max(...points.map((point) => point.actual)),
-    lowValue: Math.min(...points.map((point) => point.actual)),
-    activeIndex: activeHour,
-    windowLabel: revenueContext?.windowLabel ?? "current monitoring window",
-    isAlerting: actualValue < thresholdValue,
+      thresholdValue,
+      peakValue: Math.max(...points.map((point) => point.actual)),
+      lowValue: Math.min(...points.map((point) => point.actual)),
+      activeIndex: points.length - 1,
+      windowLabel: revenueContext?.windowLabel ?? "current monitoring window",
+      isAlerting: actualValue < thresholdValue,
   };
 }
 

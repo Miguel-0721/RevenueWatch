@@ -53,16 +53,16 @@ export const demoAccounts: DemoAccount[] = [
     lastEvent: "6 days ago",
     detectedAt: "1 hour ago",
     usualRevenue: 112000,
-    currentRevenue: 58000,
+    currentRevenue: 53000,
     alertThreshold: 75000,
-    message: "Sales are 45% lower than usual for this window.",
+    message: "Sales are 53% lower than usual for this window.",
     cta: "Review Issue",
     revenueSeries: [
       { time: "07:00", revenue: 109000 },
       { time: "08:00", revenue: 114000 },
       { time: "09:00", revenue: 111000 },
       { time: "10:00", revenue: 108000 },
-      { time: "11:00", revenue: 62000 },
+      { time: "11:00", revenue: 53000 },
       { time: "12:00", revenue: 58000 },
     ],
   },
@@ -358,8 +358,8 @@ export function getPaymentFailureMultiple(currentFailures: number, normalFailure
 export function getDemoSeverity(account: DemoAccount): DemoSeverity {
   if (isRevenueDropAccount(account)) {
     const dropPercent = getRevenueDropPercent(account.currentRevenue!, account.usualRevenue!);
-    if (dropPercent >= 40) return "high";
-    if (dropPercent >= 25) return "review";
+    if (dropPercent >= 50) return "high";
+    if (dropPercent >= 30) return "review";
     return "none";
   }
 

@@ -114,6 +114,10 @@ function safeParseContext(input?: string | null) {
 function buildReadableAlertMessage(alert: Pick<DisplayAlert, "type" | "message" | "context">) {
   const parsed = safeParseContext(alert.context);
 
+  if (alert.type === "revenue_drop") {
+    return "Sales are much lower than usual for this window.";
+  }
+
   if (!parsed) return alert.message;
 
   if (typeof parsed.displayMessage === "string") {
@@ -174,7 +178,7 @@ function buildSeverityReason(alert: Pick<DisplayAlert, "type" | "severity" | "co
 
     return alert.severity === "critical"
       ? "Sales are 50%+ lower than usual."
-      : "Sales are 30% lower than usual.";
+      : "Sales are 30%+ lower than usual.";
   }
 
   if (alert.type === "payment_failed") {
@@ -582,6 +586,42 @@ export default async function DashboardPage() {
           accountName: account.name,
           detectedLabel: account.detectedAt,
           cta: account.cta,
+          context: JSON.stringify(
+            account.alertType === "revenue_drop"
+              ? {
+                  baselineAmount: account.usualRevenue,
+                  expectedRevenue: account.usualRevenue,
+                  currentAmount: account.currentRevenue,
+                  currentRevenue: account.currentRevenue,
+                  alertThresholdAmount: account.alertThreshold,
+                  threshold:
+                    typeof account.alertThreshold === "number" &&
+                    typeof account.usualRevenue === "number"
+                      ? 1 - account.alertThreshold / account.usualRevenue
+                      : 0.5,
+                  dropRatio:
+                    typeof account.currentRevenue === "number" &&
+                    typeof account.usualRevenue === "number" &&
+                    account.usualRevenue > 0
+                      ? (account.usualRevenue - account.currentRevenue) / account.usualRevenue
+                      : undefined,
+                  displayMessage: account.message,
+                }
+              : {
+                  currentFailures: account.currentFailures,
+                  failuresCounted: account.currentFailures,
+                  normalFailures: account.normalFailures,
+                  baseline: account.normalFailures,
+                  effectiveUsualFailures: account.normalFailures,
+                  spikeMultiple:
+                    typeof account.currentFailures === "number" &&
+                    typeof account.normalFailures === "number" &&
+                    account.normalFailures > 0
+                      ? account.currentFailures / account.normalFailures
+                      : undefined,
+                  displayMessage: account.message,
+                }
+          ),
         } satisfies DisplayAlert,
       ])
     );
