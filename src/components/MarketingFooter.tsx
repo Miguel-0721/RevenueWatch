@@ -3,13 +3,13 @@ import RevenueWatchLogo from "./RevenueWatchLogo";
 
 export default function MarketingFooter() {
   return (
-    <footer className="rw-footer">
+    <footer id="support" className="rw-footer">
       <div className="rw-shell rw-footer-inner">
         <div className="rw-footer-brand">
           <div className="rw-footer-logo">
             <RevenueWatchLogo compact />
           </div>
-          <p>{"\u00A9 2024 RevenueWatch \u2022 Operated by Parmora"}</p>
+          <p>{"\u00A9 2026 RevenueWatch \u2022 Operated by Parmora"}</p>
         </div>
 
         <nav className="rw-footer-links" aria-label="Footer">

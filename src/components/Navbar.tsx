@@ -99,7 +99,7 @@ export default async function Navbar({
           <Link href="/#pricing" className="rw-nav-link">
             Pricing
           </Link>
-          <Link href="/contact" className="rw-nav-link">
+          <Link href="/#support" className="rw-nav-link">
             Support
           </Link>
         </nav>

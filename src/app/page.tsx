@@ -186,7 +186,7 @@ function PricingCard({
       <Link
         href={
           tier === "Pro"
-            ? "/contact"
+            ? "/api/billing/checkout/pro"
             : tier === "Growth"
               ? "/auth/continue?plan=growth"
               : "/auth/continue?plan=free"
@@ -612,7 +612,7 @@ export default function HomePage() {
                 <h3>Get alerted early.</h3>
                 <p>
                   Receive a clear alert when RevenueWatch detects an unusual
-                  issue, so you can review it before it grows into a bigger
+                  change, so you can review it before it becomes a bigger
                   problem.
                 </p>
               </div>
@@ -674,8 +674,8 @@ export default function HomePage() {
           <ScrollReveal className={styles.centerHeading}>
             <h2>Secure, calm monitoring.</h2>
             <p>
-              Built for Stripe OAuth, read-only monitoring, and clear alerting
-              when your revenue needs attention.
+              Connect with Stripe securely, keep access read-only, and receive
+              clear alerts when something needs attention.
             </p>
           </ScrollReveal>
 
@@ -687,8 +687,9 @@ export default function HomePage() {
                 </div>
                 <h3>Read-only access</h3>
                 <p>
-                  We connect through secure Stripe OAuth and never change billing,
-                  payouts, or account settings. Your data is for eyes only.
+                  RevenueWatch connects through secure Stripe OAuth and never
+                  changes billing, payouts, or account settings. It only reads
+                  the data needed for monitoring.
                 </p>
               </div>
               <div className={styles.trustShield} aria-hidden="true">
@@ -706,28 +707,6 @@ export default function HomePage() {
                   RevenueWatch never moves funds, edits payouts, or performs
                   financial actions inside your account.
                 </p>
-              </div>
-            </ScrollReveal>
-
-            <ScrollReveal as="article" className={styles.trustBentoWide} delayMs={180}>
-              <div className={styles.trustBentoWideCopy}>
-                <div className={styles.trustBentoIconWrap}>
-                  <StitchIcon name="notifications" className={styles.trustIcon} />
-                </div>
-                <h3>Early-warning alerts only</h3>
-                <p>
-                  You get notified when payment failures spike or revenue drops
-                  unexpectedly, before the damage spreads. No complex dashboards,
-                  just the news that matters.
-                </p>
-              </div>
-              <div className={styles.trustNotification} aria-hidden="true">
-                <div className={styles.trustNotificationTop}>
-                  <span className={styles.trustPing} />
-                  <strong>Critical Notification</strong>
-                </div>
-                <div className={styles.trustNotificationLineLong} />
-                <div className={styles.trustNotificationLineShort} />
               </div>
             </ScrollReveal>
           </div>
@@ -748,12 +727,12 @@ export default function HomePage() {
             <ScrollReveal delayMs={40}>
               <PricingCard
                 tier="Starter"
-                description="For one Stripe account that needs simple early-warning coverage."
+                description="For testing RevenueWatch on one Stripe account."
                 price="Free"
                 items={[
                   "1 Stripe account",
-                  "Payment failure detection",
-                  "Revenue drop detection",
+                  "Payment failure and revenue drop alerts",
+                  "Email alerts",
                   "Read-only monitoring",
                 ]}
                 cta="Start free"
@@ -763,16 +742,16 @@ export default function HomePage() {
             <ScrollReveal delayMs={120}>
               <PricingCard
                 tier="Growth"
-                description="For teams or agencies watching multiple Stripe accounts in one place."
-                price={"\u20AC79"}
+                description="For small teams or agencies monitoring multiple Stripe accounts."
+                price={"\u20AC39"}
                 suffix="/mo"
                 items={[
                   "Up to 10 Stripe accounts",
-                  "Revenue and failure alerts",
-                  "Multi-account coverage",
-                  "Instant email alerts",
+                  "Payment failure and revenue drop alerts",
+                  "Multi-account monitoring",
+                  "Email alerts",
                 ]}
-                cta="Protect your accounts"
+                cta="Start monitoring"
                 featured
               />
             </ScrollReveal>
@@ -780,23 +759,23 @@ export default function HomePage() {
             <ScrollReveal delayMs={200}>
               <PricingCard
                 tier="Pro"
-                description="For larger teams that need broader account coverage and more alert capacity."
-                price={"\u20AC149"}
+                description="For larger teams or agencies managing more Stripe accounts."
+                price={"\u20AC99"}
                 suffix="/mo"
                 items={[
                   "Up to 25 Stripe accounts",
-                  "Alerts across connected accounts",
-                  "Higher account capacity",
-                  "Best for larger teams",
+                  "Payment failure and revenue drop alerts",
+                  "Email alerts",
+                  "Best for larger portfolios",
                 ]}
-                cta="Contact us"
+                cta="Start monitoring"
               />
             </ScrollReveal>
           </div>
 
           <ScrollReveal as="p" className={styles.pricingFootnote} delayMs={120}>
             All plans use read-only Stripe access. RevenueWatch never moves money
-            or modifies your account.
+            or changes Stripe account settings.
           </ScrollReveal>
         </div>
       </section>
@@ -806,19 +785,19 @@ export default function HomePage() {
           <ScrollReveal className={styles.assuranceBar}>
             <div>
               <StitchIcon name="shield_lock" filled className={styles.assuranceIcon} />
-              <span>Read-Only Infrastructure</span>
+              <span>Read-Only Stripe Access</span>
             </div>
             <div>
               <StitchIcon name="verified_user" filled className={styles.assuranceIcon} />
-              <span>Stripe Verified Partner</span>
+              <span>Built for Stripe</span>
             </div>
             <div>
               <StitchIcon name="lock" filled className={styles.assuranceIcon} />
               <span>No money movement</span>
             </div>
             <div>
-              <StitchIcon name="encrypted" filled className={styles.assuranceIcon} />
-              <span>256-bit AES Encryption</span>
+              <StitchIcon name="shield_lock" filled className={styles.assuranceIcon} />
+              <span>Secure Stripe OAuth</span>
             </div>
           </ScrollReveal>
         </div>
