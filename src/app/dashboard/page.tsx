@@ -12,6 +12,7 @@ import {
   hasDemoAccount,
 } from "@/lib/demoData";
 import { prisma } from "@/lib/prisma";
+import { syncUserPlanFromStripe } from "@/lib/subscription-sync";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import styles from "./page.module.css";
@@ -531,11 +532,23 @@ function EmptyStateCard({
   );
 }
 
-export default async function DashboardPage() {
+type DashboardPageProps = {
+  searchParams?: Promise<{
+    billing?: string;
+  }>;
+};
+
+export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const session = await auth();
 
   if (!session?.user?.id) {
     redirect("/login");
+  }
+
+  const params = searchParams ? await searchParams : undefined;
+
+  if (params?.billing === "success") {
+    await syncUserPlanFromStripe(session.user.id);
   }
 
   const [user, alerts, stripeAccounts, lastEvents] = await Promise.all([
@@ -817,7 +830,7 @@ export default async function DashboardPage() {
                   <span>CURRENT PLAN</span>
                   <strong>{currentPlanLabel}</strong>
                   <small>{currentPlanLimit} account limit</small>
-                  <Link href="/api/billing/portal" className={styles.quickStatLink}>
+                  <Link href="/billing" className={styles.quickStatLink}>
                     Manage billing
                   </Link>
                 </div>

@@ -23,6 +23,29 @@ function planFromPriceId(priceId: string | null | undefined) {
   return null;
 }
 
+const BILLING_PLAN_RANK = {
+  FREE: 0,
+  GROWTH: 1,
+  PRO: 2,
+} as const;
+
+const ACTIVE_BILLING_STATUSES = new Set([
+  "active",
+  "trialing",
+  "past_due",
+  "unpaid",
+]);
+
+type ManagedSubscriptionPlan = "GROWTH" | "PRO";
+
+type ManagedSubscriptionSummary = {
+  id: string;
+  status: Stripe.Subscription.Status;
+  priceId: string | null;
+  mappedPlan: ManagedSubscriptionPlan;
+  created: number;
+};
+
 async function findUserForBillingEvent({
   userId,
   customerId,
@@ -33,7 +56,11 @@ async function findUserForBillingEvent({
   if (userId) {
     return prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true },
+      select: {
+        id: true,
+        plan: true,
+        stripeSubscriptionId: true,
+      },
     });
   }
 
@@ -50,8 +77,133 @@ async function findUserForBillingEvent({
         { [field]: customerId },
       ],
     },
-    select: { id: true },
+    select: {
+      id: true,
+      plan: true,
+      stripeSubscriptionId: true,
+    },
   });
+}
+
+async function listManagedSubscriptions(customerId: string) {
+  const subscriptions = await stripe.subscriptions.list({
+    customer: customerId,
+    status: "all",
+    limit: 20,
+  });
+
+  const managedSubscriptions: ManagedSubscriptionSummary[] = [];
+
+  for (const subscription of subscriptions.data) {
+    const activeItem = subscription.items.data[0];
+    const priceId = activeItem?.price?.id ?? null;
+    const mappedPlan = planFromPriceId(priceId);
+
+    if (!mappedPlan || !ACTIVE_BILLING_STATUSES.has(subscription.status)) {
+      continue;
+    }
+
+    managedSubscriptions.push({
+      id: subscription.id,
+      status: subscription.status,
+      priceId,
+      mappedPlan,
+      created: subscription.created,
+    });
+  }
+
+  return managedSubscriptions.sort((left, right) => {
+      const rankDifference =
+        BILLING_PLAN_RANK[right.mappedPlan] - BILLING_PLAN_RANK[left.mappedPlan];
+
+      if (rankDifference !== 0) return rankDifference;
+      return right.created - left.created;
+    });
+}
+
+async function syncUserPlanFromManagedSubscriptions({
+  userId,
+  customerId,
+  currentPlan,
+  currentSubscriptionId,
+  source,
+  fallbackPlan,
+  fallbackSubscriptionId,
+}: {
+  userId: string;
+  customerId: string;
+  currentPlan: "FREE" | "GROWTH" | "PRO";
+  currentSubscriptionId?: string | null;
+  source: string;
+  fallbackPlan?: "FREE" | "GROWTH" | "PRO" | null;
+  fallbackSubscriptionId?: string | null;
+}) {
+  const managedSubscriptions = await listManagedSubscriptions(customerId);
+  const effectiveSubscription = managedSubscriptions[0] ?? null;
+  const fallbackManagedPlan =
+    fallbackPlan && fallbackPlan !== "FREE" ? fallbackPlan : null;
+  const nextPlan: "FREE" | ManagedSubscriptionPlan =
+    effectiveSubscription?.mappedPlan ?? fallbackManagedPlan ?? "FREE";
+  const hasManagedPlan = nextPlan === "GROWTH" || nextPlan === "PRO";
+  const nextSubscriptionId =
+    effectiveSubscription?.id ?? (hasManagedPlan ? (fallbackSubscriptionId ?? null) : null);
+  const nextStatus =
+    effectiveSubscription?.status ?? (hasManagedPlan ? "active" : "canceled");
+  const { field } = getStripeMode();
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      plan: nextPlan,
+      stripeCustomerId: customerId,
+      stripeSubscriptionId: nextSubscriptionId,
+      subscriptionStatus: nextStatus,
+      [field]: customerId,
+    },
+  });
+
+  console.log("SYNCED USER BILLING PLAN", {
+    source,
+    customerId,
+    userId,
+    previousPlan: currentPlan,
+    previousSubscriptionId: currentSubscriptionId,
+    newPlan: nextPlan,
+    subscriptionId: nextSubscriptionId,
+    priceId: effectiveSubscription?.priceId ?? null,
+    managedSubscriptionCount: managedSubscriptions.length,
+  });
+
+  return {
+    nextPlan,
+    nextSubscriptionId,
+    managedSubscriptions,
+  };
+}
+
+async function cancelManagedDuplicates({
+  customerId,
+  keepSubscriptionId,
+}: {
+  customerId: string;
+  keepSubscriptionId: string;
+}) {
+  const managedSubscriptions = await listManagedSubscriptions(customerId);
+  const duplicates = managedSubscriptions.filter(
+    (subscription) => subscription.id !== keepSubscriptionId
+  );
+
+  for (const subscription of duplicates) {
+    console.log("CANCELING DUPLICATE MANAGED SUBSCRIPTION", {
+      customerId,
+      keepSubscriptionId,
+      cancelSubscriptionId: subscription.id,
+      cancelPlan: subscription.mappedPlan,
+      cancelPriceId: subscription.priceId,
+    });
+
+    await stripe.subscriptions.cancel(subscription.id);
+  }
 }
 
 
@@ -415,32 +567,44 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true });
     }
 
-    const { field } = getStripeMode();
+    if (!customerId) {
+      console.error("Checkout session missing customer ID", {
+        sessionId: session.id,
+        userId: user.id,
+        subscriptionId,
+      });
+      return NextResponse.json({ received: true });
+    }
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        plan,
-        stripeCustomerId: customerId ?? undefined,
-        stripeSubscriptionId: subscriptionId ?? undefined,
-        subscriptionStatus: "active",
-        [field]: customerId ?? undefined,
-      },
-    });
+    if (subscriptionId) {
+      await cancelManagedDuplicates({
+        customerId,
+        keepSubscriptionId: subscriptionId,
+      });
+    }
 
-    console.log("Updated user plan from checkout webhook", {
+    await syncUserPlanFromManagedSubscriptions({
       userId: user.id,
-      nextPlan: plan,
       customerId,
-      subscriptionId,
-      modeField: field,
+      currentPlan: user.plan,
+      currentSubscriptionId: user.stripeSubscriptionId,
+      source: "checkout.session.completed",
+      fallbackPlan: plan,
+      fallbackSubscriptionId: subscriptionId,
     });
 
     return NextResponse.json({ received: true });
   }
 
-  if (event.type === "customer.subscription.updated") {
-    console.log("Customer subscription updated webhook received", event.id);
+  if (
+    event.type === "customer.subscription.created" ||
+    event.type === "customer.subscription.updated" ||
+    event.type === "customer.subscription.deleted"
+  ) {
+    console.log("Customer subscription billing webhook received", {
+      eventType: event.type,
+      eventId: event.id,
+    });
 
     const subscription = event.data.object as Stripe.Subscription;
     const customerId =
@@ -453,7 +617,8 @@ export async function POST(req: Request) {
     });
 
     if (!user) {
-      console.error("Unable to resolve user for subscription update", {
+      console.error("Unable to resolve user for subscription billing event", {
+        eventType: event.type,
         subscriptionId: subscription.id,
         customerId,
       });
@@ -461,25 +626,28 @@ export async function POST(req: Request) {
     }
 
     const activeItem = subscription.items.data[0];
-    const nextPlan = planFromPriceId(activeItem?.price?.id);
-    const { field } = getStripeMode();
+    const mappedPlan = planFromPriceId(activeItem?.price?.id);
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        plan: nextPlan ?? undefined,
-        stripeCustomerId: customerId,
-        stripeSubscriptionId: subscription.id,
-        subscriptionStatus: subscription.status,
-        [field]: customerId,
-      },
+    console.log("SUBSCRIPTION EVENT DETAILS", {
+      eventType: event.type,
+      customerId,
+      subscriptionId: subscription.id,
+      priceId: activeItem?.price?.id ?? null,
+      mappedPlan,
+      userId: user.id,
+      previousPlan: user.plan,
+      previousSubscriptionId: user.stripeSubscriptionId,
+      subscriptionStatus: subscription.status,
     });
 
-    console.log("Updated user from subscription update", {
+    await syncUserPlanFromManagedSubscriptions({
       userId: user.id,
-      nextPlan,
-      subscriptionId: subscription.id,
-      status: subscription.status,
+      customerId,
+      currentPlan: user.plan,
+      currentSubscriptionId: user.stripeSubscriptionId,
+      source: event.type,
+      fallbackPlan: mappedPlan,
+      fallbackSubscriptionId: subscription.id,
     });
 
     return NextResponse.json({ received: true });

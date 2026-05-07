@@ -1,7 +1,11 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { resolveCheckoutCustomerId } from "@/lib/stripe-customer";
-import { customerHasManagedSubscription } from "@/lib/subscription-guard";
+import {
+  cancelOtherManagedSubscriptions,
+  getManagedSubscriptionsForCustomer,
+  syncUserPlanFromStripe,
+} from "@/lib/subscription-sync";
 import { stripe } from "@/lib/stripe";
 import { NextResponse } from "next/server";
 
@@ -27,6 +31,7 @@ export async function GET() {
       id: true,
       email: true,
       name: true,
+      plan: true,
       stripeCustomerId: true,
       stripeTestCustomerId: true,
       stripeLiveCustomerId: true,
@@ -49,8 +54,46 @@ export async function GET() {
     return NextResponse.redirect(new URL("/billing?billing=customer_error", appUrl));
   }
 
-  if (await customerHasManagedSubscription(stripeCustomerId)) {
-    return NextResponse.redirect(new URL("/api/billing/portal", appUrl));
+  const managedSubscriptions = await getManagedSubscriptionsForCustomer(stripeCustomerId);
+  const currentManagedSubscription = managedSubscriptions[0];
+
+  if (currentManagedSubscription) {
+    const fullSubscription = await stripe.subscriptions.retrieve(
+      currentManagedSubscription.id
+    );
+    const currentItem = fullSubscription.items.data[0];
+
+    if (!currentItem) {
+      return NextResponse.redirect(new URL("/billing?billing=customer_error", appUrl));
+    }
+
+    console.log("STARTING PRO UPGRADE ON EXISTING SUBSCRIPTION", {
+      userId: user.id,
+      customerId: stripeCustomerId,
+      previousPlan: user.plan,
+      subscriptionId: fullSubscription.id,
+      previousPriceId: currentItem.price.id,
+      nextPriceId: priceId,
+    });
+
+    await stripe.subscriptions.update(fullSubscription.id, {
+      items: [
+        {
+          id: currentItem.id,
+          price: priceId,
+        },
+      ],
+      metadata: {
+        userId: user.id,
+        plan: "pro",
+      },
+      proration_behavior: "create_prorations",
+    });
+
+    await cancelOtherManagedSubscriptions(stripeCustomerId, fullSubscription.id);
+    await syncUserPlanFromStripe(user.id);
+
+    return NextResponse.redirect(new URL("/dashboard?billing=success", appUrl));
   }
 
   const checkoutSession = await stripe.checkout.sessions.create({

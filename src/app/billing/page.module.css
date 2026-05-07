@@ -15,6 +15,22 @@
   color: #64748b;
   font-size: 14px;
   font-weight: 700;
+  transition: color 0.18s ease, transform 0.18s ease;
+}
+
+.backLink:hover {
+  color: #414755;
+  transform: translateY(-1px);
+}
+
+.backLink:active {
+  transform: translateY(0);
+}
+
+.backLink:focus-visible {
+  outline: 2px solid rgba(0, 88, 188, 0.28);
+  outline-offset: 4px;
+  border-radius: 6px;
 }
 
 .notice {
@@ -27,6 +43,57 @@
   font-size: 14px;
   font-weight: 600;
   line-height: 1.5;
+}
+
+.noticeLink {
+  display: inline-flex;
+  margin-top: 10px;
+  color: #0058bc;
+  font-size: 14px;
+  font-weight: 800;
+  transition: color 0.18s ease, transform 0.18s ease;
+}
+
+.noticeLink:hover {
+  color: #004a9d;
+  transform: translateY(-1px);
+}
+
+.noticeLink:active {
+  transform: translateY(0);
+}
+
+.noticeLink:focus-visible {
+  outline: 2px solid rgba(0, 88, 188, 0.28);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+.noticeLinkButton {
+  margin-top: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #0058bc;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: color 0.18s ease, transform 0.18s ease;
+}
+
+.noticeLinkButton:hover {
+  color: #004a9d;
+  transform: translateY(-1px);
+}
+
+.noticeLinkButton:active {
+  transform: translateY(0);
+}
+
+.noticeLinkButton:focus-visible {
+  outline: 2px solid rgba(0, 88, 188, 0.28);
+  outline-offset: 4px;
+  border-radius: 6px;
 }
 
 .noticeMuted {
@@ -72,7 +139,8 @@
 }
 
 .sidebar {
-  display: block;
+  display: grid;
+  gap: 18px;
 }
 
 .planCard,
@@ -131,6 +199,13 @@
   font-weight: 700;
 }
 
+.planSupportCopy {
+  margin: 14px 0 0;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
 .upgradeGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -140,12 +215,22 @@
 .upgradeCard {
   min-height: 100%;
   box-shadow: 0 1px 2px rgba(25, 28, 29, 0.03);
-  transition: box-shadow 0.18s ease, border-color 0.18s ease;
+  transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
 }
 
-.upgradeCard:hover {
+.upgradeCardInteractive:hover {
   border-color: rgba(113, 119, 134, 0.32);
   box-shadow: 0 8px 24px rgba(25, 28, 29, 0.06);
+  transform: translateY(-1px);
+}
+
+.upgradeCardInteractive:has(.upgradeButton:focus-visible) {
+  border-color: rgba(0, 88, 188, 0.28);
+  box-shadow: 0 0 0 3px rgba(0, 88, 188, 0.12);
+}
+
+.upgradeCardInteractive:has(.upgradeButton:active) {
+  transform: translateY(0);
 }
 
 .upgradeCardFeatured {
@@ -256,10 +341,37 @@
   font-size: 14px;
   font-weight: 700;
   box-shadow: 0 10px 20px rgba(0, 88, 188, 0.14);
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease,
+    border-color 0.18s ease;
 }
+
+.upgradeButton:hover {
+  background: linear-gradient(180deg, #004ea7 0%, #0066d6 100%);
+  box-shadow: 0 14px 24px rgba(0, 88, 188, 0.18);
+  transform: translateY(-1px);
+}
+
+.upgradeButton:active {
+  transform: translateY(0);
+  box-shadow: 0 8px 14px rgba(0, 88, 188, 0.14);
+}
+
+.upgradeButton:focus-visible {
+  outline: 2px solid rgba(0, 88, 188, 0.28);
+  outline-offset: 3px;
+}
+
 
 .upgradeButtonPrimary {
   background: linear-gradient(180deg, #0058bc 0%, #0070eb 100%);
+}
+
+.portalButton {
+  margin-top: 18px;
 }
 
 .upgradeButtonDisabled {
@@ -268,6 +380,20 @@
   border-color: rgba(193, 198, 215, 0.6);
   box-shadow: none;
   cursor: default;
+  transform: none;
+}
+
+.upgradeButtonDisabled:hover,
+.upgradeButtonDisabled:active {
+  background: #eef0f2;
+  color: #717786;
+  box-shadow: none;
+  transform: none;
+}
+
+.upgradeButtonDisabled:focus-visible {
+  outline: 2px solid rgba(113, 119, 134, 0.2);
+  outline-offset: 3px;
 }
 
 .upgradePlanNote {
@@ -279,6 +405,10 @@
   color: #717786;
   font-size: 13px;
   font-weight: 700;
+}
+
+.actionForm {
+  width: 100%;
 }
 
 .trustLine {

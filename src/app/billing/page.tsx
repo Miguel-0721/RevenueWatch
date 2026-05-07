@@ -2,6 +2,9 @@ import { auth } from "@/auth";
 import Navbar from "@/components/Navbar";
 import { getPlanLabel, getPlanLimit, PLAN_LABELS } from "@/lib/billing";
 import { prisma } from "@/lib/prisma";
+import { getManagedSubscriptionsForCustomer } from "@/lib/subscription-sync";
+import { getStripeMode } from "@/lib/stripe-customer";
+import { stripe } from "@/lib/stripe";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import styles from "./page.module.css";
@@ -10,31 +13,34 @@ type BillingPageProps = {
   searchParams?: Promise<{
     reason?: string;
     billing?: string;
+    connected?: string;
   }>;
 };
 
 const upgradePlans = [
   {
     key: "GROWTH" as const,
-    price: "€79",
-    checkoutHref: "/api/billing/checkout/growth",
+    price: "€39",
+    upgradeHref: "/api/billing/checkout/growth",
+    downgradeHref: "/api/billing/change-plan/growth",
     features: [
       "Up to 10 connected Stripe accounts",
       "Revenue and failure monitoring across a broader portfolio",
-      "Upgrade to monitor more Stripe accounts.",
+      "Best when you only need up to 10 connected accounts.",
     ],
-    cta: "Upgrade to Growth",
+    upgradeCta: "Upgrade to Growth",
+    downgradeCta: "Downgrade to Growth",
   },
   {
     key: "PRO" as const,
-    price: "€149",
-    checkoutHref: "/contact?plan=pro",
+    price: "€99",
+    upgradeHref: "/api/billing/checkout/pro",
     features: [
       "Up to 25 connected Stripe accounts",
       "More headroom for larger Stripe operations",
       "Upgrade to monitor more Stripe accounts.",
     ],
-    cta: "Upgrade to Pro",
+    upgradeCta: "Upgrade to Pro",
     featured: true,
   },
 ];
@@ -44,6 +50,8 @@ const PLAN_RANK = {
   GROWTH: 1,
   PRO: 2,
 } as const;
+
+const GROWTH_LIMIT = 10;
 
 function CheckIcon() {
   return (
@@ -56,6 +64,14 @@ function CheckIcon() {
   );
 }
 
+function formatBillingDate(timestampSeconds: number) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(timestampSeconds * 1000));
+}
+
 export default async function BillingPage({ searchParams }: BillingPageProps) {
   const session = await auth();
 
@@ -66,7 +82,11 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: {
+      id: true,
       plan: true,
+      stripeCustomerId: true,
+      stripeTestCustomerId: true,
+      stripeLiveCustomerId: true,
       stripeAccounts: {
         where: { status: "active" },
         select: { id: true },
@@ -85,6 +105,49 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
   const currentPlanRank = PLAN_RANK[user.plan as keyof typeof PLAN_RANK] ?? 0;
   const showLimitMessage =
     params?.reason === "limit_reached" || connectedAccountCount >= planLimit;
+  const proDowngradeBlocked =
+    user.plan === "PRO" && connectedAccountCount > GROWTH_LIMIT;
+  const blockedConnectedCount = Number(params?.connected ?? connectedAccountCount);
+  const accountsToPause = Math.max(0, blockedConnectedCount - GROWTH_LIMIT);
+  const { field } = getStripeMode();
+  const customerId = user[field] ?? user.stripeCustomerId;
+
+  let scheduledDowngradeDateLabel: string | null = null;
+
+  if (user.plan === "PRO" && customerId) {
+    const managedSubscriptions = await getManagedSubscriptionsForCustomer(customerId);
+    const currentManagedSubscription = managedSubscriptions[0];
+
+    if (currentManagedSubscription) {
+      const fullSubscription = await stripe.subscriptions.retrieve(
+        currentManagedSubscription.id,
+        { expand: ["schedule"] }
+      );
+      const scheduleObject =
+        typeof fullSubscription.schedule === "string"
+          ? await stripe.subscriptionSchedules.retrieve(fullSubscription.schedule)
+          : fullSubscription.schedule;
+
+      if (
+        scheduleObject &&
+        scheduleObject.phases.some((phase) =>
+          phase.items.some(
+            (item) => item.price === process.env.STRIPE_GROWTH_PRICE_ID
+          )
+        )
+      ) {
+        const growthPhase = scheduleObject.phases.find((phase) =>
+          phase.items.some(
+            (item) => item.price === process.env.STRIPE_GROWTH_PRICE_ID
+          )
+        );
+
+        if (growthPhase?.start_date) {
+          scheduledDowngradeDateLabel = formatBillingDate(growthPhase.start_date);
+        }
+      }
+    }
+  }
 
   return (
     <>
@@ -97,7 +160,8 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
 
           {params?.reason === "limit_reached" ? (
             <div className={styles.notice}>
-              You’ve reached your account limit. Upgrade to connect more Stripe accounts.
+              You&apos;ve reached your account limit. Upgrade to connect more Stripe
+              accounts.
             </div>
           ) : null}
 
@@ -109,13 +173,68 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
 
           {params?.billing === "customer_error" ? (
             <div className={styles.noticeMuted}>
-              We couldn&apos;t prepare billing for this account right now. Please try again.
+              We couldn&apos;t prepare billing for this account right now. Please try
+              again.
+            </div>
+          ) : null}
+
+          {params?.billing === "missing_growth_price" ? (
+            <div className={styles.noticeMuted}>
+              Growth billing is not configured yet. Please try again shortly.
+            </div>
+          ) : null}
+
+          {params?.billing === "use_billing_page" ? (
+            <div className={styles.noticeMuted}>
+              Use the Billing page buttons to manage plan changes.
             </div>
           ) : null}
 
           {params?.billing === "no_profile" ? (
+            <div className={styles.noticeMuted}>No billing profile found yet.</div>
+          ) : null}
+
+          {params?.billing === "downgrade_cancelled" ? (
             <div className={styles.noticeMuted}>
-              No billing profile found yet.
+              Your scheduled downgrade has been canceled. Pro will stay active.
+            </div>
+          ) : null}
+
+          {params?.billing === "downgrade_error" ? (
+            <div className={styles.noticeMuted}>
+              We couldn&apos;t schedule the downgrade right now. Please try again.
+            </div>
+          ) : null}
+
+          {params?.billing === "downgrade_blocked" || proDowngradeBlocked ? (
+            <div className={styles.notice}>
+              <div>
+                Growth supports up to 10 connected Stripe accounts. You currently
+                have {blockedConnectedCount} connected accounts. To downgrade to
+                Growth, please pause or disconnect {accountsToPause} account
+                {accountsToPause === 1 ? "" : "s"} first.
+              </div>
+              <Link href="/dashboard#connected-accounts" className={styles.noticeLink}>
+                Manage connected accounts
+              </Link>
+            </div>
+          ) : null}
+
+          {scheduledDowngradeDateLabel ? (
+            <div className={styles.noticeMuted}>
+              <div>
+                Downgrade scheduled. Your plan will change to Growth on{" "}
+                {scheduledDowngradeDateLabel}.
+              </div>
+              <form
+                action="/api/billing/change-plan/pro"
+                method="post"
+                className={styles.actionForm}
+              >
+                <button type="submit" className={styles.noticeLinkButton}>
+                  Keep Pro
+                </button>
+              </form>
             </div>
           ) : null}
 
@@ -131,13 +250,18 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
           <section className={styles.layoutGrid}>
             <aside className={styles.sidebar}>
               <article className={styles.planCard}>
-                <span className={styles.planLabel}>Current plan: {currentPlanLabel}</span>
+                <span className={styles.planLabel}>
+                  Current plan: {currentPlanLabel}
+                </span>
 
                 <div className={styles.progressTrack} aria-hidden="true">
                   <div
                     className={styles.progressFill}
                     style={{
-                      width: `${Math.min(100, Math.max((connectedAccountCount / planLimit) * 100, 8))}%`,
+                      width: `${Math.min(
+                        100,
+                        Math.max((connectedAccountCount / planLimit) * 100, 8)
+                      )}%`,
                     }}
                   />
                 </div>
@@ -146,6 +270,20 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
                   {connectedAccountCount} / {planLimit} accounts used
                 </div>
               </article>
+
+              <article className={styles.planCard}>
+                <span className={styles.planLabel}>Billing management</span>
+                <p className={styles.planSupportCopy}>
+                  Manage payment method, view invoices, or cancel your subscription in
+                  Stripe&apos;s secure billing portal.
+                </p>
+                <Link
+                  href="/api/billing/portal"
+                  className={`${styles.upgradeButton} ${styles.portalButton}`}
+                >
+                  Open billing portal
+                </Link>
+              </article>
             </aside>
 
             <div className={styles.upgradeGrid}>
@@ -153,17 +291,29 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
                 const planRank = PLAN_RANK[plan.key];
                 const isCurrentPlan = plan.key === user.plan;
                 const canUpgradeToPlan = planRank > currentPlanRank;
+                const isProToGrowthDowngrade =
+                  user.plan === "PRO" && plan.key === "GROWTH";
+                const downgradeScheduled =
+                  isProToGrowthDowngrade && Boolean(scheduledDowngradeDateLabel);
+                const isInteractive =
+                  (!isCurrentPlan && canUpgradeToPlan) ||
+                  (isProToGrowthDowngrade && !downgradeScheduled);
 
                 return (
                   <article
                     key={plan.key}
-                    className={`${styles.upgradeCard}${plan.featured ? ` ${styles.upgradeCardFeatured}` : ""}`}
+                    className={`${styles.upgradeCard}${plan.featured ? ` ${styles.upgradeCardFeatured}` : ""}${isInteractive ? ` ${styles.upgradeCardInteractive}` : ""}`}
                   >
                     {plan.featured ? (
-                      <span className={styles.recommendedBadge}>Recommended for you</span>
+                      <span className={styles.recommendedBadge}>
+                        Recommended for you
+                      </span>
                     ) : null}
 
-                    <div className={styles.upgradeTopRule} aria-hidden={!plan.featured} />
+                    <div
+                      className={styles.upgradeTopRule}
+                      aria-hidden={!plan.featured}
+                    />
 
                     <div className={styles.upgradeBody}>
                       <div>
@@ -190,12 +340,41 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
                         >
                           Current Plan
                         </span>
+                      ) : isProToGrowthDowngrade ? (
+                        proDowngradeBlocked ? (
+                          <Link
+                            href="/dashboard#connected-accounts"
+                            className={`${styles.upgradeButton} ${styles.upgradeButtonPrimary}`}
+                          >
+                            Manage connected accounts
+                          </Link>
+                        ) : downgradeScheduled ? (
+                          <span
+                            className={`${styles.upgradeButton} ${styles.upgradeButtonDisabled}`}
+                            aria-disabled="true"
+                          >
+                            Downgrade scheduled
+                          </span>
+                        ) : (
+                          <form
+                            action={plan.downgradeHref}
+                            method="post"
+                            className={styles.actionForm}
+                          >
+                            <button
+                              type="submit"
+                              className={`${styles.upgradeButton} ${styles.upgradeButtonPrimary}`}
+                            >
+                              {plan.downgradeCta}
+                            </button>
+                          </form>
+                        )
                       ) : canUpgradeToPlan ? (
                         <Link
-                          href={plan.checkoutHref}
+                          href={plan.upgradeHref}
                           className={`${styles.upgradeButton} ${styles.upgradeButtonPrimary}`}
                         >
-                          {plan.cta}
+                          {plan.upgradeCta}
                         </Link>
                       ) : (
                         <span className={styles.upgradePlanNote}>Lower tier</span>
@@ -208,7 +387,8 @@ export default async function BillingPage({ searchParams }: BillingPageProps) {
           </section>
 
           <p className={styles.trustLine}>
-            You can upgrade or cancel anytime. No changes are made to your Stripe accounts.
+            You can upgrade or cancel anytime. No changes are made to your Stripe
+            accounts.
           </p>
         </div>
       </main>
