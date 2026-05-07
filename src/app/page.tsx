@@ -9,101 +9,8 @@ import styles from "./page.module.css";
 function HeroWidget() {
   return (
     <div className={styles.heroWidgetWrap}>
-      <div className={styles.heroWidget}>
-        <div className={styles.heroWidgetTop}>
-          <div>
-            <p className={styles.overline}>Live Revenue Monitor</p>
-            <div className={styles.heroKpiRow}>
-              <h3>$12,482.00</h3>
-              <StitchIcon name="error" className={styles.errorIcon} />
-            </div>
-          </div>
-
-          <div className={styles.anomalyCard}>
-            <span>Anomaly Detected</span>
-            <p>-42.4% vs Projected</p>
-          </div>
-        </div>
-
-        <div className={styles.graphCard}>
-          <svg viewBox="0 0 400 160" className={styles.graphSvg} aria-hidden="true">
-            <defs>
-              <linearGradient id="lineGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor="#0070eb" stopOpacity="0.08" />
-                <stop offset="100%" stopColor="#0070eb" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-
-            <g stroke="#e2e8f0" strokeWidth="0.5">
-              <line x1="0" y1="20" x2="400" y2="20" />
-              <line x1="0" y1="40" x2="400" y2="40" />
-              <line x1="0" y1="60" x2="400" y2="60" />
-              <line x1="0" y1="80" x2="400" y2="80" />
-              <line x1="0" y1="100" x2="400" y2="100" />
-              <line x1="0" y1="120" x2="400" y2="120" />
-              <line x1="0" y1="140" x2="400" y2="140" />
-            </g>
-
-            <g stroke="#e2e8f0" strokeDasharray="2,2" strokeWidth="0.5">
-              <line x1="100" y1="0" x2="100" y2="160" />
-              <line x1="200" y1="0" x2="200" y2="160" />
-              <line x1="300" y1="0" x2="300" y2="160" />
-            </g>
-
-            <path
-              d="M 0 50 L 50 48 L 100 52 L 150 49 L 200 51 L 250 48 L 300 50 L 350 49 L 400 50"
-              fill="none"
-              stroke="#cbd5e1"
-              strokeDasharray="3,3"
-              strokeWidth="0.75"
-            />
-
-            <path
-              d="M 0 52 L 40 48 L 80 50 L 120 46 L 160 54 L 200 48 L 240 52 L 270 55 L 290 130 L 320 135 L 350 120 L 400 115 L 400 160 L 0 160 Z"
-              fill="url(#lineGradient)"
-            />
-
-            <path
-              d="M 0 52 L 40 48 L 80 50 L 120 46 L 160 54 L 200 48 L 240 52 L 270 55 L 290 130 L 320 135 L 350 120 L 400 115"
-              fill="none"
-              stroke="#0070eb"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="1.5"
-            />
-
-            <path
-              d="M 270 55 L 290 130 L 320 135"
-              fill="none"
-              stroke="#ba1a1a"
-              strokeLinecap="round"
-              strokeWidth="2"
-            />
-
-            <circle cx="0" cy="52" r="1.5" fill="#0070eb" />
-            <circle cx="200" cy="48" r="1.5" fill="#0070eb" />
-            <circle cx="270" cy="55" r="1.5" fill="#0070eb" />
-            <circle cx="290" cy="130" r="5" fill="#ba1a1a" opacity="0.4" />
-            <circle cx="290" cy="130" r="2.5" fill="#ba1a1a" />
-          </svg>
-
-          <div className={styles.overlayTag}>Anomaly Detected</div>
-        </div>
-
-        <div className={styles.graphMeta}>
-          <div className={styles.graphMetaCard}>
-            <p className={styles.overline}>Stripe Account</p>
-            <div className={styles.accountRow}>
-              <span className={styles.accountDot} />
-              <span>Alpha Tech Global</span>
-            </div>
-          </div>
-
-          <div className={styles.graphMetaCard}>
-            <p className={styles.overline}>Alert Priority</p>
-            <span className={styles.criticalText}>Critical Action Required</span>
-          </div>
-        </div>
+      <div className={styles.heroDashboardPreview}>
+        <RevenueMonitoringPreview hero />
       </div>
     </div>
   );
@@ -291,22 +198,22 @@ function PricingCard({
   );
 }
 
-function RevenueMonitoringPreview() {
+function RevenueMonitoringPreview({ hero = false }: { hero?: boolean }) {
   return (
-    <div className={styles.monitorPreviewCard}>
+    <div className={`${styles.monitorPreviewCard} ${hero ? styles.monitorPreviewCardHero : ""}`}>
       <div className={styles.monitorPreviewHeader}>
         <div>
           <p className={styles.monitorPreviewEyebrow}>Connected account</p>
           <h4>Northstar Commerce</h4>
         </div>
         <span className={styles.monitorPreviewAlertPill}>Revenue drop detected</span>
-      </div>
+        </div>
 
-      <div className={styles.monitorPreviewBody}>
+        <div className={styles.monitorPreviewBody}>
         <div className={styles.monitorPreviewIssue}>
           <p className={styles.monitorPreviewEyebrow}>Current issue</p>
           <strong>Sales are much lower than usual for this period.</strong>
-          <span>High severity</span>
+          <span>{hero ? "Alert snapshot" : "High severity"}</span>
         </div>
 
         <div className={styles.monitorPreviewChart}>
@@ -316,6 +223,10 @@ function RevenueMonitoringPreview() {
                 <stop offset="0%" stopColor="#0058bc" stopOpacity="0.15" />
                 <stop offset="100%" stopColor="#0058bc" stopOpacity="0" />
               </linearGradient>
+              <linearGradient id="monitorRevenueAlertZone" x1="0%" x2="0%" y1="0%" y2="100%">
+                <stop offset="0%" stopColor="#ba1a1a" stopOpacity="0.05" />
+                <stop offset="100%" stopColor="#ba1a1a" stopOpacity="0.015" />
+              </linearGradient>
             </defs>
 
             <g stroke="#e2e8f0" strokeWidth="1">
@@ -324,6 +235,8 @@ function RevenueMonitoringPreview() {
               <line x1="22" y1="116" x2="338" y2="116" />
               <line x1="22" y1="150" x2="338" y2="150" />
             </g>
+
+            <rect x="22" y="92" width="316" height="58" fill="url(#monitorRevenueAlertZone)" />
 
             <line
               x1="22"
@@ -362,7 +275,7 @@ function RevenueMonitoringPreview() {
         </div>
 
         <div className={styles.monitorPreviewMetrics}>
-          <div>
+          <div className={styles.monitorPreviewMetricCritical}>
             <span>Current revenue</span>
             <strong>€53,000</strong>
           </div>
@@ -448,7 +361,7 @@ export default function HomePage() {
             <ScrollReveal className={styles.heroCopy}>
               <span className={styles.partnerBadge}>
                 <StitchIcon name="verified" filled className={styles.partnerIcon} />
-                Stripe Verified Partner
+                Stripe account monitoring
               </span>
 
               <h1>
@@ -457,20 +370,20 @@ export default function HomePage() {
               </h1>
 
               <p>
-                RevenueWatch watches your Stripe accounts in the background and
-                alerts you when something goes wrong, before missed payments or
-                silent revenue drops turn into client-facing problems.
+                RevenueWatch monitors your Stripe accounts in the background and
+                alerts you when payment failures or unusual revenue drops need
+                attention, before they become client-facing problems.
               </p>
 
               <div className={styles.heroTrustLine}>
                 <span>Read-only access.</span>
                 <span>No money movement.</span>
-                <span>No risk.</span>
+                <span>Monitoring only.</span>
               </div>
 
               <div className={styles.heroActions}>
                 <Link href="/login" className={styles.primaryAction}>
-                  Protect your revenue
+                  Start monitoring
                   <StitchIcon name="arrow_forward" className={styles.arrowIcon} />
                 </Link>
 
@@ -492,8 +405,8 @@ export default function HomePage() {
           <ScrollReveal className={styles.centerHeading}>
             <h2>What happens without RevenueWatch?</h2>
             <p>
-              Stripe issues can sit quietly until they have already cost you
-              revenue, time, or trust.
+              Stripe issues can sit quietly until they cost you revenue, time,
+              or client trust.
             </p>
           </ScrollReveal>
 
@@ -502,21 +415,21 @@ export default function HomePage() {
               <InsightCard
                 icon="warning"
                 title="Payment failures go unnoticed"
-                body="A broken payment flow can quietly drain revenue while Stripe still looks normal at a glance."
+                body="Failed payments can reduce revenue quietly, especially when no one is checking Stripe closely."
               />
             </ScrollReveal>
             <ScrollReveal delayMs={120}>
               <InsightCard
                 icon="trending_down"
                 title="Revenue declines silently"
-                body="Small drops can run for hours before anyone notices the trend is turning."
+                body="Revenue can fall below its usual level for hours before anyone notices something is wrong."
               />
             </ScrollReveal>
             <ScrollReveal delayMs={200}>
               <InsightCard
                 icon="notifications"
                 title="You find out too late"
-                body="Too many teams only learn about a problem after a client complains or monthly numbers look wrong."
+                body="Teams often notice problems only after a client complains or the monthly numbers look wrong."
               />
             </ScrollReveal>
           </div>
@@ -526,10 +439,9 @@ export default function HomePage() {
       <section className={styles.valueSection}>
         <div className={styles.shell}>
           <ScrollReveal className={styles.centerHeading}>
-            <span className={styles.valueEyebrow}>Value Proposition</span>
             <h2>What RevenueWatch saves.</h2>
             <p>
-              The payoff is simple: less lost revenue, less manual checking,
+              The payoff is simple: less manual checking, fewer missed issues,
               and fewer unpleasant surprises for clients.
             </p>
           </ScrollReveal>
@@ -538,30 +450,30 @@ export default function HomePage() {
             <ScrollReveal delayMs={40}>
               <ValueWidget
                 icon="trending_down"
-                label="Revenue Recovery"
-                metric="+$12,400"
-                title="Missed revenue"
-                body="Catch payment issues before they quietly drain MRR or spread across connected accounts."
+                label="Revenue visibility"
+                metric=""
+                title="Earlier issue visibility"
+                body="Catch payment failures and revenue drops earlier, before they quietly affect connected Stripe accounts."
                 variant="revenue"
               />
             </ScrollReveal>
             <ScrollReveal delayMs={120}>
               <ValueWidget
                 icon="timer"
-                label="Operational Efficiency"
-                metric="10h Saved/mo"
+                label="Less manual checking"
+                metric=""
                 title="Manual checking time"
-                body="Replace habitual Stripe spot-checks with passive visibility and only step in when action is required."
+                body="Replace routine Stripe spot-checks with background monitoring, and review accounts only when an alert appears."
                 variant="time"
               />
             </ScrollReveal>
             <ScrollReveal delayMs={200}>
               <ValueWidget
                 icon="verified_user"
-                label="Retention Index"
-                metric="100% Reliability"
+                label="Earlier awareness"
+                metric=""
                 title="Client trust"
-                body="Spot issues first, respond early, and avoid the awkward 'we just noticed' conversation."
+                body="Spot issues earlier, respond sooner, and avoid the awkward “we just noticed” conversation."
                 variant="trust"
               />
             </ScrollReveal>
@@ -575,8 +487,8 @@ export default function HomePage() {
             <h2>See RevenueWatch in action.</h2>
             <p>
               See how RevenueWatch surfaces revenue drops and payment failure
-              spikes in a calm, reviewable way, so you can respond before they
-              become bigger problems.
+              spikes in a calm, reviewable way, so you can step in before they
+              turn into bigger problems.
             </p>
           </ScrollReveal>
 
@@ -588,10 +500,10 @@ export default function HomePage() {
 
               <ScrollReveal delayMs={40}>
                 <div className={styles.monitoringCopy}>
-                  <h3>Catch silent revenue drops</h3>
+                  <h3>Catch unusual revenue drops</h3>
                   <p>
-                    RevenueWatch turns a quiet revenue drop into a clear alert
-                    view, showing current revenue, expected revenue for this
+                    When RevenueWatch detects a revenue drop, it shows a clear
+                    alert view with current revenue, usual revenue for this
                     period, and the threshold that triggered the alert.
                   </p>
                   <ul className={styles.monitoringList}>
@@ -601,7 +513,7 @@ export default function HomePage() {
                     </li>
                     <li>
                       <StitchIcon name="check_circle" className={styles.monitoringCheck} />
-                      <span>Current revenue, expected revenue, and threshold in one view</span>
+                      <span>Current revenue, usual revenue, and threshold in the alert view</span>
                     </li>
                   </ul>
                 </div>
@@ -615,7 +527,8 @@ export default function HomePage() {
                   <p>
                     When failed payments spike within a short period,
                     RevenueWatch surfaces the issue in a simple alert view so
-                    you can review the account before it affects more customers.
+                    you can review the account before more customers are
+                    affected.
                   </p>
                   <ul className={styles.monitoringList}>
                     <li>
@@ -640,9 +553,12 @@ export default function HomePage() {
 
       <section id="how-it-works" className={styles.workflowSection}>
         <div className={styles.shell}>
-          <ScrollReveal className={styles.sectionHeading}>
-            <h2>How it works.</h2>
-            <div className={styles.headingBar} />
+          <ScrollReveal className={`${styles.centerHeading} ${styles.workflowHeading}`}>
+            <h2>How RevenueWatch works.</h2>
+            <p>
+              Connect Stripe, let RevenueWatch monitor in the background, and
+              step in only when attention is needed.
+            </p>
           </ScrollReveal>
 
           <div className={styles.workflowGrid}>
@@ -652,7 +568,8 @@ export default function HomePage() {
                 <h3>Connect with Stripe.</h3>
                 <p>
                   Connect your Stripe account in about 30 seconds with secure,
-                  read-only OAuth access. We never touch your money.
+                  read-only OAuth access. RevenueWatch never moves money or
+                  changes settings in your Stripe account.
                 </p>
               </div>
 
@@ -665,8 +582,8 @@ export default function HomePage() {
                 </div>
 
                 <div>
-                  <strong>Stripe Integrated</strong>
-                  <p>Read-only permissions active</p>
+                  <strong>Stripe connected</strong>
+                  <p>Read-only monitoring active</p>
                 </div>
               </div>
             </ScrollReveal>
@@ -677,8 +594,9 @@ export default function HomePage() {
               <div>
                 <h3>Monitoring in the background.</h3>
                 <p>
-                  RevenueWatch watches for <span>payment failures</span>, revenue
-                  drops, and quiet issues that can sit in Stripe unnoticed.
+                  RevenueWatch monitors for <span>payment failure spikes</span>{" "}
+                  and unusual revenue drops in the background, so you do not
+                  have to keep checking Stripe manually.
                 </p>
               </div>
 
@@ -703,10 +621,10 @@ export default function HomePage() {
                     <div className={styles.noticeIconWrap}>
                       <StitchIcon name="warning" className={styles.noticeIcon} />
                     </div>
-                    <span>Significant Revenue Drop Detected</span>
+                    <span>Revenue drop detected</span>
                   </div>
 
-                  <span className={styles.noticePill}>Critical Alert</span>
+                  <span className={styles.noticePill}>High Severity</span>
                 </div>
 
                 <div className={styles.noticeDetails}>
@@ -808,7 +726,7 @@ export default function HomePage() {
       <section id="pricing" className={styles.pricingSection}>
         <div className={styles.shell}>
           <ScrollReveal className={styles.centerHeading}>
-            <h2>Simple pricing for the number of Stripe accounts you monitor</h2>
+            <h2>Simple pricing for Stripe monitoring.</h2>
             <p>
               Choose the level of coverage you need, from one Stripe account to a
               larger portfolio of client accounts.

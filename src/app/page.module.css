@@ -170,24 +170,6 @@
   background: rgba(64, 94, 150, 0.1);
 }
 
-.heroWidget {
-  position: relative;
-  z-index: 1;
-  padding: 26px;
-  border-radius: 28px;
-  background: var(--surface-container-lowest);
-  border: 1px solid rgba(193, 198, 215, 0.1);
-  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.05);
-}
-
-.heroWidgetTop {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 22px;
-}
-
 .overline {
   margin-bottom: 4px;
   color: var(--on-surface-variant);
@@ -197,115 +179,10 @@
   text-transform: uppercase;
 }
 
-.heroKpiRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.heroKpiRow h3 {
-  font-size: 1.55rem;
-  line-height: 1;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-}
-
-.errorIcon {
-  color: var(--error);
-  font-size: 20px;
-}
-
-.anomalyCard {
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: rgba(186, 26, 26, 0.05);
-  border: 1px solid rgba(186, 26, 26, 0.1);
-  text-align: right;
-}
-
-.anomalyCard span {
-  display: block;
-  margin-bottom: 4px;
-  color: var(--error);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.anomalyCard p {
-  color: var(--on-surface-variant);
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.graphCard {
+.heroDashboardPreview {
   position: relative;
-  height: 196px;
-  margin-bottom: 22px;
-  overflow: hidden;
-  border-radius: 12px;
-  background: rgba(248, 250, 252, 0.5);
-}
-
-.graphSvg {
-  width: 100%;
-  height: 100%;
-  padding: 8px;
-}
-
-.overlayTag {
-  position: absolute;
-  right: 28px;
-  bottom: 10px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 18px;
-  padding: 0 10px;
-  border-radius: 4px;
-  background: var(--error);
-  color: #ffffff;
-  font-size: 7px;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.graphMeta {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.graphMetaCard {
-  padding: 12px;
-  border-radius: 14px;
-  background: var(--surface-container-low);
-  border: 1px solid rgba(193, 198, 215, 0.1);
-}
-
-.accountRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.accountDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--primary);
-}
-
-.graphMetaCard span,
-.graphMetaCard strong {
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-
-.criticalText {
-  color: var(--error);
+  z-index: 1;
+  transform: translateY(4px);
 }
 
 .insightSection,
@@ -328,7 +205,14 @@
   margin-top: 40px;
 }
 
+.insightGrid {
+  align-items: stretch;
+}
+
 .insightCard {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   padding: 24px;
   border-radius: 20px;
   background: var(--surface-container-lowest);
@@ -384,10 +268,11 @@
 }
 
 .centerHeading p {
-  max-width: 32rem;
+  max-width: 38rem;
   margin: 0 auto;
   color: var(--on-surface-variant);
   font-size: 0.95rem;
+  line-height: 1.65;
 }
 
 .trustIconWrap,
@@ -563,19 +448,9 @@
   border-bottom: 1px solid rgba(193, 198, 215, 0.08);
 }
 
-.valueEyebrow {
-  display: block;
-  margin-bottom: 14px;
-  color: var(--primary);
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-}
-
 .valueGrid {
   gap: 48px;
-  margin-top: 56px;
+  margin-top: 44px;
 }
 
 .valueWidget {
@@ -675,6 +550,11 @@
   color: var(--primary);
   font-size: 1rem;
   font-weight: 900;
+}
+
+.valueVisualMeta strong:empty,
+.valueVisualMetaCenter strong:empty {
+  display: none;
 }
 
 .valueDial {
@@ -795,7 +675,7 @@
 .monitoringRows {
   display: grid;
   gap: 28px;
-  margin-top: 52px;
+  margin-top: 44px;
 }
 
 .monitoringRow {
@@ -881,6 +761,12 @@
   box-shadow: 0 14px 30px rgba(25, 28, 29, 0.04);
 }
 
+.monitorPreviewCardHero {
+  padding: 24px;
+  border-radius: 30px;
+  box-shadow: 0 24px 42px rgba(25, 28, 29, 0.08);
+}
+
 
 .monitorPreviewHeader {
   display: flex;
@@ -929,8 +815,8 @@
 }
 
 .monitorPreviewAlertPillWarning {
-  background: rgba(0, 88, 188, 0.09);
-  color: var(--primary);
+  background: rgba(186, 26, 26, 0.09);
+  color: var(--error);
 }
 
 .monitorPreviewBody {
@@ -968,7 +854,7 @@
   position: relative;
   padding: 12px 10px 8px;
   border-radius: 20px;
-  background: linear-gradient(180deg, #fbfdff 0%, #f5f8fd 100%);
+  background: linear-gradient(180deg, #fbfdff 0%, #f6f8fc 100%);
   border: 1px solid rgba(193, 198, 215, 0.18);
 }
 
@@ -1014,6 +900,10 @@
   border-radius: 16px;
   background: #ffffff;
   border: 1px solid rgba(193, 198, 215, 0.18);
+}
+
+.monitorPreviewMetricCritical strong {
+  color: var(--error);
 }
 
 .monitorPreviewMetrics span {
@@ -1125,6 +1015,10 @@
   margin-bottom: 40px;
 }
 
+.workflowHeading {
+  margin-bottom: 44px;
+}
+
 .sectionHeading h2 {
   margin-bottom: 8px;
   font-size: clamp(1.85rem, 3.2vw, 2.3rem);
@@ -1144,6 +1038,7 @@
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 20px;
+  align-items: stretch;
 }
 
 .stepOne,
@@ -1156,6 +1051,7 @@
 .stepOne {
   grid-column: span 7;
   min-height: 360px;
+  height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -1166,6 +1062,7 @@
 .stepTwo {
   grid-column: span 5;
   min-height: 360px;
+  height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -1440,14 +1337,8 @@
   border-top: 1px solid rgba(193, 198, 215, 0.1);
 }
 
-.pricingSection .centerHeading h2 {
-  max-width: 18ch;
-  margin-inline: auto;
-  font-size: clamp(1.7rem, 2.7vw, 2.2rem);
-}
-
 .pricingSection .centerHeading p {
-  max-width: 34rem;
+  max-width: 38rem;
 }
 
 .pricingGrid {
