@@ -639,7 +639,6 @@ export default function HomePage() {
 
                 <div className={styles.noticeBody}>
                   <p className={styles.noticeIssueLabel}>Current issue</p>
-                  <strong>Revenue drop detected</strong>
                   <span>
                     Sales are 53% lower than usual for this period.
                   </span>
