@@ -291,6 +291,152 @@ function PricingCard({
   );
 }
 
+function RevenueMonitoringPreview() {
+  return (
+    <div className={styles.monitorPreviewCard}>
+      <div className={styles.monitorPreviewHeader}>
+        <div>
+          <p className={styles.monitorPreviewEyebrow}>Connected account</p>
+          <h4>Northstar Commerce</h4>
+        </div>
+        <span className={styles.monitorPreviewAlertPill}>Revenue drop detected</span>
+      </div>
+
+      <div className={styles.monitorPreviewBody}>
+        <div className={styles.monitorPreviewIssue}>
+          <p className={styles.monitorPreviewEyebrow}>Current issue</p>
+          <strong>Sales are much lower than usual for this period.</strong>
+          <span>High severity</span>
+        </div>
+
+        <div className={styles.monitorPreviewChart}>
+          <svg viewBox="0 0 360 170" className={styles.monitorPreviewSvg} aria-hidden="true">
+            <defs>
+              <linearGradient id="monitorRevenueFill" x1="0%" x2="0%" y1="0%" y2="100%">
+                <stop offset="0%" stopColor="#0058bc" stopOpacity="0.15" />
+                <stop offset="100%" stopColor="#0058bc" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+
+            <g stroke="#e2e8f0" strokeWidth="1">
+              <line x1="22" y1="28" x2="338" y2="28" />
+              <line x1="22" y1="72" x2="338" y2="72" />
+              <line x1="22" y1="116" x2="338" y2="116" />
+              <line x1="22" y1="150" x2="338" y2="150" />
+            </g>
+
+            <line
+              x1="22"
+              x2="338"
+              y1="92"
+              y2="92"
+              stroke="#ba1a1a"
+              strokeDasharray="6 5"
+              strokeWidth="1.5"
+            />
+
+            <path
+              d="M22 54 L98 48 L174 52 L250 56 L326 120 L326 150 L22 150 Z"
+              fill="url(#monitorRevenueFill)"
+            />
+            <path
+              d="M22 54 L98 48 L174 52 L250 56 L326 120"
+              fill="none"
+              stroke="#0058bc"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2.25"
+            />
+            <circle cx="326" cy="120" r="4.5" fill="#ba1a1a" />
+
+            <g className={styles.monitorPreviewAxis}>
+              <text x="22" y="164">07:00</text>
+              <text x="98" y="164" textAnchor="middle">08:00</text>
+              <text x="174" y="164" textAnchor="middle">09:00</text>
+              <text x="250" y="164" textAnchor="middle">10:00</text>
+              <text x="338" y="164" textAnchor="end">11:00</text>
+            </g>
+          </svg>
+
+          <div className={styles.monitorPreviewThreshold}>Threshold (€75,000)</div>
+        </div>
+
+        <div className={styles.monitorPreviewMetrics}>
+          <div>
+            <span>Current revenue</span>
+            <strong>€53,000</strong>
+          </div>
+          <div>
+            <span>Usual revenue</span>
+            <strong>€112,000</strong>
+          </div>
+          <div>
+            <span>Alert threshold</span>
+            <strong>€75,000</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FailureMonitoringPreview() {
+  return (
+    <div className={styles.monitorPreviewCard}>
+      <div className={styles.monitorPreviewHeader}>
+        <div>
+          <p className={styles.monitorPreviewEyebrow}>Connected account</p>
+          <h4>BluePeak Studio</h4>
+        </div>
+        <span className={styles.monitorPreviewAlertPillWarning}>Payment failure spike</span>
+      </div>
+
+      <div className={styles.monitorPreviewBody}>
+        <div className={styles.monitorPreviewIssue}>
+          <p className={styles.monitorPreviewEyebrow}>Current issue</p>
+          <strong>Payment failures are significantly higher than usual.</strong>
+          <span>Review in real time before customers notice.</span>
+        </div>
+
+        <div className={styles.monitorPreviewBars}>
+          <div className={styles.monitorPreviewThresholdBar}>Threshold: 12</div>
+          <div className={styles.monitorPreviewBarChart} aria-hidden="true">
+            <span style={{ height: "24%" }} />
+            <span style={{ height: "48%" }} />
+            <span style={{ height: "35%" }} />
+            <span style={{ height: "56%" }} />
+            <span style={{ height: "18%" }} />
+            <span className={styles.monitorPreviewBarCritical} style={{ height: "88%" }} />
+          </div>
+          <div className={styles.monitorPreviewBarLabels}>
+            <span>10:00</span>
+            <span>11:00</span>
+            <span>12:00</span>
+            <span>13:00</span>
+            <span>14:00</span>
+            <span>15:00</span>
+          </div>
+        </div>
+
+        <div className={styles.monitorPreviewMetrics}>
+          <div>
+            <span>Current failed payments</span>
+            <strong>14</strong>
+          </div>
+          <div>
+            <span>Usual failed payments</span>
+            <strong>6</strong>
+          </div>
+          <div>
+            <span>Alert threshold</span>
+            <strong>12</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function HomePage() {
   return (
     <>
@@ -419,6 +565,75 @@ export default function HomePage() {
                 variant="trust"
               />
             </ScrollReveal>
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.monitoringSection}>
+        <div className={styles.shell}>
+          <ScrollReveal className={styles.centerHeading}>
+            <h2>See RevenueWatch in action.</h2>
+            <p>
+              See how RevenueWatch surfaces revenue drops and payment failure
+              spikes in a calm, reviewable way, so you can respond before they
+              become bigger problems.
+            </p>
+          </ScrollReveal>
+
+          <div className={styles.monitoringRows}>
+            <div className={styles.monitoringRow}>
+              <ScrollReveal delayMs={140}>
+                <RevenueMonitoringPreview />
+              </ScrollReveal>
+
+              <ScrollReveal delayMs={40}>
+                <div className={styles.monitoringCopy}>
+                  <h3>Catch silent revenue drops</h3>
+                  <p>
+                    RevenueWatch turns a quiet revenue drop into a clear alert
+                    view, showing current revenue, expected revenue for this
+                    period, and the threshold that triggered the alert.
+                  </p>
+                  <ul className={styles.monitoringList}>
+                    <li>
+                      <StitchIcon name="check_circle" className={styles.monitoringCheck} />
+                      <span>Focused alert snapshot around the drop</span>
+                    </li>
+                    <li>
+                      <StitchIcon name="check_circle" className={styles.monitoringCheck} />
+                      <span>Current revenue, expected revenue, and threshold in one view</span>
+                    </li>
+                  </ul>
+                </div>
+              </ScrollReveal>
+            </div>
+
+            <div className={styles.monitoringRow}>
+              <ScrollReveal delayMs={140}>
+                <div className={styles.monitoringCopy}>
+                  <h3>Spot payment failure spikes early</h3>
+                  <p>
+                    When failed payments spike within a short period,
+                    RevenueWatch surfaces the issue in a simple alert view so
+                    you can review the account before it affects more customers.
+                  </p>
+                  <ul className={styles.monitoringList}>
+                    <li>
+                      <StitchIcon name="check_circle" className={styles.monitoringCheck} />
+                      <span>Short recent window that makes the spike easy to review</span>
+                    </li>
+                    <li>
+                      <StitchIcon name="check_circle" className={styles.monitoringCheck} />
+                      <span>Current failures, usual level, and alert threshold in one view</span>
+                    </li>
+                  </ul>
+                </div>
+              </ScrollReveal>
+
+              <ScrollReveal delayMs={40}>
+                <FailureMonitoringPreview />
+              </ScrollReveal>
+            </div>
           </div>
         </div>
       </section>

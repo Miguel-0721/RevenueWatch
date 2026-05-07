@@ -785,6 +785,338 @@
   margin-top: 6px;
 }
 
+.monitoringSection {
+  padding: 88px 0;
+  background: #f7f9fc;
+  border-top: 1px solid rgba(193, 198, 215, 0.1);
+  border-bottom: 1px solid rgba(193, 198, 215, 0.08);
+}
+
+.monitoringRows {
+  display: grid;
+  gap: 28px;
+  margin-top: 52px;
+}
+
+.monitoringRow {
+  display: grid;
+  grid-template-columns: minmax(0, 0.94fr) minmax(0, 1.06fr);
+  gap: 28px;
+  align-items: center;
+}
+
+.monitoringRowReverse {
+  grid-template-columns: minmax(0, 1.06fr) minmax(0, 0.94fr);
+}
+
+.monitoringCopy {
+  padding: 12px 8px;
+}
+
+.monitoringIconWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 18px;
+  border-radius: 18px;
+  background: var(--surface-container-lowest);
+  border: 1px solid rgba(193, 198, 215, 0.12);
+  box-shadow: 0 10px 22px rgba(25, 28, 29, 0.04);
+}
+
+.monitoringIconCritical,
+.monitoringIconPrimary,
+.monitoringCheck {
+  font-size: 24px;
+}
+
+.monitoringIconCritical {
+  color: var(--error);
+}
+
+.monitoringIconPrimary,
+.monitoringCheck {
+  color: var(--primary);
+}
+
+.monitoringCopy h3 {
+  margin-bottom: 12px;
+  font-size: clamp(1.55rem, 2.2vw, 2rem);
+  line-height: 1.08;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.monitoringCopy p {
+  max-width: 31rem;
+  color: var(--on-surface-variant);
+  font-size: 0.95rem;
+  line-height: 1.68;
+}
+
+.monitoringList {
+  display: grid;
+  gap: 14px;
+  margin-top: 24px;
+  list-style: none;
+}
+
+.monitoringList li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  color: var(--on-surface);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+.monitorPreviewCard {
+  padding: 22px;
+  border-radius: 28px;
+  background: var(--surface-container-lowest);
+  border: 1px solid rgba(193, 198, 215, 0.12);
+  box-shadow: 0 14px 30px rgba(25, 28, 29, 0.04);
+}
+
+
+.monitorPreviewHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid rgba(193, 198, 215, 0.16);
+}
+
+.monitorPreviewHeader h4 {
+  margin-top: 4px;
+  font-size: 1.2rem;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.monitorPreviewEyebrow {
+  color: var(--on-surface-variant);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.monitorPreviewAlertPill,
+.monitorPreviewAlertPillWarning {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.monitorPreviewAlertPill {
+  background: rgba(186, 26, 26, 0.09);
+  color: var(--error);
+}
+
+.monitorPreviewAlertPillWarning {
+  background: rgba(0, 88, 188, 0.09);
+  color: var(--primary);
+}
+
+.monitorPreviewBody {
+  display: grid;
+  gap: 18px;
+}
+
+.monitorPreviewIssue {
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: #f9fbff;
+  border: 1px solid rgba(193, 198, 215, 0.18);
+}
+
+.monitorPreviewIssue strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 1rem;
+  line-height: 1.4;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.monitorPreviewIssue span {
+  display: block;
+  margin-top: 8px;
+  color: var(--on-surface-variant);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  font-weight: 700;
+}
+
+.monitorPreviewChart,
+.monitorPreviewBars {
+  position: relative;
+  padding: 12px 10px 8px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #fbfdff 0%, #f5f8fd 100%);
+  border: 1px solid rgba(193, 198, 215, 0.18);
+}
+
+.monitorPreviewSvg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.monitorPreviewAxis {
+  fill: #717786;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.monitorPreviewThreshold {
+  position: absolute;
+  left: 58%;
+  top: 54%;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: #ffd8d1;
+  color: var(--error);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  box-shadow: 0 6px 16px rgba(186, 26, 26, 0.08);
+}
+
+.monitorPreviewMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.monitorPreviewMetrics div {
+  padding: 14px 14px 12px;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid rgba(193, 198, 215, 0.18);
+}
+
+.monitorPreviewMetrics span {
+  display: block;
+  color: var(--on-surface-variant);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.monitorPreviewMetrics strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 1.05rem;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.monitorPreviewBars {
+  padding-top: 16px;
+}
+
+.monitorPreviewThresholdBar {
+  position: absolute;
+  top: 18px;
+  right: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #ffd8d1;
+  color: var(--error);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.monitorPreviewBarChart {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  align-items: end;
+  gap: 12px;
+  height: 160px;
+  padding: 38px 10px 12px;
+}
+
+.monitorPreviewBarChart::before,
+.monitorPreviewBarChart::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+}
+
+.monitorPreviewBarChart::before {
+  top: 36px;
+  bottom: 30px;
+  background:
+    linear-gradient(to top, rgba(0, 0, 0, 0) 24%, rgba(226, 232, 240, 0.9) 24%, rgba(226, 232, 240, 0.9) 25%, rgba(0, 0, 0, 0) 25%),
+    linear-gradient(to top, rgba(0, 0, 0, 0) 49%, rgba(226, 232, 240, 0.9) 49%, rgba(226, 232, 240, 0.9) 50%, rgba(0, 0, 0, 0) 50%),
+    linear-gradient(to top, rgba(0, 0, 0, 0) 74%, rgba(226, 232, 240, 0.9) 74%, rgba(226, 232, 240, 0.9) 75%, rgba(0, 0, 0, 0) 75%);
+}
+
+.monitorPreviewBarChart::after {
+  top: 82px;
+  border-top: 2px dashed rgba(186, 26, 26, 0.72);
+}
+
+.monitorPreviewBarChart span {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  border-radius: 10px 10px 0 0;
+  background: #f5c4c4;
+}
+
+.monitorPreviewBarCritical {
+  background: #c91d1d !important;
+  box-shadow: 0 -8px 18px rgba(201, 29, 29, 0.16);
+}
+
+.monitorPreviewBarLabels {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  padding: 0 10px 2px;
+}
+
+.monitorPreviewBarLabels span {
+  color: #717786;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+
 .workflowSection {
   padding: 68px 24px;
 }
@@ -1318,7 +1650,9 @@
   .heroGrid,
   .pricingGrid,
   .insightGrid,
-  .valueGrid {
+  .valueGrid,
+  .monitoringRow,
+  .monitoringRowReverse {
     grid-template-columns: 1fr;
   }
 
@@ -1368,6 +1702,18 @@
   .pricingFeatured {
     transform: none;
   }
+
+  .monitoringCopy {
+    padding: 0;
+  }
+
+  .monitoringRowReverse > :first-child {
+    order: 2;
+  }
+
+  .monitoringRowReverse > :last-child {
+    order: 1;
+  }
 }
 
 @media (max-width: 720px) {
@@ -1379,6 +1725,7 @@
   .trustSection,
   .workflowSection,
   .pricingSection,
+  .monitoringSection,
   .assuranceSection {
     padding-top: 52px;
     padding-bottom: 52px;
@@ -1422,14 +1769,33 @@
     border-radius: 24px;
   }
 
+  .monitorPreviewCard {
+    padding: 18px;
+    border-radius: 22px;
+  }
+
   .heroWidgetTop,
-  .noticeTop {
+  .noticeTop,
+  .monitorPreviewHeader {
     flex-direction: column;
     align-items: flex-start;
   }
 
   .graphMeta,
-  .noticeMeta {
+  .noticeMeta,
+  .monitorPreviewMetrics {
     grid-template-columns: 1fr;
+  }
+
+  .monitorPreviewThreshold {
+    left: 52%;
+    min-height: 24px;
+    padding: 0 10px;
+    font-size: 10px;
+  }
+
+  .monitorPreviewBarChart,
+  .monitorPreviewBarLabels {
+    gap: 8px;
   }
 }
