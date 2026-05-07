@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import MarketingFooter from "@/components/MarketingFooter";
+import RevenueWatchLogo from "@/components/RevenueWatchLogo";
 import ScrollReveal from "@/components/ScrollReveal";
 import StitchIcon from "@/components/StitchIcon";
 import type { IconName } from "@/components/StitchIcon";
@@ -608,49 +609,60 @@ export default function HomePage() {
             <ScrollReveal as="article" className={styles.stepThree} delayMs={200}>
               <div className={styles.stepThreeCopy}>
                 <div className={styles.darkStep}>3</div>
-                <h3>Get notified instantly.</h3>
+                <h3>Get alerted early.</h3>
                 <p>
-                  Get a clear alert as soon as something breaks so you can fix it
-                  before it becomes expensive or client-facing.
+                  Receive a clear alert when RevenueWatch detects an unusual
+                  issue, so you can review it before it grows into a bigger
+                  problem.
                 </p>
               </div>
 
               <div className={styles.noticeCard}>
+                <div className={styles.noticeBrandRow}>
+                  <RevenueWatchLogo compact />
+                </div>
+
                 <div className={styles.noticeTop}>
                   <div className={styles.noticeTitle}>
-                    <div className={styles.noticeIconWrap}>
-                      <StitchIcon name="warning" className={styles.noticeIcon} />
-                    </div>
-                    <span>Revenue drop detected</span>
+                    <span>RevenueWatch alert</span>
+                    <strong>Revenue drop detected</strong>
                   </div>
 
                   <span className={styles.noticePill}>High Severity</span>
                 </div>
 
                 <div className={styles.noticeDetails}>
-                  <p>Alert Details</p>
-                  <h4>
-                    Account <span>Client Alpha</span> revenue dropped <em>45%</em>{" "}
-                    compared to the usual trend in the last 2 hours.
-                  </h4>
+                  <p>Connected account</p>
+                  <h4>Northstar Commerce</h4>
+                  <span className={styles.noticeDetected}>Detected: Today at 11:00 AM</span>
                 </div>
 
-                <div className={styles.noticeMeta}>
+                <div className={styles.noticeBody}>
+                  <p className={styles.noticeIssueLabel}>Current issue</p>
+                  <strong>Revenue drop detected</strong>
+                  <span>
+                    Sales are 53% lower than usual for this period.
+                  </span>
+                </div>
+
+                <div className={styles.noticeStatGrid}>
                   <div>
-                    <p>Time Window</p>
-                    <div className={styles.noticeMetaRow}>
-                      <StitchIcon name="schedule" className={styles.metaIcon} />
-                      <strong>Last 2 Hours</strong>
-                    </div>
+                    <p>Current revenue</p>
+                    <strong className={styles.metaError}>€53,000</strong>
+                  </div>
+                  <div>
+                    <p>Usual revenue</p>
+                    <strong>€112,000</strong>
                   </div>
 
                   <div>
-                    <p>Impact</p>
-                    <div className={styles.noticeMetaRow}>
-                      <StitchIcon name="trending_down" className={styles.metaIconError} />
-                      <strong className={styles.metaError}>High (-$4,200)</strong>
-                    </div>
+                    <p>Alert threshold</p>
+                    <strong>€75,000</strong>
                   </div>
+                </div>
+
+                <div className={styles.noticeActionRow}>
+                  <span className={styles.noticeAction}>Review this alert</span>
                 </div>
               </div>
             </ScrollReveal>
