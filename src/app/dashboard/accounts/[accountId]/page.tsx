@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import SeverityHelpPopover from "@/components/SeverityHelpPopover";
-import { getDemoAccountById, getDemoAlertHistory } from "@/lib/demoData";
+import { getDemoAccountById, getDemoAlertHistory, getDemoSeverity } from "@/lib/demoData";
 import { prisma } from "@/lib/prisma";
 import styles from "./page.module.css";
 
@@ -175,8 +175,51 @@ function alertLabel(type: string) {
 }
 
 function getSeverityLabel(severity?: string) {
-  if (severity === "critical") return "Critical";
-  return "Warning";
+  if (severity === "critical") return "High severity";
+  if (severity === "warning") return "Review needed";
+  return "Monitoring active";
+}
+
+function getSeverityPresentation(severity?: string) {
+  if (severity === "critical") {
+    return {
+      label: "High severity",
+      accentColor: "#ba1a1a",
+      accentSoft: "#ffdad6",
+      accentTint: "rgba(186, 26, 26, 0.025)",
+      accentZone: "rgba(186, 26, 26, 0.03)",
+      accentShadow: "rgba(186, 26, 26, 0.09)",
+      accentLine: "rgba(186, 26, 26, 0.34)",
+      barSoft: "rgba(255, 188, 188, 0.62)",
+      barStrong: "rgba(186, 26, 26, 0.82)",
+      barActive: "#ba1a1a",
+      barShadow: "rgba(186, 26, 26, 0.14)",
+      legendClass: styles.legendRed,
+      dashClass: styles.legendDashRed,
+      iconClass: styles.alertIconCritical,
+      panelClass: styles.monitorPanelIssueCritical,
+      statusClass: styles.statusCritical,
+    };
+  }
+
+  return {
+    label: "Review needed",
+    accentColor: "#9a6700",
+    accentSoft: "#fff1c2",
+    accentTint: "rgba(154, 103, 0, 0.03)",
+    accentZone: "rgba(154, 103, 0, 0.045)",
+    accentShadow: "rgba(154, 103, 0, 0.1)",
+    accentLine: "rgba(154, 103, 0, 0.34)",
+    barSoft: "rgba(255, 218, 133, 0.5)",
+    barStrong: "rgba(183, 121, 31, 0.76)",
+    barActive: "#b7791f",
+    barShadow: "rgba(183, 121, 31, 0.16)",
+    legendClass: styles.legendAmber,
+    dashClass: styles.legendDashAmber,
+    iconClass: styles.alertIconWarning,
+    panelClass: styles.monitorPanelIssueWarning,
+    statusClass: styles.statusWarning,
+  };
 }
 
 function getRevenueContext(alert?: AlertLike | null): RevenueContext | null {
@@ -451,7 +494,13 @@ function buildFailureChartModel(topAlert: AlertLike | null, paymentContext: Paym
   };
 }
 
-function FailureChart({ model }: { model: FailureChartModel }) {
+function FailureChart({
+  model,
+  severity,
+}: {
+  model: FailureChartModel;
+  severity: ReturnType<typeof getSeverityPresentation>;
+}) {
   const scaleMax = Math.max(model.peakFailures, model.threshold);
   const countTicks = buildCountTicks(scaleMax);
   const maxValue = countTicks[countTicks.length - 1] ?? scaleMax;
@@ -521,6 +570,7 @@ function FailureChart({ model }: { model: FailureChartModel }) {
           className={styles.failureThresholdLine}
           style={{
             bottom: `${thresholdPercent}%`,
+            borderTopColor: severity.accentColor,
           }}
         />
         <div
@@ -528,6 +578,8 @@ function FailureChart({ model }: { model: FailureChartModel }) {
           style={{
             left: `${thresholdChipCenter}%`,
             bottom: `calc(${thresholdPercent}% - 10px)`,
+            background: severity.accentSoft,
+            color: severity.accentColor,
           }}
         >
           Threshold: {formatCount(model.threshold)}
@@ -553,6 +605,12 @@ function FailureChart({ model }: { model: FailureChartModel }) {
                   height: `${height}%`,
                   left: `${leftPercent}%`,
                   width: `${widthPercent}%`,
+                  background: isActive
+                    ? severity.barActive
+                    : isAboveThreshold
+                      ? severity.barStrong
+                      : severity.barSoft,
+                  boxShadow: isActive ? `0 8px 16px ${severity.barShadow}` : undefined,
                 }}
                 title={`${point.label}–${nextHourLabel(point.label)}: ${formatCount(point.failures)} failed payment${point.failures === 1 ? "" : "s"}`}
               />
@@ -583,10 +641,10 @@ function FailureChart({ model }: { model: FailureChartModel }) {
       <div className={styles.chartFooter}>
         <div className={styles.legend}>
           <span>
-            <i className={styles.legendRed} /> Failed payments
+            <i className={severity.legendClass} /> Failed payments
           </span>
           <span>
-            <i className={styles.legendDash} /> Threshold
+            <i className={severity.dashClass} /> Threshold
           </span>
         </div>
       </div>
@@ -599,17 +657,19 @@ function MonitorInsightPanel({
   topAlert,
   paymentContext,
   lastEventAt,
+  severity,
 }: {
   model?: RevenueChartModel | null;
   topAlert: AlertLike | null;
   paymentContext: PaymentFailureContext | null;
   lastEventAt?: Date | null;
+  severity?: ReturnType<typeof getSeverityPresentation>;
 }) {
   const isPaymentFailure = topAlert?.type === "payment_failed" && paymentContext;
   const isRevenueDrop = topAlert?.type === "revenue_drop" && model;
 
   const panelClassName = `${styles.monitorPanel} ${
-    topAlert ? styles.monitorPanelIssue : styles.monitorPanelNormal
+    topAlert ? severity?.panelClass ?? styles.monitorPanelIssueCritical : styles.monitorPanelNormal
   }`;
 
   return (
@@ -617,7 +677,11 @@ function MonitorInsightPanel({
       <div>
         <div className={styles.panelEyebrowRow}>
           <span className={styles.panelEyebrow}>
-            <span className={styles.panelStatusDot} aria-hidden="true" />
+            <span
+              className={styles.panelStatusDot}
+              aria-hidden="true"
+              style={topAlert ? { background: severity?.accentColor } : undefined}
+            />
             {topAlert ? "Current issue" : "Current state"}
           </span>
           {topAlert && (topAlert.type === "payment_failed" || topAlert.type === "revenue_drop") ? (
@@ -642,7 +706,7 @@ function MonitorInsightPanel({
           <>
             <div className={styles.panelMetric}>
               <span>Current failed payments</span>
-              <strong className={styles.dangerText}>{formatCount(paymentContext.failures)}</strong>
+              <strong style={{ color: severity?.accentColor }}>{formatCount(paymentContext.failures)}</strong>
             </div>
             <div className={styles.panelMetric}>
               <span>Usual failed payments</span>
@@ -657,7 +721,7 @@ function MonitorInsightPanel({
           <>
             <div className={styles.panelMetric}>
               <span>Current revenue</span>
-              <strong className={model.isAlerting ? styles.dangerText : undefined}>
+              <strong style={model.isAlerting ? { color: severity?.accentColor } : undefined}>
                 {formatMoneyAmount(model.actualValue)}
               </strong>
             </div>
@@ -720,10 +784,12 @@ function PaymentFailureMonitor({
   topAlert,
   paymentContext,
   lastEventAt,
+  severity,
 }: {
   topAlert: AlertLike;
   paymentContext: PaymentFailureContext;
   lastEventAt?: Date | null;
+  severity: ReturnType<typeof getSeverityPresentation>;
 }) {
   const failureModel = buildFailureChartModel(topAlert, paymentContext);
 
@@ -737,18 +803,28 @@ function PaymentFailureMonitor({
               <p>Each bar shows how many failed payments happened during that time period.</p>
               <div className={styles.chartMeta}>Current period</div>
             </div>
-            <span className={styles.liveBadge}>
-              <span />
-              Live issue
+            <span className={styles.liveBadge} style={{ color: severity.accentColor }}>
+              <span
+                style={{
+                  background: severity.accentColor,
+                  boxShadow: `0 0 0 6px ${severity.accentShadow}`,
+                }}
+              />
+              {severity.label}
             </span>
           </div>
 
           <div className={styles.failureMiniChart}>
-            <FailureChart model={failureModel} />
+            <FailureChart model={failureModel} severity={severity} />
           </div>
         </div>
 
-        <MonitorInsightPanel topAlert={topAlert} paymentContext={paymentContext} lastEventAt={lastEventAt} />
+        <MonitorInsightPanel
+          topAlert={topAlert}
+          paymentContext={paymentContext}
+          lastEventAt={lastEventAt}
+          severity={severity}
+        />
       </div>
     </section>
   );
@@ -759,11 +835,13 @@ function RevenueAlertMonitor({
   topAlert,
   paymentContext,
   lastEventAt,
+  severity,
 }: {
   model: RevenueChartModel;
   topAlert: AlertLike;
   paymentContext: PaymentFailureContext | null;
   lastEventAt?: Date | null;
+  severity: ReturnType<typeof getSeverityPresentation>;
 }) {
   const width = 1000;
   const height = 300;
@@ -822,9 +900,14 @@ function RevenueAlertMonitor({
               <p>Each point shows how much revenue came in during that time period.</p>
               <div className={styles.chartMeta}>Current period</div>
             </div>
-            <span className={styles.liveBadge}>
-              <span />
-              Live issue
+            <span className={styles.liveBadge} style={{ color: severity.accentColor }}>
+              <span
+                style={{
+                  background: severity.accentColor,
+                  boxShadow: `0 0 0 6px ${severity.accentShadow}`,
+                }}
+              />
+              {severity.label}
             </span>
           </div>
 
@@ -834,6 +917,9 @@ function RevenueAlertMonitor({
               style={{
                 top: `${(thresholdY / height) * 100}%`,
                 left: `${(thresholdLabelX / width) * 100}%`,
+                background: severity.accentSoft,
+                color: severity.accentColor,
+                boxShadow: `0 1px 2px ${severity.accentShadow}`,
               }}
             >
               Threshold ({formatMoneyAmount(model.thresholdValue)})
@@ -881,17 +967,41 @@ function RevenueAlertMonitor({
                 y={thresholdY}
                 width={plot.right - plot.left}
                 height={plot.bottom - thresholdY}
-                className={styles.issueZone}
+                style={{ fill: severity.accentZone }}
               />
               {model.isAlerting ? (
-                <line x1={x(triggerPoint.index)} x2={x(triggerPoint.index)} y1={plot.top} y2={plot.bottom} className={styles.triggerLine} />
+                <line
+                  x1={x(triggerPoint.index)}
+                  x2={x(triggerPoint.index)}
+                  y1={plot.top}
+                  y2={plot.bottom}
+                  style={{ stroke: severity.accentLine, strokeWidth: 1, strokeDasharray: "4 7" }}
+                />
               ) : null}
               <path d={`${actualPath} L${plot.right},${plot.bottom} L${plot.left},${plot.bottom} Z`} fill="url(#accountChartFill)" />
-              <line x1={plot.left} x2={plot.right} y1={thresholdY} y2={thresholdY} className={styles.thresholdLine} />
+              <line
+                x1={plot.left}
+                x2={plot.right}
+                y1={thresholdY}
+                y2={thresholdY}
+                style={{
+                  fill: "none",
+                  stroke: severity.accentColor,
+                  strokeWidth: 1.5,
+                  strokeDasharray: "9 6",
+                  strokeLinecap: "round",
+                  strokeLinejoin: "round",
+                }}
+              />
               <path d={actualPath} className={styles.actualPath} />
               {model.isAlerting ? (
                 <>
-                  <circle cx={triggerX} cy={triggerY} r="4" className={styles.alertPoint} />
+                  <circle
+                    cx={triggerX}
+                    cy={triggerY}
+                    r="4"
+                    style={{ fill: severity.accentColor, stroke: "#ffffff", strokeWidth: 2 }}
+                  />
                 </>
               ) : (
                 <circle cx={x(activePoint.index)} cy={y(activePoint.actual)} r="4" className={styles.activePoint} />
@@ -904,14 +1014,20 @@ function RevenueAlertMonitor({
               <span>
                 <i className={styles.legendBlue} /> Current revenue
               </span>
-              <span>
-                <i className={styles.legendRed} /> Alert threshold ({formatMoneyAmount(model.thresholdValue)})
-              </span>
-            </div>
+            <span>
+              <i className={severity.legendClass} /> Alert threshold ({formatMoneyAmount(model.thresholdValue)})
+            </span>
           </div>
         </div>
+      </div>
 
-        <MonitorInsightPanel model={model} topAlert={topAlert} paymentContext={paymentContext} lastEventAt={lastEventAt} />
+        <MonitorInsightPanel
+          model={model}
+          topAlert={topAlert}
+          paymentContext={paymentContext}
+          lastEventAt={lastEventAt}
+          severity={severity}
+        />
       </div>
     </section>
   );
@@ -932,22 +1048,39 @@ function AccountMonitor({
     return <HealthyMonitorCard lastEventAt={lastEventAt} />;
   }
 
+  const severity = getSeverityPresentation(topAlert.severity);
+
   if (topAlert.type === "payment_failed" && paymentContext) {
-    return <PaymentFailureMonitor topAlert={topAlert} paymentContext={paymentContext} lastEventAt={lastEventAt} />;
+    return (
+      <PaymentFailureMonitor
+        topAlert={topAlert}
+        paymentContext={paymentContext}
+        lastEventAt={lastEventAt}
+        severity={severity}
+      />
+    );
   }
 
-  return <RevenueAlertMonitor model={model} topAlert={topAlert} paymentContext={paymentContext} lastEventAt={lastEventAt} />;
+  return (
+    <RevenueAlertMonitor
+      model={model}
+      topAlert={topAlert}
+      paymentContext={paymentContext}
+      lastEventAt={lastEventAt}
+      severity={severity}
+    />
+  );
 }
 
 function ActiveAlertRow({ alert, now }: { alert: AlertLike; now: Date }) {
-  const isCritical = alert.severity === "critical";
+  const severity = getSeverityPresentation(alert.severity);
   const activeUntil =
     alert.windowEnd && alert.windowEnd > now ? ` - Active until ${fmtDate(alert.windowEnd)}` : "";
   const detectedAt = fmtDetectedDate(alert.createdAt);
 
   return (
     <article className={styles.alertRow}>
-      <div className={isCritical ? styles.alertIconCritical : styles.alertIconWarning}>!</div>
+      <div className={severity.iconClass}>!</div>
       <div>
         <h3>{alertLabel(alert.type)}</h3>
         <p>{buildReadableAlertMessage(alert)}</p>
@@ -1000,13 +1133,14 @@ export default async function AccountDetailPage({
   }
 
   const now = new Date();
+  const demoSeverity = demoAccount ? getDemoSeverity(demoAccount) : null;
   const activeAlerts =
     demoAccount && demoAccount.status === "active_issue"
       ? [
           {
             id: `demo-alert-${demoAccount.id}`,
             type: demoAccount.alertType,
-            severity: demoAccount.severity === "high" ? "critical" : "warning",
+            severity: demoSeverity === "high" ? "critical" : "warning",
             message: demoAccount.message,
             stripeAccountId: demoAccount.id,
             accountName: demoAccount.name,
@@ -1068,12 +1202,10 @@ export default async function AccountDetailPage({
   const chartModel = buildRevenueChartModel(accountId, topAlert, now);
   const paymentContext = getPaymentFailureContext(topAlert);
   const accountName = account?.name ?? demoAccount?.name ?? accountId;
-  const headerStatus =
-    topAlert?.severity === "critical"
-      ? { label: "High severity", className: styles.statusCritical }
-      : topAlert
-        ? { label: "Review needed", className: styles.statusWarning }
-        : { label: "Monitoring active", className: styles.statusHealthy };
+  const detailSeverity = topAlert ? getSeverityPresentation(topAlert.severity) : null;
+  const headerStatus = detailSeverity
+    ? { label: detailSeverity.label, className: detailSeverity.statusClass }
+    : { label: "Monitoring active", className: styles.statusHealthy };
 
   return (
     <main className={styles.page}>

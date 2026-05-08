@@ -360,7 +360,9 @@
 
 .legendBlue,
 .legendRed,
-.legendDash {
+.legendAmber,
+.legendDashRed,
+.legendDashAmber {
   width: 8px;
   height: 8px;
   border-radius: 999px;
@@ -374,11 +376,22 @@
   background: #ba1a1a;
 }
 
-.legendDash {
+.legendAmber {
+  background: #b7791f;
+}
+
+.legendDashRed {
   width: 16px;
   height: 0;
   border-radius: 0;
   border-top: 2px dashed #ba1a1a;
+}
+
+.legendDashAmber {
+  width: 16px;
+  height: 0;
+  border-radius: 0;
+  border-top: 2px dashed #b7791f;
 }
 
 .failureChartWrap {
@@ -549,9 +562,15 @@
   border-color: rgba(193, 198, 215, 0.3);
 }
 
-.monitorPanelIssue {
+.monitorPanelIssueCritical {
   background:
     linear-gradient(180deg, rgba(186, 26, 26, 0.025) 0%, #ffffff 40%);
+  border-color: rgba(193, 198, 215, 0.3);
+}
+
+.monitorPanelIssueWarning {
+  background:
+    linear-gradient(180deg, rgba(154, 103, 0, 0.03) 0%, #ffffff 40%);
   border-color: rgba(193, 198, 215, 0.3);
 }
 
@@ -581,8 +600,12 @@
   background: #0065d1;
 }
 
-.monitorPanelIssue .panelStatusDot {
+.monitorPanelIssueCritical .panelStatusDot {
   background: #ba1a1a;
+}
+
+.monitorPanelIssueWarning .panelStatusDot {
+  background: #9a6700;
 }
 
 .monitorPanel h3 {
