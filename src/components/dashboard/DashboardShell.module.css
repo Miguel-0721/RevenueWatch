@@ -1,0 +1,240 @@
+.dashboardPage {
+  height: 100vh;
+  margin-top: calc(var(--topbar-height) * -1);
+  background: #eef1f5;
+  color: #191c1d;
+  padding: 24px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.dashboardShell {
+  max-width: 1520px;
+  margin: 0 auto;
+  height: calc(100vh - 48px);
+  box-sizing: border-box;
+}
+
+.sidebarColumn {
+  position: fixed;
+  left: max(24px, calc((100vw - 1520px) / 2));
+  top: 24px;
+  width: 280px;
+  height: calc(100vh - 48px);
+  z-index: 10;
+  box-sizing: border-box;
+}
+
+.sidebarPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  height: 100%;
+  padding: 34px 26px;
+  border-radius: 28px;
+  background: #ffffff;
+  box-shadow: 0 18px 42px rgba(25, 28, 29, 0.05),
+    inset 0 0 0 1px rgba(193, 198, 215, 0.34);
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.mainPanel {
+  min-width: 0;
+  margin-left: 304px;
+  height: calc(100vh - 48px);
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.sidebarBrand {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  min-height: 64px;
+}
+
+.sidebarBrandLink {
+  display: inline-flex;
+  align-items: flex-start;
+  cursor: pointer;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.sidebarBrandLink:hover,
+.sidebarBrandLink:focus-visible {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.sidebarBrandContent {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebarBrandSub {
+  margin-top: 8px;
+  color: #717786;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.sidebarBrandLogo {
+  display: inline-flex;
+  align-items: center;
+}
+
+.sidebarBrandLogo :global(.rw-logo-image) {
+  height: 58px;
+  width: auto;
+}
+
+.sidebarSearch {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #717786;
+  font-size: 0.98rem;
+  box-shadow: inset 0 0 0 1px rgba(193, 198, 215, 0.45);
+}
+
+.sidebarNav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.sidebarLink {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 0 18px;
+  border-radius: 10px;
+  color: #191c1d;
+  font-size: 0.98rem;
+  font-weight: 600;
+  transition: background-color 180ms ease, color 180ms ease, transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.sidebarLink:hover,
+.sidebarLink:focus-visible {
+  background: rgba(255, 255, 255, 0.88);
+  transform: translateY(-1px);
+}
+
+.sidebarLinkActive {
+  background: #dfe9f5;
+  color: #0058bc;
+  font-weight: 800;
+  box-shadow: inset 0 0 0 1px rgba(161, 190, 253, 0.4);
+}
+
+.sidebarNavIcon,
+.sidebarLink svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: currentColor;
+}
+
+.sidebarUserArea {
+  margin-top: auto;
+  padding-top: 18px;
+  border-top: 1px solid #eceef1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sidebarUserIdentity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sidebarUserAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: #dfe9f5;
+  color: #0058bc;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.sidebarUserMeta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.sidebarUserName {
+  color: #191c1d;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.sidebarUserEmail {
+  color: #717786;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.sidebarSignOut {
+  border: none;
+  background: transparent;
+  color: #0058bc;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  align-self: flex-start;
+}
+
+@media (max-width: 900px) {
+  .dashboardPage {
+    height: auto;
+    overflow: visible;
+    padding-bottom: 72px;
+  }
+
+  .dashboardShell {
+    display: block;
+    height: auto;
+  }
+
+  .sidebarColumn {
+    position: static;
+    left: auto;
+    top: auto;
+    width: auto;
+    height: auto;
+    z-index: auto;
+  }
+
+  .sidebarPanel {
+    min-height: auto;
+    height: auto;
+    overflow: visible;
+  }
+
+  .mainPanel {
+    margin-left: 0;
+    height: auto;
+    min-height: 0;
+  }
+}

@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import Navbar from "@/components/Navbar";
 import SeverityHelpPopover from "@/components/SeverityHelpPopover";
 import { getDemoAccountById, getDemoAlertHistory } from "@/lib/demoData";
 import { prisma } from "@/lib/prisma";
@@ -1078,8 +1077,6 @@ export default async function AccountDetailPage({
 
   return (
     <main className={styles.page}>
-      <Navbar mode="app" />
-
       <div className={styles.shell}>
         <header className={styles.header}>
           <div className={styles.headerCopy}>

@@ -1,0 +1,265 @@
+.shell {
+  height: 100%;
+  min-height: 0;
+  border-radius: 30px;
+  background: #ffffff;
+  box-shadow: 0 22px 60px rgba(25, 28, 29, 0.06),
+    inset 0 0 0 1px rgba(193, 198, 215, 0.16);
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 32px 36px 20px;
+  border-bottom: 1px solid #eceef1;
+}
+
+.header h1 {
+  margin: 0;
+  color: #191c1d;
+  font-size: 2.4rem;
+  line-height: 1.04;
+  letter-spacing: -0.05em;
+}
+
+.header p {
+  max-width: 720px;
+  margin: 10px 0 0;
+  color: #556070;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.content {
+  padding: 0 36px 36px;
+}
+
+.section {
+  margin-top: 0;
+  padding: 28px 0 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.sectionHeader h2 {
+  margin: 0;
+  color: #191c1d;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.sectionCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #eef0f2;
+  color: #414755;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.emptyState {
+  padding: 22px;
+  border-radius: 18px;
+  background: #f6f7f8;
+  color: #717786;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.list,
+.historyList,
+.historyGroups {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.card {
+  padding: 20px;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(193, 198, 215, 0.24);
+}
+
+.cardCritical {
+  background: linear-gradient(180deg, #fff8f7 0%, #ffffff 100%);
+  box-shadow: inset 0 0 0 1px rgba(186, 26, 26, 0.18);
+}
+
+.cardWarning {
+  background: linear-gradient(180deg, #fffaf0 0%, #ffffff 100%);
+  box-shadow: inset 0 0 0 1px rgba(181, 119, 31, 0.2);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.cardHeader h3 {
+  margin: 0;
+  color: #191c1d;
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.cardType {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.severityBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.severityCritical {
+  background: #ffdad6;
+  color: #ba1a1a;
+}
+
+.severityWarning {
+  background: #fff1c2;
+  color: #8a5a00;
+}
+
+.cardBody {
+  margin: 14px 0 0;
+  color: #414755;
+  font-size: 0.98rem;
+  line-height: 1.65;
+}
+
+.cardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e7e8e9;
+  color: #717786;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.cardAction {
+  color: #0058bc;
+  font-size: 0.92rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cardAction:hover {
+  color: #00479a;
+}
+
+.historyGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.historyGroupTitle {
+  margin: 0;
+  color: #414755;
+  font-size: 0.84rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.historyItem {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 0;
+  border-top: 1px solid #e6e9ee;
+}
+
+.historyItem:first-child {
+  border-top: none;
+}
+
+.historyCopy {
+  min-width: 0;
+}
+
+.historyText {
+  margin: 0;
+  color: #191c1d;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.historyMeta {
+  flex-shrink: 0;
+  color: #596273;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media (max-width: 780px) {
+  .shell {
+    height: auto;
+    overflow: visible;
+  }
+
+  .content {
+    padding-left: 22px;
+    padding-right: 22px;
+  }
+
+  .header {
+    padding-left: 22px;
+    padding-right: 22px;
+  }
+
+  .header,
+  .cardHeader,
+  .historyItem,
+  .cardFooter {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .header h1 {
+    font-size: 2rem;
+  }
+
+  .historyMeta {
+    white-space: normal;
+  }
+}
