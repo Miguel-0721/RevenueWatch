@@ -294,20 +294,22 @@ export default async function DashboardAlertsPage() {
 
   return (
     <div className={styles.shell}>
-      <div className={styles.header}>
-        <div>
-          <h1>Alerts</h1>
-          <p>Review current issues and past alert activity across your connected accounts.</p>
+      <div className={styles.stickyIntro}>
+        <div className={styles.header}>
+          <div>
+            <h1>Alerts</h1>
+            <p>Review current issues and past alert activity across your connected accounts.</p>
+          </div>
+        </div>
+
+        <div className={`${styles.sectionHeader} ${styles.stickySectionHeader}`}>
+          <h2>Active Alerts</h2>
+          <span className={styles.sectionCount}>{activeAlerts.length}</span>
         </div>
       </div>
 
       <div className={styles.content}>
         <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2>Active Alerts</h2>
-            <span className={styles.sectionCount}>{activeAlerts.length}</span>
-          </div>
-
           {activeAlerts.length === 0 ? (
             <div className={styles.emptyState}>No active alerts right now.</div>
           ) : (
