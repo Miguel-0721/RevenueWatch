@@ -57,12 +57,19 @@ function accountDisplayName(name: string | null) {
   return name?.trim() || "Stripe account";
 }
 
-export default async function DashboardAccountsPage() {
+export default async function DashboardAccountsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ connect?: string }>;
+}) {
   const session = await auth();
 
   if (!session?.user?.id) {
     redirect("/login");
   }
+
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const connectStatus = resolvedSearchParams?.connect;
 
   const accounts = await prisma.stripeAccount.findMany({
     where: { userId: session.user.id },
@@ -163,8 +170,8 @@ export default async function DashboardAccountsPage() {
             <h1>Connected accounts</h1>
             <p>Review the Stripe accounts RevenueWatch is monitoring and open a detailed account view when something needs attention.</p>
           </div>
-          <Link href="/dashboard" className={styles.backLink}>
-            Back to dashboard
+          <Link href="/api/stripe/connect" className={styles.addAccountLink}>
+            Add account
           </Link>
         </header>
 
@@ -176,6 +183,11 @@ export default async function DashboardAccountsPage() {
 
       <div className={styles.content}>
         <section className={styles.section}>
+          {connectStatus === "cancelled" ? (
+            <div className={styles.connectNotice}>
+              Stripe connection cancelled. No account was connected.
+            </div>
+          ) : null}
           <p className={styles.helperText}>Accounts needing review are shown first.</p>
           {accounts.length === 0 ? (
             <div className={styles.emptyState}>

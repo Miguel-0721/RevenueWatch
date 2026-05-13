@@ -23,6 +23,8 @@ function pickDisplayName(account: {
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
+  const oauthError = url.searchParams.get("error");
+  const oauthErrorDescription = url.searchParams.get("error_description");
   const code = url.searchParams.get("code");
 
   const clientId = process.env.STRIPE_CONNECT_CLIENT_ID;
@@ -48,6 +50,17 @@ export async function GET(req: Request) {
       { error: "Missing NEXT_PUBLIC_APP_URL" },
       { status: 500 }
     );
+  }
+
+  if (oauthError) {
+    const redirectUrl = new URL("/dashboard/accounts", req.url);
+    redirectUrl.searchParams.set("connect", "cancelled");
+
+    if (oauthErrorDescription) {
+      console.info("Stripe Connect cancelled:", oauthErrorDescription);
+    }
+
+    return NextResponse.redirect(redirectUrl);
   }
 
   if (!code) {
