@@ -350,7 +350,7 @@ export default async function DashboardBillingPage({ searchParams }: BillingPage
                       >
                         <button
                           type="submit"
-                          className={`${styles.upgradeButton} ${styles.upgradeButtonPrimary}`}
+                          className={`${styles.upgradeButton} ${styles.upgradeButtonSecondary}`}
                         >
                           {plan.downgradeCta}
                         </button>

@@ -334,6 +334,29 @@
   background: linear-gradient(180deg, #0058bc 0%, #0070eb 100%);
 }
 
+.upgradeButtonSecondary {
+  background: #ffffff;
+  color: #27487d;
+  border-color: rgba(193, 198, 215, 0.72);
+  box-shadow: 0 6px 16px rgba(25, 28, 29, 0.05);
+}
+
+.upgradeButtonSecondary:hover {
+  background: #f8fbff;
+  color: #0058bc;
+  border-color: rgba(0, 88, 188, 0.24);
+  box-shadow: 0 10px 18px rgba(25, 28, 29, 0.08);
+}
+
+.upgradeButtonSecondary:active {
+  background: #f3f7fd;
+  box-shadow: 0 6px 12px rgba(25, 28, 29, 0.05);
+}
+
+.upgradeButtonSecondary:focus-visible {
+  outline: 2px solid rgba(0, 88, 188, 0.22);
+}
+
 .portalButton {
   margin-top: 18px;
 }
