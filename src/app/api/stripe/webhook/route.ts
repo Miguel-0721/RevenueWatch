@@ -685,6 +685,14 @@ export async function POST(req: Request) {
     // 🔒 Guard: ignore events for disconnected / inactive accounts
     const account = await prisma.stripeAccount.findUnique({
       where: { stripeAccountId },
+      select: {
+        id: true,
+        stripeAccountId: true,
+        status: true,
+        name: true,
+        userId: true,
+        alertSensitivity: true,
+      },
     });
 
     if (!account || account.status !== "active") {
