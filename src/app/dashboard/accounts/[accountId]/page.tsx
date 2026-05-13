@@ -1,9 +1,11 @@
+import { auth } from "@/auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import SeverityHelpPopover from "@/components/SeverityHelpPopover";
 import { formatMoneyAmount, normalizeCurrencyCode } from "@/lib/currency";
 import { getDemoAccountById, getDemoAlertHistory, getDemoSeverity } from "@/lib/demoData";
 import { prisma } from "@/lib/prisma";
+import RenameAccountControl from "./RenameAccountControl";
 import styles from "./page.module.css";
 
 export const dynamic = "force-dynamic";
@@ -1087,6 +1089,11 @@ export default async function AccountDetailPage({
 }: {
   params: Promise<{ accountId: string }>;
 }) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    notFound();
+  }
+
   const { accountId } = await params;
   const [account, alerts, lastEvent] = await Promise.all([
     prisma.stripeAccount.findFirst({
@@ -1191,7 +1198,15 @@ export default async function AccountDetailPage({
         <header className={styles.header}>
           <div className={styles.headerCopy}>
             <div className={styles.titleRow}>
-              <h1>{accountName}</h1>
+              <div className={styles.titlePrimary}>
+                <h1>{accountName}</h1>
+                {account ? (
+                  <RenameAccountControl
+                    accountId={account.stripeAccountId}
+                    currentName={account.name?.trim() || accountName}
+                  />
+                ) : null}
+              </div>
               <span className={headerStatus.className}>{headerStatus.label}</span>
             </div>
             <p className={styles.headerSubtitle}>

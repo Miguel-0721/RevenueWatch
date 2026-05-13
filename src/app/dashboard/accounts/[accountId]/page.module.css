@@ -39,6 +39,137 @@
   flex-wrap: wrap;
 }
 
+.titlePrimary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.renameControl {
+  position: relative;
+}
+
+.renameTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(0, 88, 188, 0.16);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #4d5f7b;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.renameTrigger:hover,
+.renameTrigger:focus-visible {
+  background: rgba(0, 88, 188, 0.04);
+  border-color: rgba(0, 88, 188, 0.24);
+  color: #0058bc;
+}
+
+.renameTrigger svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.renameForm {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 0;
+  z-index: 20;
+  width: min(360px, calc(100vw - 48px));
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid rgba(193, 198, 215, 0.28);
+  box-shadow: 0 14px 30px rgba(25, 28, 29, 0.1);
+}
+
+.renameLabel {
+  display: grid;
+  gap: 8px;
+  color: #191c1d;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.renameInput {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(193, 198, 215, 0.58);
+  color: #191c1d;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+}
+
+.renameInput:focus-visible {
+  outline: 2px solid rgba(0, 88, 188, 0.22);
+  outline-offset: 1px;
+  border-color: rgba(0, 88, 188, 0.42);
+}
+
+.renameHelp {
+  margin: 0;
+  color: #717786;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.renameError {
+  margin: 0;
+  color: #ba1a1a;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.renameActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.renameSecondary,
+.renamePrimary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.renameSecondary {
+  border: 1px solid rgba(193, 198, 215, 0.58);
+  background: #ffffff;
+  color: #4d5f7b;
+}
+
+.renamePrimary {
+  border: none;
+  background: #0058bc;
+  color: #ffffff;
+}
+
+.renameSecondary:disabled,
+.renamePrimary:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
 .statusCritical,
 .statusWarning,
 .statusHealthy {
@@ -830,6 +961,16 @@
 
   .alertRow {
     grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  .titlePrimary {
+    align-items: flex-start;
+  }
+
+  .renameForm {
+    position: static;
+    width: min(100%, 360px);
+    margin-top: 10px;
   }
 
   .rowAction {

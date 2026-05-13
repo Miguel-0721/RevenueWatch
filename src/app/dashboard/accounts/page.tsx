@@ -238,8 +238,14 @@ export default async function DashboardAccountsPage({
                     className={`${styles.card}${cardVariantClass ? ` ${cardVariantClass}` : ""}`}
                   >
                     <div className={styles.cardMain}>
-                      <div className={styles.cardTitle}>
-                        {accountDisplayName(account.name)}
+                      <div className={styles.cardTitleRow}>
+                        <div className={styles.cardTitle}>
+                          {accountDisplayName(account.name)}
+                        </div>
+                        <span className={`${styles.status} ${statusClass}`}>
+                          <span className={styles.statusDot} />
+                          {statusLabel}
+                        </span>
                       </div>
                       <div className={styles.cardMeta}>
                         {formatRelativeTime(lastEventByAccount.get(account.stripeAccountId))}
@@ -250,10 +256,6 @@ export default async function DashboardAccountsPage({
                     </div>
 
                     <div className={styles.cardActions}>
-                      <span className={`${styles.status} ${statusClass}`}>
-                        <span className={styles.statusDot} />
-                        {statusLabel}
-                      </span>
                       <Link
                         href={`/dashboard/accounts/${encodeURIComponent(account.stripeAccountId)}`}
                         className={styles.detailsLink}

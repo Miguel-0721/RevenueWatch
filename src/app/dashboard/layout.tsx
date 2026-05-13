@@ -40,8 +40,6 @@ export default async function DashboardLayout({
               </Link>
             </div>
 
-            <div className={styles.sidebarSearch}>Search</div>
-
             <DashboardSidebarNav />
 
             <div className={styles.sidebarUserArea}>

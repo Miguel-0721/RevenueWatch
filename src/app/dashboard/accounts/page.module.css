@@ -152,6 +152,15 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.cardTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
 }
 
 .cardTitle {
@@ -174,25 +183,26 @@
 .cardActions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  flex: 0 0 auto;
 }
 
 .status {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-height: 32px;
-  padding: 0 12px;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 9px;
   border-radius: 999px;
-  font-size: 0.82rem;
-  font-weight: 700;
+  font-size: 0.74rem;
+  font-weight: 600;
 }
 
 .statusDot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 999px;
   background: currentColor;
   flex: 0 0 auto;
@@ -273,5 +283,9 @@
 
   .cardActions {
     justify-content: flex-start;
+  }
+
+  .cardTitleRow {
+    align-items: flex-start;
   }
 }

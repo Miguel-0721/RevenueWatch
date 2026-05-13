@@ -93,23 +93,10 @@
   width: auto;
 }
 
-.sidebarSearch {
-  display: flex;
-  align-items: center;
-  min-height: 48px;
-  padding: 0 16px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.92);
-  color: #717786;
-  font-size: 0.98rem;
-  box-shadow: inset 0 0 0 1px rgba(193, 198, 215, 0.45);
-}
-
 .sidebarNav {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-top: 8px;
 }
 
 .sidebarLink {
