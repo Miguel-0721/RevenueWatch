@@ -528,30 +528,10 @@ function FailureChart({
 
   const thresholdChipWidthPercent = 16;
   const thresholdChipHalfWidth = thresholdChipWidthPercent / 2;
-  const thresholdChipBuffer = 2.5;
-  const thresholdChipMinCenter = Math.max(55, thresholdChipHalfWidth + 2);
-  const thresholdChipMaxCenter = 100 - thresholdChipHalfWidth - 2;
-
-  let thresholdChipCenter = Math.min(78, thresholdChipMaxCenter);
-
-  for (const bar of [...barLayouts].reverse()) {
-    const barLeft = bar.leftPercent;
-    const barRight = bar.leftPercent + bar.widthPercent;
-    const chipLeft = thresholdChipCenter - thresholdChipHalfWidth;
-    const chipRight = thresholdChipCenter + thresholdChipHalfWidth;
-    const collides =
-      chipRight >= barLeft - thresholdChipBuffer &&
-      chipLeft <= barRight + thresholdChipBuffer;
-
-    if (collides) {
-      thresholdChipCenter = Math.max(
-        thresholdChipMinCenter,
-        thresholdChipCenter - 4
-      );
-    }
-  }
-
-  thresholdChipCenter = Math.min(thresholdChipMaxCenter, thresholdChipCenter);
+  const thresholdChipCenter = Math.min(
+    100 - thresholdChipHalfWidth - 2,
+    Math.max(thresholdChipHalfWidth + 2, 50)
+  );
 
   return (
     <>
@@ -881,20 +861,14 @@ function RevenueAlertMonitor({
   const thresholdY = y(model.thresholdValue);
   const yTicks = buildMoneyTicks(maxValue);
   const xTickIndexes = buildTickIndexes(model.points.length);
-  const previousX = x(previousPoint.index);
   const triggerX = x(triggerPoint.index);
   const triggerY = y(triggerPoint.actual);
   const thresholdLabelWidth = 140;
-  const thresholdLabelPadding = 24;
   const thresholdLabelHalfWidth = thresholdLabelWidth / 2;
   const leftLimit = plot.left + thresholdLabelHalfWidth + 12;
   const rightLimit = plot.right - thresholdLabelHalfWidth - 12;
-  const leftCandidate = previousX - thresholdLabelHalfWidth - 32;
-  const rightCandidate = triggerX + thresholdLabelHalfWidth + 32;
-  const hasRoomLeft = leftCandidate - leftLimit >= thresholdLabelPadding;
-  const thresholdLabelX = hasRoomLeft
-    ? Math.max(leftLimit, leftCandidate)
-    : Math.min(rightLimit, rightCandidate);
+  const centeredCandidate = plot.left + plotWidth / 2;
+  const thresholdLabelX = Math.min(rightLimit, Math.max(leftLimit, centeredCandidate));
 
   return (
     <section className={styles.chartCard}>

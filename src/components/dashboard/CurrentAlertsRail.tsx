@@ -470,6 +470,9 @@ function FailureChart({
 
     return { point, leftPercent, widthPercent: barWidthPercent };
   });
+  const thresholdChipWidthPercent = 16;
+  const thresholdChipHalfWidth = thresholdChipWidthPercent / 2;
+  const thresholdChipCenter = Math.min(100 - thresholdChipHalfWidth - 2, Math.max(thresholdChipHalfWidth + 2, 50));
 
   return (
     <>
@@ -496,7 +499,7 @@ function FailureChart({
         <div
           className={detailStyles.failureThreshold}
           style={{
-            left: "72%",
+            left: `${thresholdChipCenter}%`,
             bottom: `calc(${thresholdPercent}% - 10px)`,
             background: severity.accentSoft,
             color: severity.accentColor,
@@ -746,19 +749,14 @@ function RevenueAlertMonitor({
   const thresholdY = y(model.thresholdValue);
   const yTicks = buildMoneyTicks(maxValue);
   const xTickIndexes = buildTickIndexes(model.points.length);
-  const previousX = x(previousPoint.index);
   const triggerX = x(triggerPoint.index);
   const triggerY = y(triggerPoint.actual);
   const thresholdLabelWidth = 140;
   const thresholdLabelHalfWidth = thresholdLabelWidth / 2;
   const leftLimit = plot.left + thresholdLabelHalfWidth + 12;
   const rightLimit = plot.right - thresholdLabelHalfWidth - 12;
-  const leftCandidate = previousX - thresholdLabelHalfWidth - 32;
-  const rightCandidate = triggerX + thresholdLabelHalfWidth + 32;
-  const hasRoomLeft = leftCandidate - leftLimit >= 24;
-  const thresholdLabelX = hasRoomLeft
-    ? Math.max(leftLimit, leftCandidate)
-    : Math.min(rightLimit, rightCandidate);
+  const centeredCandidate = plot.left + plotWidth / 2;
+  const thresholdLabelX = Math.min(rightLimit, Math.max(leftLimit, centeredCandidate));
 
   return (
     <section className={detailStyles.chartCard}>
