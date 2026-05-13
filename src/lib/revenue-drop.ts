@@ -48,6 +48,31 @@ function revenueBaselineLabel(level: RevenueBaselineLevel) {
   return "same hour";
 }
 
+function buildRevenueDropMessage({
+  dropRatio,
+  baselineLevel,
+  baselineHours,
+  baselineAmount,
+  currentWindowMinutes,
+  currentAmount,
+  metricCurrency,
+}: {
+  dropRatio: number;
+  baselineLevel: RevenueBaselineLevel;
+  baselineHours: number;
+  baselineAmount: number;
+  currentWindowMinutes: number;
+  currentAmount: number;
+  metricCurrency: string;
+}) {
+  return `Revenue dropped by ${(dropRatio * 100).toFixed(0)}% compared to baseline.
+Baseline (${revenueBaselineLabel(baselineLevel)}, last ${baselineHours}h): ${formatMoneyAmount(
+    baselineAmount,
+    metricCurrency
+  )}
+Current (${currentWindowMinutes} min): ${formatMoneyAmount(currentAmount, metricCurrency)}`;
+}
+
 function summarizeRevenueWindows(samples: RevenueMetricSample[]) {
   const totalsByWindow = new Map<string, number>();
 
@@ -309,6 +334,71 @@ export async function evaluateRevenueDropForAccount({
     now,
   });
 
+  const nextMessage = buildRevenueDropMessage({
+    dropRatio,
+    baselineLevel: selectedBaseline.level,
+    baselineHours: config.baselineHours,
+    baselineAmount,
+    currentWindowMinutes: config.revenueWindowMinutes,
+    currentAmount,
+    metricCurrency,
+  });
+  const nextContext = JSON.stringify({
+    dropRatio,
+    baselineHours: config.baselineHours,
+    baselineAmount,
+    baselineLevel: selectedBaseline.level,
+    baselineLabel: revenueBaselineLabel(selectedBaseline.level),
+    baselineSampleCount: selectedBaseline.sampleCount,
+    currentWindowMinutes: config.revenueWindowMinutes,
+    currentAmount,
+    threshold: config.dropThreshold,
+    alertThresholdAmount: Math.round(baselineAmount * (1 - config.dropThreshold)),
+    amountUnit: "cents",
+    currency: metricCurrency,
+    dayOfWeek: nowDay,
+    hourOfDay: nowHour,
+    revenueSeries,
+    source,
+    triggerEventId,
+  });
+
+  const activeRevenueAlert = await prisma.alert.findFirst({
+    where: {
+      stripeAccountId,
+      type: "revenue_drop",
+      status: "active",
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    select: {
+      id: true,
+      severity: true,
+    },
+  });
+
+  if (activeRevenueAlert) {
+    if (activeRevenueAlert.severity === "warning" && severity === "critical") {
+      await prisma.alert.update({
+        where: {
+          id: activeRevenueAlert.id,
+        },
+        data: {
+          severity: "critical",
+          message: nextMessage,
+          context: nextContext,
+        },
+      });
+    }
+
+    return {
+      alertsCreated: 0,
+      alertsResolved: recoveredRevenueAlertIds.length,
+      skipped: true,
+    };
+  }
+
   const stripeEventId =
     triggerEventId ?? getRevenueDropStripeEventId({ stripeAccountId, currentWindowStart });
 
@@ -319,31 +409,8 @@ export async function evaluateRevenueDropForAccount({
       status: "active",
       stripeEventId,
       stripeAccountId,
-      message: `Revenue dropped by ${(dropRatio * 100).toFixed(0)}% compared to baseline.
-Baseline (${revenueBaselineLabel(selectedBaseline.level)}, last ${config.baselineHours}h): ${formatMoneyAmount(
-        baselineAmount,
-        metricCurrency
-      )}
-Current (${config.revenueWindowMinutes} min): ${formatMoneyAmount(currentAmount, metricCurrency)}`,
-      context: JSON.stringify({
-        dropRatio,
-        baselineHours: config.baselineHours,
-        baselineAmount,
-        baselineLevel: selectedBaseline.level,
-        baselineLabel: revenueBaselineLabel(selectedBaseline.level),
-        baselineSampleCount: selectedBaseline.sampleCount,
-        currentWindowMinutes: config.revenueWindowMinutes,
-        currentAmount,
-        threshold: config.dropThreshold,
-        alertThresholdAmount: Math.round(baselineAmount * (1 - config.dropThreshold)),
-        amountUnit: "cents",
-        currency: metricCurrency,
-        dayOfWeek: nowDay,
-        hourOfDay: nowHour,
-        revenueSeries,
-        source,
-        triggerEventId,
-      }),
+      message: nextMessage,
+      context: nextContext,
       windowStart: currentWindowStart,
       windowEnd: new Date(now.getTime() + config.revenueWindowMinutes * 60 * 1000),
       cooldownUntil: getRevenueDropCooldownUntil(now),
