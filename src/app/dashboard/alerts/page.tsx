@@ -14,10 +14,10 @@ type AlertRecord = {
   id: string;
   type: string;
   severity: string;
+  status?: string;
   message: string;
   stripeAccountId: string | null;
   createdAt?: Date;
-  windowEnd?: Date;
   context?: string | null;
   detectedLabel?: string;
   cta?: string;
@@ -240,7 +240,6 @@ export default async function DashboardAlertsPage() {
       (label) => groupedHistoryRecords[label]?.length
     );
   } else {
-    const now = new Date();
     const alerts = await prisma.alert.findMany({
       where: {
         stripeAccountId: {
@@ -252,26 +251,26 @@ export default async function DashboardAlertsPage() {
     });
 
     activeAlerts = alerts
-      .filter((alert) => !alert.windowEnd || alert.windowEnd > now)
+      .filter((alert) => alert.status === "active")
       .map((alert) => ({
         id: alert.id,
         type: alert.type,
         severity: alert.severity,
+        status: alert.status,
         message: alert.message,
         stripeAccountId: alert.stripeAccountId,
         createdAt: alert.createdAt,
-        windowEnd: alert.windowEnd,
         context: alert.context,
       }))
       .sort((left, right) => severityRank(left.severity) - severityRank(right.severity));
 
     const historyRecords = alerts
-      .filter((alert) => !alert.windowEnd || alert.windowEnd <= now)
+      .filter((alert) => alert.status !== "active")
       .map((alert) => ({
         id: alert.id,
         message: `${alertLabel(alert.type)} for ${alert.stripeAccountId ? accountNameById.get(alert.stripeAccountId) ?? "Stripe account" : "Stripe account"}`,
-        timestamp: formatResolvedTime(alert.windowEnd as Date),
-        group: groupHistoryLabel(alert.windowEnd as Date),
+        timestamp: formatResolvedTime(alert.createdAt),
+        group: groupHistoryLabel(alert.createdAt),
       }));
 
     groupedHistoryRecords = historyRecords.reduce<Record<string, HistoryRecord[]>>((groups, entry) => {

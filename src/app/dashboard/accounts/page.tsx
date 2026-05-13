@@ -95,7 +95,7 @@ export default async function DashboardAccountsPage({
     prisma.alert.findMany({
       where: {
         stripeAccountId: { in: accountIds },
-        windowEnd: { gt: new Date() },
+        status: "active",
       },
       select: {
         stripeAccountId: true,

@@ -16,9 +16,7 @@ export async function canTriggerAlert({
     where: {
       stripeAccountId,
       type,
-      windowEnd: {
-        gt: now,
-      },
+      status: "active",
     },
     orderBy: {
       createdAt: "desc",

@@ -310,6 +310,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                         : undefined,
                     baselineLabel: "recent performance",
                     window: "current monitoring window",
+                    currency: account.currency ?? "EUR",
                     revenueSeries: account.revenueSeries,
                     displayMessage: account.message,
                   }
@@ -386,15 +387,14 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         timestampLabel: entry.timestamp,
       }));
   } else {
-    const now = new Date();
     const activeAlertRecords = alerts
-      .filter((alert) => alert.windowEnd > now)
+      .filter((alert) => alert.status === "active")
       .sort((left, right) => {
         const severityDifference = severityRank(left.severity) - severityRank(right.severity);
         if (severityDifference !== 0) return severityDifference;
         return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
       });
-    const historicalAlerts = alerts.filter((alert) => alert.windowEnd <= now);
+    const historicalAlerts = alerts.filter((alert) => alert.status !== "active");
     const alertsByAccount = new Map<string, typeof activeAlertRecords>();
 
     for (const account of stripeAccounts) {
@@ -462,7 +462,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             "Stripe account"
           : "Stripe account"
       }`,
-      timestampLabel: formatHistoryTime(alert.windowEnd),
+      timestampLabel: formatHistoryTime(alert.createdAt),
     }));
   }
 
@@ -473,33 +473,23 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const statusCopy = buildStatusCopy(activeAlerts.length, activeAccountsCount);
 
   return (
-    <section className={styles.mainSurface}>
-      <header className={styles.workspaceTopbar}>
-        <div className={styles.workspaceTopbarLeft}>
-          <button type="button" className={styles.topbarIconButton} aria-label="Previous">
-            {"<"}
-          </button>
-          <button type="button" className={styles.topbarIconButton} aria-label="Next">
-            {">"}
-          </button>
-          <div className={styles.topbarDivider} />
-          <span className={styles.workspaceTopbarTitle}>Monitoring dashboard</span>
-        </div>
-
-        <div className={styles.workspaceTopbarActions}>
-          <span className={styles.topbarMetaChip}>Last 24 hours</span>
-          <span className={styles.topbarMetaChip}>Plan: {currentPlanLabel}</span>
-          <span className={styles.topbarMetaChip}>{accountUsageLabel}</span>
-          <Link href="/dashboard/billing" className={styles.topbarPrimaryAction}>
-            Manage billing
-          </Link>
-        </div>
-      </header>
+      <section className={styles.mainSurface}>
+        <header className={styles.workspaceTopbar}>
+          <div className={styles.workspaceTopbarPrimary}>
+            <Link href="/api/stripe/connect" className={styles.topbarPrimaryAction}>
+              Add account
+            </Link>
+          </div>
+          <div className={styles.workspaceTopbarActions}>
+            <span className={styles.topbarMetaChip}>Plan: {currentPlanLabel}</span>
+            <span className={styles.topbarMetaChip}>{accountUsageLabel}</span>
+            <Link href="/dashboard/billing" className={styles.topbarSecondaryAction}>
+              Manage billing
+            </Link>
+          </div>
+        </header>
 
       <div className={styles.workspaceContent}>
-        <div className={styles.workspaceBreadcrumb}>
-          MONITORING <span>{">"}</span> CONNECTED ACCOUNTS <span>{">"}</span> ACTIVE OVERVIEW
-        </div>
         <h1 className={styles.workspaceTitle}>Stripe monitoring overview</h1>
         <p className={styles.workspaceIntro}>{statusCopy}</p>
 

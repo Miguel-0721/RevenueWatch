@@ -15,6 +15,7 @@ export type DemoFailurePoint = {
 export type DemoAccount = {
   id: string;
   name: string;
+  currency?: string;
   status: DemoStatus;
   alertType: DemoAlertType;
   severity: DemoSeverity;
@@ -47,6 +48,7 @@ export const demoAccounts: DemoAccount[] = [
   {
     id: "acct_demo_northstar",
     name: "Northstar Commerce",
+    currency: "EUR",
     status: "active_issue",
     alertType: "revenue_drop",
     severity: "high",
@@ -91,6 +93,7 @@ export const demoAccounts: DemoAccount[] = [
   {
     id: "acct_demo_cedar",
     name: "Cedar Labs",
+    currency: "EUR",
     status: "active_issue",
     alertType: "revenue_drop",
     severity: "review",
@@ -134,6 +137,7 @@ export const demoAccounts: DemoAccount[] = [
   {
     id: "acct_demo_oak_ember",
     name: "Oak & Ember",
+    currency: "EUR",
     status: "healthy",
     alertType: "none",
     severity: "none",
@@ -156,6 +160,7 @@ export const demoAccounts: DemoAccount[] = [
   {
     id: "acct_demo_riverline",
     name: "Riverline Fitness",
+    currency: "EUR",
     status: "healthy",
     alertType: "none",
     severity: "none",
@@ -178,6 +183,7 @@ export const demoAccounts: DemoAccount[] = [
   {
     id: "acct_demo_atlas",
     name: "Atlas Agency",
+    currency: "EUR",
     status: "healthy",
     alertType: "none",
     severity: "none",
@@ -189,6 +195,7 @@ export const demoAccounts: DemoAccount[] = [
   {
     id: "acct_demo_meridian",
     name: "Meridian Goods",
+    currency: "EUR",
     status: "healthy",
     alertType: "none",
     severity: "none",
@@ -200,6 +207,7 @@ export const demoAccounts: DemoAccount[] = [
   {
     id: "acct_demo_summit",
     name: "Summit Learning",
+    currency: "EUR",
     status: "healthy",
     alertType: "none",
     severity: "none",
@@ -211,6 +219,7 @@ export const demoAccounts: DemoAccount[] = [
   {
     id: "acct_demo_lumen",
     name: "Lumen Health",
+    currency: "EUR",
     status: "healthy",
     alertType: "none",
     severity: "none",

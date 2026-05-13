@@ -2701,3 +2701,392 @@ If a future chat needs to continue from this exact state, inspect these first:
 - `src/app/api/stripe/webhook/route.ts`
 - `src/lib/notify.ts`
 - `src/components/RevenueWatchLogo.tsx`
+
+---
+
+## 2026-05-13 Session Update
+
+This section appends the important state and decisions from the 2026-05-13 dashboard work. Keep all earlier history above. This section is the current reference for the shared dashboard shell, dashboard route structure, fixed sidebar behavior, and the new alert-focused main dashboard.
+
+### Git / Branch / Recovery
+
+Current main branch state after promoting the dashboard work:
+- `main` now includes the dashboard redesign and shared shell
+- latest promoted commit at the time of this memory refresh:
+  - `47bd7d3` - `Refine dashboard alert review flow`
+
+Important recent dashboard commits:
+- `952db47` - `Create shared dashboard app shell`
+- `6960e0b` - `Refine dashboard accounts monitoring states`
+- `6f91035` - `Align account detail severity states`
+- `47bd7d3` - `Refine dashboard alert review flow`
+
+Important push behavior still in effect:
+- user may ask to experiment on a branch first, then later promote to `main`
+- `.codex-temp/` should stay untracked and should not be committed/pushed
+
+### Dashboard Architecture: Shared App Shell
+
+The dashboard is no longer a collection of visually separate standalone pages.
+
+Current app-shell route structure:
+- `/dashboard`
+- `/dashboard/alerts`
+- `/dashboard/accounts`
+- `/dashboard/billing`
+- `/dashboard/accounts/[accountId]`
+
+Current shared shell behavior:
+- persistent left sidebar
+- right-side content area changes by route
+- RevenueWatch logo at top-left
+- search input in sidebar
+- nav items:
+  - Dashboard
+  - Alerts
+  - Accounts
+  - Billing
+- signed-in user area at bottom of sidebar
+- sign-out action in sidebar footer
+
+Important implementation files:
+- `src/app/dashboard/layout.tsx`
+- `src/components/dashboard/DashboardShell.module.css`
+- `src/components/dashboard/DashboardSidebarNav.tsx`
+- `src/components/dashboard/DashboardViewportLock.tsx`
+
+### Dashboard Shell Scroll Behavior
+
+Current dashboard shell behavior is intentionally app-like, not page-like.
+
+Rules now in effect:
+- the left sidebar stays visually fixed on desktop
+- the right white panel stays aligned with the sidebar
+- dashboard routes use internal panel scrolling
+- browser/body scrolling is disabled for dashboard routes only
+- there should not be a second outer page scrollbar on dashboard routes
+
+Important implementation:
+- route-scoped viewport lock adds a dashboard-only class to `html` and `body`
+- internal right panel scroll remains the primary scroll area
+
+Key files:
+- `src/components/dashboard/DashboardViewportLock.tsx`
+- `src/app/globals.css`
+- `src/components/dashboard/DashboardShell.module.css`
+
+Important behavior guardrail:
+- do not casually revert dashboard routes back to full page/body scrolling
+- preserve the app-shell feel unless the user explicitly asks to rethink it
+
+### Sidebar Rules
+
+Current dashboard sidebar direction:
+- fixed left white panel on desktop
+- calm RevenueWatch styling
+- logo links to `/dashboard`
+- email is intentionally hidden in the sidebar footer
+- footer shows:
+  - initials/avatar
+  - user name
+  - secondary text: `Signed in`
+  - `Sign out`
+
+Sidebar nav icons should remain consistent and outline-style.
+
+Current nav items:
+- Dashboard
+- Alerts
+- Accounts
+- Billing
+
+### Billing, Alerts, Accounts Inside the Shared Shell
+
+Current state:
+- `/dashboard/billing` has been restyled to feel native inside the shared shell
+- `/dashboard/alerts` has been wrapped into the same right-side white rounded panel treatment
+- `/dashboard/accounts` has been built as a shell-native monitoring list
+
+Important product rule:
+- sidebar active state should reflect the current route
+- do not reintroduce duplicate top navbars or duplicate sidebars inside these pages
+
+### Main Dashboard Philosophy
+
+RevenueWatch dashboard is now intentionally alert-first.
+
+Core rule:
+- the dashboard should answer: `What needs attention right now?`
+
+It is not:
+- an analytics dashboard
+- a forecasting tool
+- a reporting dashboard
+- a metrics-heavy BI surface
+
+Current intended reading order on `/dashboard`:
+1. page intro
+2. current alerts
+3. selected alert detail
+4. alert history
+5. small connected-accounts shortcut
+
+### Main Dashboard: Removed Redundancy
+
+The old dashboard summary cards were intentionally removed because they were redundant:
+- Connected accounts
+- Active alerts
+- Accounts needing review
+- Current plan
+
+Why they were removed:
+- plan and account usage already appear in the top bar
+- alert urgency is better communicated by the actual alert queue
+- accounts needing review duplicated the same core signal as active alerts
+
+Current top bar remains:
+- Last 24 hours
+- Plan
+- account usage
+- Manage billing
+
+### Main Dashboard: Current Alerts Rail
+
+The main dashboard now uses a horizontal `Current alerts` rail near the top.
+
+Current section behavior:
+- alert cards are shown horizontally
+- desktop target is 3 visible cards
+- left/right arrows navigate the alert set
+- native browser scrollbar is hidden visually
+- section stays outside a heavy nested card
+- section title remains:
+  - `Current alerts`
+- helper text remains:
+  - `Review the accounts that need attention right now.`
+- pending count is shown on the right
+
+Each alert card should show:
+- account name
+- alert type
+- short explanation
+- severity badge
+- detected time
+- review affordance
+
+Current implementation files:
+- `src/components/dashboard/CurrentAlertsRail.tsx`
+- `src/components/dashboard/CurrentAlertsRail.module.css`
+
+### Main Dashboard: Selected Alert Behavior
+
+The dashboard no longer shows a generic monitoring snapshot chart.
+
+Current selected-alert rules:
+- by default, the selected alert is the highest-priority active alert
+- priority order:
+  1. critical/high severity first
+  2. warning/review needed second
+  3. newest alert first within the same severity
+- clicking an alert card selects it
+- the selected card gets stronger visual emphasis
+- top carousel arrows change the selected alert
+- local `Previous` / `Next` controls near the selected alert detail header also change the selected alert
+
+Current UX reason:
+- users should not have to scroll back to the top rail to switch the selected chart/detail
+
+### Main Dashboard: Selected Alert Detail Panel
+
+Below the alert rail, the dashboard now shows a large selected-alert detail panel.
+
+Critical rule:
+- this detail panel should visually match the account detail page designs as closely as possible
+
+Current behavior:
+- if selected alert is `revenue_drop`:
+  - show the revenue alert chart style from the account detail page
+- if selected alert is `payment_failed`:
+  - show the failed-payments bar chart style from the account detail page
+
+The selected detail section includes:
+- chart
+- threshold line
+- current value
+- usual value
+- alert threshold
+- detected time
+- severity badge
+- explanation text
+- review link to the account detail page
+
+Important implementation decision:
+- the dashboard reuses the account-detail visual language directly rather than inventing a second chart system
+- local component reuse/adaptation currently lives in:
+  - `src/components/dashboard/CurrentAlertsRail.tsx`
+
+### Main Dashboard: Carousel Polish Rules
+
+Current important UI polish rules:
+- card borders/shadows must not be clipped in the alert rail
+- the rail viewport must have enough vertical breathing room
+- selected card styling should remain visible without being cut off
+- right-edge fade should stay subtle
+- arrows should feel calm and connected to the section controls
+
+Recent specific fix:
+- top borders of red/amber alert cards were being clipped
+- the rail viewport/track was adjusted to give more vertical padding and avoid visual breakage
+
+### Main Dashboard: Alert History Placement
+
+Alert History no longer sits beside the old generic chart area.
+
+Current intended placement:
+- below the selected alert detail panel
+- as a secondary monitoring section
+
+Alert History should remain:
+- calmer than the active alert queue
+- clearly chronological/recent
+- not the primary call to action
+
+### Main Dashboard: Accounts Shortcut
+
+The full connected accounts list was intentionally removed from the main dashboard.
+
+Current rule:
+- `/dashboard` should not contain the full account list
+- `/dashboard/accounts` is the correct full monitoring list page
+
+Current dashboard replacement:
+- a compact CTA card:
+  - `View all connected accounts`
+  - supporting text about account status and account-specific alert details
+  - button:
+    - `Open Accounts`
+
+Important visual rule:
+- this shortcut should remain compact
+- it should not compete visually with Current alerts or the selected alert detail area
+
+### Accounts Page: Monitoring Status Rules
+
+The accounts page is now severity-aware.
+
+Current status mapping:
+- critical active alert:
+  - `Attention needed`
+  - red styling
+- warning active alert:
+  - `Review needed`
+  - amber styling
+- no active alerts:
+  - `Monitoring active`
+  - blue styling
+- inactive/disconnected:
+  - `Monitoring paused`
+  - gray styling
+
+Each account row should show:
+- account name
+- last event time
+- current monitoring status
+- small alert-type context when active alert exists
+- view details button
+
+### Accounts Page: Sorting Rules
+
+Connected accounts are now intentionally sorted by monitoring priority.
+
+Current required order:
+1. critical / `Attention needed`
+2. warning / `Review needed`
+3. `Monitoring active`
+4. `Monitoring paused`
+
+Tie-breaking rules:
+- alerting accounts:
+  - newer active alert first
+- healthy accounts:
+  - more recent last event first when available
+- final fallback:
+  - stable alphabetical order by account name
+
+Helper copy added on accounts page:
+- `Accounts needing review are shown first.`
+
+### Severity Consistency Across Accounts and Account Detail
+
+This was a major consistency fix and should be preserved.
+
+Current severity mapping must be consistent everywhere:
+- critical alert:
+  - red
+  - `High severity` / `Attention needed`
+- warning alert:
+  - amber
+  - `Review needed`
+- no active alert:
+  - blue
+  - `Monitoring active`
+- inactive/disconnected:
+  - gray
+  - `Monitoring paused`
+
+Important rule:
+- color comes from alert severity, not alert type
+- payment failure spikes are not automatically red
+- revenue drops are not automatically red
+
+Specific dashboard/account example:
+- BluePeak Studio is intended to be a warning/demo review-needed case, not critical
+- if BluePeak shows amber on Accounts, it should also show amber on the detail page
+
+### Demo Data and Dashboard Detail Panels
+
+Current important implementation behavior:
+- demo dashboard active alerts include enough `context` JSON for the selected dashboard detail panel
+- dashboard demo context now includes:
+  - revenue alerts:
+    - `revenueSeries`
+    - current/baseline/threshold values
+  - payment failure alerts:
+    - `failureSeries`
+    - failure threshold
+    - current/usual values
+
+Reason:
+- selected dashboard detail panels must explain the alert using the same visual and numeric logic as the account detail pages
+
+### Current Most Relevant Files After This Dashboard Session
+
+If a future chat needs to continue the current dashboard product direction, inspect these first:
+- `PROJECT_MEMORY.md`
+- `src/app/dashboard/layout.tsx`
+- `src/components/dashboard/DashboardShell.module.css`
+- `src/components/dashboard/DashboardSidebarNav.tsx`
+- `src/components/dashboard/DashboardViewportLock.tsx`
+- `src/app/dashboard/page.tsx`
+- `src/app/dashboard/page.module.css`
+- `src/components/dashboard/CurrentAlertsRail.tsx`
+- `src/components/dashboard/CurrentAlertsRail.module.css`
+- `src/app/dashboard/alerts/page.tsx`
+- `src/app/dashboard/alerts/page.module.css`
+- `src/app/dashboard/accounts/page.tsx`
+- `src/app/dashboard/accounts/page.module.css`
+- `src/app/dashboard/accounts/[accountId]/page.tsx`
+- `src/app/dashboard/accounts/[accountId]/page.module.css`
+- `src/app/dashboard/billing/page.tsx`
+- `src/app/dashboard/billing/page.module.css`
+
+### Verification Habit For Dashboard Work
+
+Repeated verification command used after nearly every dashboard change:
+- `npx.cmd tsc --noEmit`
+
+This should remain the quick regression check after:
+- shell/layout changes
+- dashboard route changes
+- alert rail/detail UI changes
+- account-detail severity/chart changes

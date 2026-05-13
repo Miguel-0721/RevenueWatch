@@ -72,6 +72,7 @@ model StripeAccount {
   id              String   @id @default(cuid())
   stripeAccountId String   @unique
   status          String   @default("active")
+  alertSensitivity String  @default("conservative")
   name            String?
   createdAt       DateTime @default(now())
 
@@ -95,6 +96,7 @@ model Alert {
   id              String    @id @default(cuid())
   type            String
   severity        String    @default("warning")
+  status          String    @default("active")
   stripeAccountId String?
   stripeEventId   String    @unique
   message         String
@@ -113,6 +115,7 @@ model RevenueMetric {
   id              String   @id @default(cuid())
   stripeAccountId String?
   amount          Int
+  currency        String?
   periodStart     DateTime
   periodEnd       DateTime
   hourOfDay       Int?

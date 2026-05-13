@@ -3,6 +3,9 @@ import Stripe from "stripe";
 import { prisma } from "@/lib/prisma";
 import { sendAlertEmail } from "@/lib/notify";
 import { canTriggerAlert } from "@/lib/alert-guard";
+import { getAlertSensitivityConfig } from "@/lib/alert-sensitivity";
+import { normalizeCurrencyCode } from "@/lib/currency";
+import { evaluateRevenueDropForAccount } from "@/lib/revenue-drop";
 import { getStripeMode } from "@/lib/stripe-customer";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -113,12 +116,12 @@ async function listManagedSubscriptions(customerId: string) {
   }
 
   return managedSubscriptions.sort((left, right) => {
-      const rankDifference =
-        BILLING_PLAN_RANK[right.mappedPlan] - BILLING_PLAN_RANK[left.mappedPlan];
+    const rankDifference =
+      BILLING_PLAN_RANK[right.mappedPlan] - BILLING_PLAN_RANK[left.mappedPlan];
 
-      if (rankDifference !== 0) return rankDifference;
-      return right.created - left.created;
-    });
+    if (rankDifference !== 0) return rankDifference;
+    return right.created - left.created;
+  });
 }
 
 async function syncUserPlanFromManagedSubscriptions({
@@ -297,57 +300,8 @@ async function cancelManagedDuplicates({
 
 
 
-const REVENUE_WINDOW_MINUTES = 60;
-const BASELINE_HOURS = 6 * 7 * 24; // 6 weeks
-
-
-
-/**
- * Revenue drop threshold.
- *
- * The threshold represents a meaningful deviation,
- * not a normal fluctuation.
- *
- * We intentionally avoid reacting to small or brief changes.
- */
-
-
-
-const DROP_THRESHOLD = 0.5;             // 50% sustained drop
-
-
-/**
- * Minimum revenue guards.
- *
- * These thresholds prevent alerts when:
- * - The account is new
- * - Traffic is extremely low
- * - Random variance would dominate the signal
- *
- * Alerts below these levels are more likely noise than risk.
- */
-
-
-
-const MIN_BASELINE_REVENUE = 50000; // €500
-const MIN_CURRENT_REVENUE = 10000;  // €100
-
-
-
-
-
-
-
-// Payment failure alert (production-safe defaults)
-
-const FAILURE_WINDOW_MINUTES = 60;
-const FAILURE_LOOKBACK_DAYS = 14;
-const FAILURE_MIN_CURRENT = 5;
-const FAILURE_BASELINE_FLOOR = 3;
-const FAILURE_SPIKE_MULTIPLIER = 2;
-const FAILURE_CRITICAL_MULTIPLIER = 4;
-const FAILURE_MIN_SAMPLES = 5;
-const MIN_SAMPLES = 5;
+// Thresholds are resolved per-account through alert sensitivity presets.
+// Conservative matches current production behavior exactly.
 
 
 // ---------------- HELPERS ----------------
@@ -370,9 +324,9 @@ const MIN_SAMPLES = 5;
 
 function getCooldownUntil(type: string) {
   const hours =
-   type === "revenue_drop" ? 12 :
-   type === "payment_failed" ? 6 :
-    6;
+    type === "revenue_drop" ? 12 :
+      type === "payment_failed" ? 6 :
+        6;
 
   return new Date(Date.now() + hours * 60 * 60 * 1000);
 }
@@ -388,6 +342,16 @@ type RevenueMetricSample = {
   amount: number;
   periodEnd: Date;
 };
+
+function safeParseAlertContext(input?: string | null) {
+  if (!input) return null;
+
+  try {
+    return JSON.parse(input) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
 
 function dayTypeDays(dayOfWeek: number) {
   return dayOfWeek === 0 || dayOfWeek === 6
@@ -512,752 +476,631 @@ export async function POST(req: Request) {
   try {
     const sig = req.headers.get("stripe-signature");
 
-  if (!sig) {
-    return NextResponse.json({ error: "Missing signature" }, { status: 400 });
-  }
-
-  const body = Buffer.from(await req.arrayBuffer());
-
-  let event: Stripe.Event;
-
-  try {
-    event = stripe.webhooks.constructEvent(
-      body,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET!
-    );
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown webhook verification error";
-    console.error("❌ Webhook verification failed:", message);
-    return NextResponse.json({ error: "Webhook error" }, { status: 400 });
-  }
-
-
-  if (event.type === "checkout.session.completed") {
-    console.log("Checkout session completed webhook received", event.id);
-
-    const session = event.data.object as Stripe.Checkout.Session;
-    const userId = session.metadata?.userId;
-    const plan = normalizePlan(session.metadata?.plan);
-    const customerId =
-      typeof session.customer === "string"
-        ? session.customer
-        : session.customer?.id;
-    const subscriptionId =
-      typeof session.subscription === "string"
-        ? session.subscription
-        : session.subscription?.id;
-
-    const user = await findUserForBillingEvent({ userId, customerId });
-
-    if (!user) {
-      console.error("Unable to resolve user for checkout session", {
-        sessionId: session.id,
-        userId,
-        customerId,
-      });
-      return NextResponse.json({ received: true });
+    if (!sig) {
+      return NextResponse.json({ error: "Missing signature" }, { status: 400 });
     }
 
-    if (!plan) {
-      console.error("Invalid plan in checkout session metadata", {
-        sessionId: session.id,
-        plan: session.metadata?.plan,
-      });
-      return NextResponse.json({ received: true });
+    const body = Buffer.from(await req.arrayBuffer());
+
+    let event: Stripe.Event;
+
+    try {
+      event = stripe.webhooks.constructEvent(
+        body,
+        sig,
+        process.env.STRIPE_WEBHOOK_SECRET!
+      );
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown webhook verification error";
+      console.error("❌ Webhook verification failed:", message);
+      return NextResponse.json({ error: "Webhook error" }, { status: 400 });
     }
 
-    if (!customerId) {
-      console.error("Checkout session missing customer ID", {
-        sessionId: session.id,
+
+    if (event.type === "checkout.session.completed") {
+      console.log("Checkout session completed webhook received", event.id);
+
+      const session = event.data.object as Stripe.Checkout.Session;
+      const userId = session.metadata?.userId;
+      const plan = normalizePlan(session.metadata?.plan);
+      const customerId =
+        typeof session.customer === "string"
+          ? session.customer
+          : session.customer?.id;
+      const subscriptionId =
+        typeof session.subscription === "string"
+          ? session.subscription
+          : session.subscription?.id;
+
+      const user = await findUserForBillingEvent({ userId, customerId });
+
+      if (!user) {
+        console.error("Unable to resolve user for checkout session", {
+          sessionId: session.id,
+          userId,
+          customerId,
+        });
+        return NextResponse.json({ received: true });
+      }
+
+      if (!plan) {
+        console.error("Invalid plan in checkout session metadata", {
+          sessionId: session.id,
+          plan: session.metadata?.plan,
+        });
+        return NextResponse.json({ received: true });
+      }
+
+      if (!customerId) {
+        console.error("Checkout session missing customer ID", {
+          sessionId: session.id,
+          userId: user.id,
+          subscriptionId,
+        });
+        return NextResponse.json({ received: true });
+      }
+
+      if (subscriptionId) {
+        await cancelManagedDuplicates({
+          customerId,
+          keepSubscriptionId: subscriptionId,
+        });
+      }
+
+      await syncUserPlanFromManagedSubscriptions({
         userId: user.id,
-        subscriptionId,
-      });
-      return NextResponse.json({ received: true });
-    }
-
-    if (subscriptionId) {
-      await cancelManagedDuplicates({
         customerId,
-        keepSubscriptionId: subscriptionId,
+        currentPlan: user.plan,
+        currentSubscriptionId: user.stripeSubscriptionId,
+        source: "checkout.session.completed",
+        fallbackPlan: plan,
+        fallbackSubscriptionId: subscriptionId,
       });
-    }
 
-    await syncUserPlanFromManagedSubscriptions({
-      userId: user.id,
-      customerId,
-      currentPlan: user.plan,
-      currentSubscriptionId: user.stripeSubscriptionId,
-      source: "checkout.session.completed",
-      fallbackPlan: plan,
-      fallbackSubscriptionId: subscriptionId,
-    });
-
-    return NextResponse.json({ received: true });
-  }
-
-  if (
-    event.type === "customer.subscription.created" ||
-    event.type === "customer.subscription.updated" ||
-    event.type === "customer.subscription.deleted"
-  ) {
-    console.log("Customer subscription billing webhook received", {
-      eventType: event.type,
-      eventId: event.id,
-    });
-
-    const subscription = event.data.object as Stripe.Subscription;
-    const customerId =
-      typeof subscription.customer === "string"
-        ? subscription.customer
-        : subscription.customer.id;
-    const user = await findUserForBillingEvent({
-      userId: subscription.metadata?.userId,
-      customerId,
-    });
-
-    if (!user) {
-      console.error("Unable to resolve user for subscription billing event", {
-        eventType: event.type,
-        subscriptionId: subscription.id,
-        customerId,
-      });
       return NextResponse.json({ received: true });
     }
-
-    const activeItem = subscription.items.data[0];
-    const mappedPlan = planFromPriceId(activeItem?.price?.id);
-
-    console.log("SUBSCRIPTION EVENT DETAILS", {
-      eventType: event.type,
-      customerId,
-      subscriptionId: subscription.id,
-      priceId: activeItem?.price?.id ?? null,
-      mappedPlan,
-      userId: user.id,
-      previousPlan: user.plan,
-      previousSubscriptionId: user.stripeSubscriptionId,
-      subscriptionStatus: subscription.status,
-    });
-
-    await syncUserPlanFromManagedSubscriptions({
-      userId: user.id,
-      customerId,
-      currentPlan: user.plan,
-      currentSubscriptionId: user.stripeSubscriptionId,
-      source: event.type,
-      fallbackPlan: mappedPlan,
-      fallbackSubscriptionId: subscription.id,
-    });
-
-    return NextResponse.json({ received: true });
-  }
-
-  if (event.type === "invoice.paid") {
-    console.log("Invoice paid webhook received", event.id);
-
-    const invoice = event.data.object as Stripe.Invoice;
-    const customerId =
-      typeof invoice.customer === "string"
-        ? invoice.customer
-        : invoice.customer?.id;
-    const user = await findUserForBillingEvent({
-      userId: invoice.parent?.subscription_details?.metadata?.userId,
-      customerId,
-    });
-
-    if (!user) {
-      console.error("Unable to resolve user for invoice paid", {
-        invoiceId: invoice.id,
-        customerId,
-      });
-      return NextResponse.json({ received: true });
-    }
-
-    const { field } = getStripeMode();
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        stripeCustomerId: customerId ?? undefined,
-        subscriptionStatus: "active",
-        [field]: customerId ?? undefined,
-      },
-    });
-
-    console.log("Confirmed active subscription from invoice", {
-      userId: user.id,
-      invoiceId: invoice.id,
-    });
-
-    return NextResponse.json({ received: true });
-  }
-
-/**
- * Stripe Connect events include `event.account`.
- * In local development (Stripe CLI), this may be missing.
- * 
- * - In development: allow a safe dev-only fallback
- * - In production: missing account is a hard error
- */
-let stripeAccountId: string;
-
-if (event.account) {
-  stripeAccountId = event.account;
-} else {
-  if (process.env.NODE_ENV === "production") {
-    console.error("Missing Stripe account on event", event.id);
-    return NextResponse.json(
-      { error: "Missing Stripe account context" },
-      { status: 400 }
-    );
-  }
-
-  // Dev-only fallback for Stripe CLI
-  stripeAccountId = "test_account_local";
-}
-
-
-// 🔒 Guard: ignore events for disconnected / inactive accounts
-const account = await prisma.stripeAccount.findUnique({
-  where: { stripeAccountId },
-});
-
-if (!account || account.status !== "active") {
-  console.log(
-    "⚠️ Ignoring event for inactive or disconnected Stripe account:",
-    stripeAccountId
-  );
-  return NextResponse.json({ received: true });
-}
-
-
-
-
-// 1️⃣ Store every event (audit trail) + idempotency guard (retry-safe)
-const existing = await prisma.stripeEvent.findUnique({
-  where: { stripeEventId: event.id },
-  select: { id: true },
-});
-
-const isFirstProcessing = !existing;
-
-if (isFirstProcessing) {
-  await prisma.stripeEvent.create({
-    data: {
-      stripeEventId: event.id,
-      type: event.type,
-      stripeAccountId,
-      payload: JSON.stringify(event),
-    },
-  });
-} else {
-  // Keep audit trail intact (optional: update payload/type if you ever want)
-  // We intentionally do NOT re-run side effects on retries.
-}
-
-
-
-  // Ignore unrelated events
-  if (
-    event.type !== "payment_intent.succeeded" &&
-    event.type !== "payment_intent.payment_failed"
-  ) {
-    return NextResponse.json({ received: true });
-  }
-
-  // ---------------- REVENUE DROP ----------------
-
-  if (event.type === "payment_intent.succeeded") {
-    
-
-
-    const pi = event.data.object as Stripe.PaymentIntent;
-    if (!pi.amount_received || pi.amount_received <= 0) {
-      return NextResponse.json({ received: true });
-    }
-
-
-
-  const now = new Date();
-
-
-
-
-  const SKIP_REVENUE_WRITE = process.env.SKIP_REVENUE_WRITE === "1";
-
-// 🔒 Idempotency guard: never write revenue twice for the same Stripe event
-if (!isFirstProcessing) {
-  console.log("🔁 Retry detected — skipping revenueMetric creation");
-} else if (SKIP_REVENUE_WRITE) {
-  console.log("🧪 TEST MODE — skipping revenueMetric write for separation testing");
-} else {
-  await prisma.revenueMetric.create({
-    data: {
-      stripeAccountId,
-      amount: pi.amount_received,
-      periodStart: new Date(now.getTime() - REVENUE_WINDOW_MINUTES * 60 * 1000),
-      periodEnd: now,
-      hourOfDay: now.getUTCHours(), // 0-23 UTC
-      dayOfWeek: now.getUTCDay(),   // 0-6 UTC
-    },
-  });
-}
-
-
-
-
-
-    const currentWindowStart = new Date(
-      now.getTime() - REVENUE_WINDOW_MINUTES * 60 * 1000
-    );
-    const revenueSnapshotStart = new Date(
-      currentWindowStart.getTime() - (6 - 1) * 60 * 60 * 1000
-    );
-
-    const baselineStart = new Date(
-      now.getTime() - BASELINE_HOURS * 60 * 60 * 1000
-    );
-
-    const currentRevenue = await prisma.revenueMetric.aggregate({
-      _sum: { amount: true },
-    where: {
-  stripeAccountId,
-  periodEnd: { gte: currentWindowStart },
-},
-
-    });
-
-
-const currentAmount = currentRevenue._sum.amount ?? 0;
-
-const recentRevenueMetrics = await prisma.revenueMetric.findMany({
-  where: {
-    stripeAccountId,
-    periodEnd: { gte: revenueSnapshotStart, lte: now },
-  },
-  select: {
-    amount: true,
-    periodEnd: true,
-  },
-  orderBy: {
-    periodEnd: "asc",
-  },
-});
-
-
-console.log("🟡 CURRENT WINDOW CHECK");
-console.log("Window start:", currentWindowStart.toISOString());
-console.log("Current amount:", currentAmount);
-
-
-const nowHour = now.getUTCHours();
-const nowDay = now.getUTCDay();
-
-const baselineCandidates: Array<{
-  level: RevenueBaselineLevel;
-  dayFilter?: { equals?: number; in?: number[] };
-}> = [
-  { level: "same_day_and_hour", dayFilter: { equals: nowDay } },
-  { level: "same_day_type_and_hour", dayFilter: { in: dayTypeDays(nowDay) } },
-  { level: "same_hour" },
-];
-
-let selectedBaseline:
-  | {
-      level: RevenueBaselineLevel;
-      amount: number;
-      sampleCount: number;
-    }
-  | null = null;
-
-for (const candidate of baselineCandidates) {
-  const baselineMetrics = await prisma.revenueMetric.findMany({
-    where: {
-      stripeAccountId,
-      periodEnd: { gte: baselineStart, lt: currentWindowStart },
-      hourOfDay: nowHour,
-      ...(candidate.dayFilter
-        ? candidate.dayFilter.equals !== undefined
-          ? { dayOfWeek: candidate.dayFilter.equals }
-          : { dayOfWeek: { in: candidate.dayFilter.in } }
-        : {}),
-    },
-    select: {
-      amount: true,
-      periodEnd: true,
-    },
-  });
-
-  const summary = summarizeRevenueWindows(baselineMetrics);
-
-  console.log("BASELINE CHECK", {
-    level: candidate.level,
-    nowHour,
-    nowDay,
-    sampleCount: summary.sampleCount,
-    average: summary.average,
-  });
-
-  if (summary.sampleCount >= MIN_SAMPLES) {
-    selectedBaseline = {
-      level: candidate.level,
-      amount: summary.average,
-      sampleCount: summary.sampleCount,
-    };
-    break;
-  }
-}
-
-
-
-console.log("🔵 BASELINE CHECK");
-console.log("Now hour:", nowHour);
-console.log("Now day:", nowDay);
-
-
-if (!selectedBaseline) {
-  return NextResponse.json({ received: true });
-}
-
-
-
-
-
-
-    const baselineAmount = selectedBaseline.amount;
-
 
     if (
-      baselineAmount < MIN_BASELINE_REVENUE ||
-      currentAmount < MIN_CURRENT_REVENUE
+      event.type === "customer.subscription.created" ||
+      event.type === "customer.subscription.updated" ||
+      event.type === "customer.subscription.deleted"
+    ) {
+      console.log("Customer subscription billing webhook received", {
+        eventType: event.type,
+        eventId: event.id,
+      });
+
+      const subscription = event.data.object as Stripe.Subscription;
+      const customerId =
+        typeof subscription.customer === "string"
+          ? subscription.customer
+          : subscription.customer.id;
+      const user = await findUserForBillingEvent({
+        userId: subscription.metadata?.userId,
+        customerId,
+      });
+
+      if (!user) {
+        console.error("Unable to resolve user for subscription billing event", {
+          eventType: event.type,
+          subscriptionId: subscription.id,
+          customerId,
+        });
+        return NextResponse.json({ received: true });
+      }
+
+      const activeItem = subscription.items.data[0];
+      const mappedPlan = planFromPriceId(activeItem?.price?.id);
+
+      console.log("SUBSCRIPTION EVENT DETAILS", {
+        eventType: event.type,
+        customerId,
+        subscriptionId: subscription.id,
+        priceId: activeItem?.price?.id ?? null,
+        mappedPlan,
+        userId: user.id,
+        previousPlan: user.plan,
+        previousSubscriptionId: user.stripeSubscriptionId,
+        subscriptionStatus: subscription.status,
+      });
+
+      await syncUserPlanFromManagedSubscriptions({
+        userId: user.id,
+        customerId,
+        currentPlan: user.plan,
+        currentSubscriptionId: user.stripeSubscriptionId,
+        source: event.type,
+        fallbackPlan: mappedPlan,
+        fallbackSubscriptionId: subscription.id,
+      });
+
+      return NextResponse.json({ received: true });
+    }
+
+    if (event.type === "invoice.paid") {
+      console.log("Invoice paid webhook received", event.id);
+
+      const invoice = event.data.object as Stripe.Invoice;
+      const customerId =
+        typeof invoice.customer === "string"
+          ? invoice.customer
+          : invoice.customer?.id;
+      const user = await findUserForBillingEvent({
+        userId: invoice.parent?.subscription_details?.metadata?.userId,
+        customerId,
+      });
+
+      if (!user) {
+        console.error("Unable to resolve user for invoice paid", {
+          invoiceId: invoice.id,
+          customerId,
+        });
+        return NextResponse.json({ received: true });
+      }
+
+      const { field } = getStripeMode();
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          stripeCustomerId: customerId ?? undefined,
+          subscriptionStatus: "active",
+          [field]: customerId ?? undefined,
+        },
+      });
+
+      console.log("Confirmed active subscription from invoice", {
+        userId: user.id,
+        invoiceId: invoice.id,
+      });
+
+      return NextResponse.json({ received: true });
+    }
+
+    /**
+     * Stripe Connect events include `event.account`.
+     * In local development (Stripe CLI), this may be missing.
+     * 
+     * - In development: allow a safe dev-only fallback
+     * - In production: missing account is a hard error
+     */
+    let stripeAccountId: string;
+
+    if (event.account) {
+      stripeAccountId = event.account;
+    } else {
+      if (process.env.NODE_ENV === "production") {
+        console.error("Missing Stripe account on event", event.id);
+        return NextResponse.json(
+          { error: "Missing Stripe account context" },
+          { status: 400 }
+        );
+      }
+
+      // Dev-only fallback for Stripe CLI
+      stripeAccountId = "test_account_local";
+    }
+
+
+    // 🔒 Guard: ignore events for disconnected / inactive accounts
+    const account = await prisma.stripeAccount.findUnique({
+      where: { stripeAccountId },
+    });
+
+    if (!account || account.status !== "active") {
+      console.log(
+        "⚠️ Ignoring event for inactive or disconnected Stripe account:",
+        stripeAccountId
+      );
+      return NextResponse.json({ received: true });
+    }
+
+    const alertConfig = getAlertSensitivityConfig(account.alertSensitivity);
+
+
+
+
+    // 1️⃣ Store every event (audit trail) + idempotency guard (retry-safe)
+    const existing = await prisma.stripeEvent.findUnique({
+      where: { stripeEventId: event.id },
+      select: { id: true },
+    });
+
+    const isFirstProcessing = !existing;
+
+    if (isFirstProcessing) {
+      await prisma.stripeEvent.create({
+        data: {
+          stripeEventId: event.id,
+          type: event.type,
+          stripeAccountId,
+          payload: JSON.stringify(event),
+        },
+      });
+    } else {
+      // Keep audit trail intact (optional: update payload/type if you ever want)
+      // We intentionally do NOT re-run side effects on retries.
+    }
+
+
+
+    // Ignore unrelated events
+    if (
+      event.type !== "payment_intent.succeeded" &&
+      event.type !== "payment_intent.payment_failed"
     ) {
       return NextResponse.json({ received: true });
     }
 
-    const dropRatio = 1 - currentAmount / baselineAmount;
+    // ---------------- REVENUE DROP ----------------
 
-console.log("🧪 DEBUG DROP STATE", {
-  baselineAmount,
-  currentAmount,
-  dropRatio,
-  baselineCount: selectedBaseline.sampleCount,
-  baselineLevel: selectedBaseline.level,
-  nowHour,
-  nowDay,
-});
+    if (event.type === "payment_intent.succeeded") {
 
 
 
-console.log("🔴 DROP MATH");
-console.log("Baseline amount:", baselineAmount);
-console.log("Current amount:", currentAmount);
-console.log("Drop ratio:", dropRatio);
-
-
-
-let severity: "warning" | "critical" = "warning";
-
-if (dropRatio >= 0.8) {
-  severity = "critical";
-}
-
-
-    if (dropRatio < DROP_THRESHOLD) {
-      return NextResponse.json({ received: true });
-    }
-
-console.log("🟠 CHECKING COOLDOWN");
-
-const allowed = await canTriggerAlert({
-  stripeAccountId,
-  type: "revenue_drop",
-});
-
-console.log("Allowed to alert:", allowed);
-
-
-
-    if (!allowed) {
-      return NextResponse.json({ received: true });
-    }
-
-const revenueSeries = buildRevenueSeriesFromSnapshot({
-  recentMetrics: recentRevenueMetrics,
-  baselineAmount,
-  currentAmount,
-  now,
-});
-
-let alert;
-
-try {
-  alert = await prisma.alert.create({
-    data: {
-      type: "revenue_drop",
-      severity,
-      stripeEventId: event.id,
-      stripeAccountId,
-      message: `Revenue dropped by ${(dropRatio * 100).toFixed(0)}% compared to baseline.
-Baseline (${revenueBaselineLabel(selectedBaseline.level)}, last ${BASELINE_HOURS}h): €${(baselineAmount / 100).toFixed(2)}
-Current (${REVENUE_WINDOW_MINUTES} min): €${(currentAmount / 100).toFixed(2)}`,
-      context: JSON.stringify({
-        dropRatio,
-        baselineHours: BASELINE_HOURS,
-        baselineAmount,
-        baselineLevel: selectedBaseline.level,
-        baselineLabel: revenueBaselineLabel(selectedBaseline.level),
-        baselineSampleCount: selectedBaseline.sampleCount,
-        currentWindowMinutes: REVENUE_WINDOW_MINUTES,
-        currentAmount,
-        threshold: DROP_THRESHOLD,
-        alertThresholdAmount: Math.round(baselineAmount * (1 - DROP_THRESHOLD)),
-        amountUnit: "cents",
-        currency: "EUR",
-        dayOfWeek: nowDay,
-        hourOfDay: nowHour,
-        revenueSeries,
-      }),
-      windowStart: currentWindowStart,
-      windowEnd: new Date(now.getTime() + REVENUE_WINDOW_MINUTES * 60 * 1000),
-      cooldownUntil: getCooldownUntil("revenue_drop"),
-    },
-  });
-} catch (err) {
-  console.error("❌ Alert DB write failed (non-fatal):", err);
-  return NextResponse.json({ received: true });
-}
-
-
-
-
-await sendAlertEmail({
-  type: alert.type,
-  severity: alert.severity,
-  message: alert.message,
-  stripeAccountId: alert.stripeAccountId,
-  detectedAt: alert.createdAt,
-  context: alert.context,
-});
-
-
-  }// ✅ closes payment_intent.succeeded
-
-  // ---------------- PAYMENT FAILURES ----------------
-
-
-/**
- * Payment failure spike detection.
- *
- * Individual payment failures are expected and normal.
- * Alerts are triggered only when failures cluster within
- * a short time window, indicating a systemic issue.
- */
-
-
-
-if (event.type === "payment_intent.payment_failed") {
-  console.log("🔴 PAYMENT FAILED EVENT RECEIVED");
-
-  const now = new Date();
-  const currentWindowStart = new Date(
-    now.getTime() - FAILURE_WINDOW_MINUTES * 60 * 1000
-  );
-
-  const failures = await prisma.stripeEvent.count({
-    where: {
-      stripeAccountId,
-      type: "payment_intent.payment_failed",
-      createdAt: { gte: currentWindowStart },
-    },
-  });
-
-  console.log("🔴 FAILURE COUNT:", failures);
-
-  if (false) {
-    console.log("⏭️ BELOW FAILURE THRESHOLD");
-    return NextResponse.json({ received: true });
-  }
-
-  console.log("🟠 FAILURE THRESHOLD REACHED");
-
-  const historyStart = new Date(
-    currentWindowStart.getTime() - FAILURE_LOOKBACK_DAYS * 24 * 60 * 60 * 1000
-  );
-  const failureEvents = await prisma.stripeEvent.findMany({
-    where: {
-      stripeAccountId,
-      type: "payment_intent.payment_failed",
-      createdAt: { gte: historyStart, lte: now },
-    },
-    select: {
-      createdAt: true,
-    },
-    orderBy: {
-      createdAt: "asc",
-    },
-  });
-  const failureDates = failureEvents.map((failureEvent) => new Date(failureEvent.createdAt));
-  const recentFailureSeries = buildFailureSeries(failureDates, now);
-  const currentDay = currentWindowStart.getUTCDay();
-
-  const comparisonWindows = Array.from({ length: FAILURE_LOOKBACK_DAYS }, (_, index) => {
-    const daysAgo = index + 1;
-    const comparisonStart = shiftDateByDays(currentWindowStart, -daysAgo);
-    const comparisonEnd = shiftDateByDays(now, -daysAgo);
-
-    return {
-      dayOfWeek: comparisonStart.getUTCDay(),
-      count: countEventsInWindow(failureDates, comparisonStart, comparisonEnd),
-    };
-  });
-
-  const comparisonCandidates: Array<{
-    level: FailureBaselineLevel;
-    windows: typeof comparisonWindows;
-  }> = [
-    {
-      level: "same_day_and_hour",
-      windows: comparisonWindows.filter((window) => window.dayOfWeek === currentDay),
-    },
-    {
-      level: "same_day_type_and_hour",
-      windows: comparisonWindows.filter((window) =>
-        dayTypeDays(currentDay).includes(window.dayOfWeek)
-      ),
-    },
-    {
-      level: "same_hour",
-      windows: comparisonWindows,
-    },
-  ];
-
-  let selectedBaseline:
-    | {
-        level: FailureBaselineLevel;
-        usualFailures: number;
-        sampleCount: number;
+      const pi = event.data.object as Stripe.PaymentIntent;
+      if (!pi.amount_received || pi.amount_received <= 0) {
+        return NextResponse.json({ received: true });
       }
-    | null = null;
+      const metricCurrency = normalizeCurrencyCode(pi.currency);
 
-  for (const candidate of comparisonCandidates) {
-    const summary = summarizeFailureWindows(candidate.windows.map((window) => window.count));
 
-    console.log("PAYMENT FAILURE BASELINE CHECK", {
-      level: candidate.level,
-      sampleCount: summary.sampleCount,
-      median: summary.median,
-    });
 
-    if (summary.sampleCount >= FAILURE_MIN_SAMPLES) {
-      selectedBaseline = {
-        level: candidate.level,
-        usualFailures: summary.median,
-        sampleCount: summary.sampleCount,
-      };
-      break;
-    }
-  }
+      const now = new Date();
 
-  if (!selectedBaseline) {
-    console.log("SKIPPING PAYMENT FAILURE ALERT: not enough historical comparison windows");
-    return NextResponse.json({ received: true });
-  }
 
-  const usualFailures = selectedBaseline.usualFailures;
-  const effectiveUsualFailures = Math.max(usualFailures, FAILURE_BASELINE_FLOOR);
-  const threshold = effectiveUsualFailures * FAILURE_SPIKE_MULTIPLIER;
-  const spikeMultiple = failures / effectiveUsualFailures;
-  const wouldTrigger =
-    failures >= FAILURE_MIN_CURRENT &&
-    failures >= threshold;
 
-  console.log("PAYMENT FAILURE DEBUG", {
-    currentFailures: failures,
-    usualFailures,
-    effectiveUsualFailures,
-    spikeMultiple,
-    threshold,
-    historicalSampleCount: selectedBaseline.sampleCount,
-    wouldTrigger,
-  });
 
-  if (!wouldTrigger) {
-    console.log("SKIPPING PAYMENT FAILURE ALERT: current period is not unusually high enough");
-    return NextResponse.json({ received: true });
-  }
+      const shouldSkipRevenueWrite =
+        process.env.NODE_ENV !== "production" &&
+        process.env.SKIP_REVENUE_WRITE === "1";
 
-  const allowed = await canTriggerAlert({
-    stripeAccountId,
-    type: "payment_failed",
-  });
+      if (process.env.SKIP_REVENUE_WRITE === "1" && process.env.NODE_ENV === "production") {
+        console.error("SKIP_REVENUE_WRITE ignored in production", {
+          stripeEventId: event.id,
+          stripeAccountId,
+        });
+      }
 
-  console.log("Allowed to alert:", allowed);
+      // 🔒 Idempotency guard: never write revenue twice for the same Stripe event
+      if (!isFirstProcessing) {
+        console.log("Retry detected; skipping duplicate revenue metric creation", {
+          stripeEventId: event.id,
+          stripeAccountId,
+        });
+      } else if (shouldSkipRevenueWrite) {
+        console.log("Skipping revenue metric write for local separation testing", {
+          stripeEventId: event.id,
+          stripeAccountId,
+        });
+      } else {
+        await prisma.revenueMetric.create({
+          data: {
+            stripeAccountId,
+            amount: pi.amount_received,
+            currency: metricCurrency,
+            periodStart: new Date(
+              now.getTime() - alertConfig.revenueWindowMinutes * 60 * 1000
+            ),
+            periodEnd: now,
+            hourOfDay: now.getUTCHours(), // 0-23 UTC
+            dayOfWeek: now.getUTCDay(),   // 0-6 UTC
+          },
+        });
+      }
 
-  if (!allowed) {
-    return NextResponse.json({ received: true });
-  }
 
-  let alert;
-  const severity = spikeMultiple >= FAILURE_CRITICAL_MULTIPLIER ? "critical" : "warning";
-  const displayMessage =
-    severity === "critical"
-      ? "Payment failures are significantly higher than usual compared to recent activity."
-      : "Payment failures are higher than usual compared to recent activity.";
 
-  try {
-    alert = await prisma.alert.create({
-      data: {
-        type: "payment_failed",
-        severity,
-        stripeEventId: event.id,
+
+      await evaluateRevenueDropForAccount({
         stripeAccountId,
-        message: displayMessage,
-        context: JSON.stringify({
-          failureWindowMinutes: FAILURE_WINDOW_MINUTES,
-          currentWindowStart: currentWindowStart.toISOString(),
-          currentWindowEnd: now.toISOString(),
-          currentFailures: failures,
-          failuresCounted: failures,
-          usualFailures,
-          normalFailures: usualFailures,
-          baseline: usualFailures,
-          effectiveUsualFailures,
-          spikeMultiple,
-          failureThreshold: threshold,
-          comparisonWindowCount: selectedBaseline.sampleCount,
-          comparisonLevel: selectedBaseline.level,
-          failureSpikeMultiplier: FAILURE_SPIKE_MULTIPLIER,
-          baselineFloor: FAILURE_BASELINE_FLOOR,
-          failureSeries: recentFailureSeries,
-          displayMessage,
-        }),
-        windowStart: currentWindowStart,
-        windowEnd: new Date(
-          now.getTime() + FAILURE_WINDOW_MINUTES * 60 * 1000
-        ),
-        cooldownUntil: getCooldownUntil("payment_failed"),
-      },
-    });
+        alertSensitivity: account.alertSensitivity,
+        now,
+        source: "webhook",
+        triggerEventId: event.id,
+      });
+
+
+    }// ✅ closes payment_intent.succeeded
+
+    // ---------------- PAYMENT FAILURES ----------------
+
+
+    /**
+     * Payment failure spike detection.
+     *
+     * Individual payment failures are expected and normal.
+     * Alerts are triggered only when failures cluster within
+     * a short time window, indicating a systemic issue.
+     */
+
+
+
+    if (event.type === "payment_intent.payment_failed") {
+
+      const now = new Date();
+      const currentWindowStart = new Date(
+        now.getTime() - alertConfig.failureWindowMinutes * 60 * 1000
+      );
+
+      const failures = await prisma.stripeEvent.count({
+        where: {
+          stripeAccountId,
+          type: "payment_intent.payment_failed",
+          createdAt: { gte: currentWindowStart },
+        },
+      });
+
+      const activeFailureAlerts = await prisma.alert.findMany({
+        where: {
+          stripeAccountId,
+          type: "payment_failed",
+          status: "active",
+        },
+        select: {
+          id: true,
+          context: true,
+        },
+      });
+
+      const recoveredFailureAlertIds = activeFailureAlerts
+        .filter((alert) => {
+          const parsed = safeParseAlertContext(alert.context);
+          return (
+            parsed &&
+            typeof parsed.failureThreshold === "number" &&
+            failures < parsed.failureThreshold
+          );
+        })
+        .map((alert) => alert.id);
+
+      if (recoveredFailureAlertIds.length > 0) {
+        await prisma.alert.updateMany({
+          where: {
+            id: { in: recoveredFailureAlertIds },
+          },
+          data: {
+            status: "resolved",
+          },
+        });
+      }
+
+      const historyStart = new Date(
+        currentWindowStart.getTime() -
+          alertConfig.failureLookbackDays * 24 * 60 * 60 * 1000
+      );
+      const failureEvents = await prisma.stripeEvent.findMany({
+        where: {
+          stripeAccountId,
+          type: "payment_intent.payment_failed",
+          createdAt: { gte: historyStart, lte: now },
+        },
+        select: {
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      });
+      const failureDates = failureEvents.map((failureEvent) => new Date(failureEvent.createdAt));
+      const recentFailureSeries = buildFailureSeries(failureDates, now);
+      const currentDay = currentWindowStart.getUTCDay();
+
+      const comparisonWindows = Array.from(
+        { length: alertConfig.failureLookbackDays },
+        (_, index) => {
+        const daysAgo = index + 1;
+        const comparisonStart = shiftDateByDays(currentWindowStart, -daysAgo);
+        const comparisonEnd = shiftDateByDays(now, -daysAgo);
+
+        return {
+          dayOfWeek: comparisonStart.getUTCDay(),
+          count: countEventsInWindow(failureDates, comparisonStart, comparisonEnd),
+        };
+      });
+
+      const comparisonCandidates: Array<{
+        level: FailureBaselineLevel;
+        windows: typeof comparisonWindows;
+      }> = [
+          {
+            level: "same_day_and_hour",
+            windows: comparisonWindows.filter((window) => window.dayOfWeek === currentDay),
+          },
+          {
+            level: "same_day_type_and_hour",
+            windows: comparisonWindows.filter((window) =>
+              dayTypeDays(currentDay).includes(window.dayOfWeek)
+            ),
+          },
+          {
+            level: "same_hour",
+            windows: comparisonWindows,
+          },
+        ];
+
+      let selectedBaseline:
+        | {
+          level: FailureBaselineLevel;
+          usualFailures: number;
+          sampleCount: number;
+        }
+        | null = null;
+
+      for (const candidate of comparisonCandidates) {
+        const summary = summarizeFailureWindows(candidate.windows.map((window) => window.count));
+
+        if (summary.sampleCount >= alertConfig.failureMinSamples) {
+          selectedBaseline = {
+            level: candidate.level,
+            usualFailures: summary.median,
+            sampleCount: summary.sampleCount,
+          };
+          break;
+        }
+      }
+
+      if (!selectedBaseline) {
+        if (failures < alertConfig.failureFallbackMinCurrent) {
+          return NextResponse.json({ received: true });
+        }
+
+        const allowed = await canTriggerAlert({
+          stripeAccountId,
+          type: "payment_failed",
+        });
+
+        if (!allowed) {
+          return NextResponse.json({ received: true });
+        }
+
+        let alert;
+        const displayMessage =
+          "Payment failures are unusually high for this account, but there is not enough history yet for a normal comparison.";
+
+        try {
+          alert = await prisma.alert.create({
+            data: {
+              type: "payment_failed",
+              severity: "warning",
+              status: "active",
+              stripeEventId: event.id,
+              stripeAccountId,
+              message: displayMessage,
+              context: JSON.stringify({
+                failureWindowMinutes: alertConfig.failureWindowMinutes,
+                currentWindowStart: currentWindowStart.toISOString(),
+                currentWindowEnd: now.toISOString(),
+                currentFailures: failures,
+                failuresCounted: failures,
+                usualFailures: null,
+                normalFailures: null,
+                baseline: null,
+                effectiveUsualFailures: null,
+                spikeMultiple: null,
+                failureThreshold: alertConfig.failureFallbackMinCurrent,
+                comparisonWindowCount: comparisonWindows.length,
+                comparisonLevel: "insufficient_history",
+                fallbackUsed: true,
+                fallbackReason:
+                  "Not enough historical comparison data; current failures exceeded conservative fallback threshold.",
+                window: "current monitoring window",
+                failureSeries: recentFailureSeries,
+                displayMessage,
+              }),
+              windowStart: currentWindowStart,
+              windowEnd: new Date(
+                now.getTime() + alertConfig.failureWindowMinutes * 60 * 1000
+              ),
+              cooldownUntil: getCooldownUntil("payment_failed"),
+            },
+          });
+        } catch (err) {
+          console.error("❌ Alert DB write failed (non-fatal):", err);
+          return NextResponse.json({ received: true });
+        }
+
+        await sendAlertEmail({
+          type: alert.type,
+          severity: alert.severity,
+          message: alert.message,
+          stripeAccountId: alert.stripeAccountId,
+          detectedAt: alert.createdAt,
+          context: alert.context,
+        });
+
+        return NextResponse.json({ received: true });
+      }
+
+      const usualFailures = selectedBaseline.usualFailures;
+      const effectiveUsualFailures = Math.max(
+        usualFailures,
+        alertConfig.failureBaselineFloor
+      );
+      const threshold = effectiveUsualFailures * alertConfig.failureSpikeMultiplier;
+      const spikeMultiple = failures / effectiveUsualFailures;
+      const wouldTrigger =
+        failures >= alertConfig.failureMinCurrent &&
+        failures >= threshold;
+
+      if (!wouldTrigger) {
+        return NextResponse.json({ received: true });
+      }
+
+      const allowed = await canTriggerAlert({
+        stripeAccountId,
+        type: "payment_failed",
+      });
+
+      if (!allowed) {
+        return NextResponse.json({ received: true });
+      }
+
+      let alert;
+      const severity =
+        spikeMultiple >= alertConfig.failureCriticalMultiplier
+          ? "critical"
+          : "warning";
+      const displayMessage =
+        severity === "critical"
+          ? "Payment failures are significantly higher than usual compared to recent activity."
+          : "Payment failures are higher than usual compared to recent activity.";
+
+      try {
+        alert = await prisma.alert.create({
+          data: {
+            type: "payment_failed",
+            severity,
+            status: "active",
+            stripeEventId: event.id,
+            stripeAccountId,
+            message: displayMessage,
+            context: JSON.stringify({
+              failureWindowMinutes: alertConfig.failureWindowMinutes,
+              currentWindowStart: currentWindowStart.toISOString(),
+              currentWindowEnd: now.toISOString(),
+              currentFailures: failures,
+              failuresCounted: failures,
+              usualFailures,
+              normalFailures: usualFailures,
+              baseline: usualFailures,
+              effectiveUsualFailures,
+              spikeMultiple,
+              failureThreshold: threshold,
+              comparisonWindowCount: selectedBaseline.sampleCount,
+              comparisonLevel: selectedBaseline.level,
+              failureSpikeMultiplier: alertConfig.failureSpikeMultiplier,
+              baselineFloor: alertConfig.failureBaselineFloor,
+              failureSeries: recentFailureSeries,
+              displayMessage,
+            }),
+            windowStart: currentWindowStart,
+            windowEnd: new Date(
+              now.getTime() + alertConfig.failureWindowMinutes * 60 * 1000
+            ),
+            cooldownUntil: getCooldownUntil("payment_failed"),
+          },
+        });
+      } catch (err) {
+        console.error("❌ Alert DB write failed (non-fatal):", err);
+        return NextResponse.json({ received: true });
+      }
+
+      await sendAlertEmail({
+        type: alert.type,
+        severity: alert.severity,
+        message: alert.message,
+        stripeAccountId: alert.stripeAccountId,
+        detectedAt: alert.createdAt,
+        context: alert.context,
+      });
+    }
+
+    return NextResponse.json({ received: true });
   } catch (err) {
-    console.error("❌ Alert DB write failed (non-fatal):", err);
+    console.error("🔥 Webhook processing failed (non-fatal):", err);
     return NextResponse.json({ received: true });
   }
-
-  await sendAlertEmail({
-    type: alert.type,
-    severity: alert.severity,
-    message: alert.message,
-    stripeAccountId: alert.stripeAccountId,
-    detectedAt: alert.createdAt,
-    context: alert.context,
-  });
 }
 
-  return NextResponse.json({ received: true });
-} catch (err) {
-  console.error("🔥 Webhook processing failed (non-fatal):", err);
-  return NextResponse.json({ received: true });
-}
-}
 

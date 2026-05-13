@@ -223,38 +223,14 @@
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  padding: 32px 36px 18px;
+  padding: 24px 36px 16px;
   border-bottom: 1px solid #eceef1;
 }
 
-.workspaceTopbarLeft {
+.workspaceTopbarPrimary {
   display: flex;
   align-items: center;
-  gap: 12px;
-}
-
-.topbarIconButton {
-  width: 36px;
-  height: 36px;
-  border: none;
-  background: transparent;
-  color: #6b7280;
-  font-size: 1.8rem;
-  line-height: 1;
-  cursor: default;
-}
-
-.topbarDivider {
-  width: 1px;
-  height: 28px;
-  background: #e3e5e8;
-  margin: 0 8px;
-}
-
-.workspaceTopbarTitle {
-  color: #191c1d;
-  font-size: 0.95rem;
-  font-weight: 600;
+  flex: 0 0 auto;
 }
 
 .workspaceTopbarActions {
@@ -263,6 +239,7 @@
   gap: 12px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  margin-left: auto;
 }
 
 .topbarMetaChip {
@@ -300,25 +277,42 @@
   box-shadow: 0 16px 30px rgba(0, 88, 188, 0.26);
 }
 
+.topbarSecondaryAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(193, 198, 215, 0.55);
+  background: #ffffff;
+  color: #191c1d;
+  font-size: 0.84rem;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(193, 198, 215, 0.18);
+  transition:
+    box-shadow 180ms ease,
+    border-color 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.topbarSecondaryAction:hover,
+.topbarSecondaryAction:focus-visible {
+  border-color: rgba(0, 88, 188, 0.18);
+  background: #f7fbff;
+  color: #0058bc;
+  box-shadow: inset 0 0 0 1px rgba(0, 88, 188, 0.12);
+  transform: translateY(-1px);
+}
+
 .workspaceContent {
-  padding: 28px 36px 36px;
-}
-
-.workspaceBreadcrumb {
-  color: #717786;
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-.workspaceBreadcrumb span {
-  margin: 0 8px;
-  color: #a0a5b1;
+  padding: 34px 36px 40px;
 }
 
 .workspaceTitle {
-  margin-top: 14px;
+  margin-top: 0;
   color: #191c1d;
   font-size: 2.35rem;
   line-height: 1;
@@ -335,8 +329,8 @@
 }
 
 .historySection {
-  margin-top: 36px;
-  padding-top: 26px;
+  margin-top: 48px;
+  padding-top: 28px;
   border-top: 1px solid rgba(193, 198, 215, 0.28);
 }
 
@@ -579,6 +573,10 @@
   border-radius: 22px;
   background: #ffffff;
   box-shadow: inset 0 0 0 1px rgba(193, 198, 215, 0.42);
+}
+
+.accountsSection {
+  margin-top: 40px;
 }
 
 .sideCardHeader,
@@ -1237,7 +1235,7 @@
   }
 
   .workspaceTopbar,
-  .workspaceTopbarLeft,
+  .workspaceTopbarPrimary,
   .workspaceTopbarActions,
   .monitorChartHeader,
   .sideCardHeader,
@@ -1249,6 +1247,10 @@
   .connectedRow {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .workspaceTopbarActions {
+    margin-left: 0;
   }
 
   .workspaceTitle {

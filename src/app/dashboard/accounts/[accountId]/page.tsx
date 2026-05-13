@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import SeverityHelpPopover from "@/components/SeverityHelpPopover";
+import { formatMoneyAmount, normalizeCurrencyCode } from "@/lib/currency";
 import { getDemoAccountById, getDemoAlertHistory, getDemoSeverity } from "@/lib/demoData";
 import { prisma } from "@/lib/prisma";
 import styles from "./page.module.css";
@@ -11,6 +12,7 @@ type AlertLike = {
   id?: string;
   type: string;
   severity?: string;
+  status?: string;
   message?: string;
   context?: string | null;
   createdAt?: Date;
@@ -30,6 +32,7 @@ type RevenueContext = {
   alertThresholdAmount: number;
   baselineLabel: string;
   windowLabel: string;
+  currency: string;
 };
 
 type PaymentFailureContext = {
@@ -56,6 +59,7 @@ type RevenueChartModel = {
   activeIndex: number;
   windowLabel: string;
   isAlerting: boolean;
+  currency: string;
 };
 
 type FailureChartPoint = {
@@ -82,14 +86,6 @@ function safeParseContext(input?: string | null) {
   } catch {
     return null;
   }
-}
-
-function formatMoneyAmount(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0,
-  }).format(value);
 }
 
 function formatCount(value: number) {
@@ -267,6 +263,10 @@ function getRevenueContext(alert?: AlertLike | null): RevenueContext | null {
       typeof parsed.baselineLabel === "string" ? parsed.baselineLabel : "recent performance",
     windowLabel:
       typeof parsed.window === "string" ? parsed.window : "current monitoring window",
+    currency:
+      typeof parsed.currency === "string"
+        ? normalizeCurrencyCode(parsed.currency)
+        : "EUR",
   };
 }
 
@@ -363,6 +363,7 @@ function buildRevenueChartModel(accountId: string, topAlert: AlertLike | null, n
       activeIndex: points.length - 1,
       windowLabel: revenueContext?.windowLabel ?? "current monitoring window",
       isAlerting: latestValue < thresholdValue,
+      currency: revenueContext?.currency ?? "EUR",
     };
   }
 
@@ -392,12 +393,13 @@ function buildRevenueChartModel(accountId: string, topAlert: AlertLike | null, n
     points,
     expectedValue,
     actualValue,
-      thresholdValue,
-      peakValue: Math.max(...points.map((point) => point.actual)),
-      lowValue: Math.min(...points.map((point) => point.actual)),
-      activeIndex: points.length - 1,
-      windowLabel: revenueContext?.windowLabel ?? "current monitoring window",
-      isAlerting: actualValue < thresholdValue,
+    thresholdValue,
+    peakValue: Math.max(...points.map((point) => point.actual)),
+    lowValue: Math.min(...points.map((point) => point.actual)),
+    activeIndex: points.length - 1,
+    windowLabel: revenueContext?.windowLabel ?? "current monitoring window",
+    isAlerting: actualValue < thresholdValue,
+    currency: revenueContext?.currency ?? "EUR",
   };
 }
 
@@ -710,7 +712,11 @@ function MonitorInsightPanel({
             </div>
             <div className={styles.panelMetric}>
               <span>Usual failed payments</span>
-              <strong>{formatCount(paymentContext.normalFailures ?? paymentContext.threshold)}</strong>
+              <strong>
+                {paymentContext.normalFailures !== null
+                  ? formatCount(paymentContext.normalFailures)
+                  : "Not enough history yet"}
+              </strong>
             </div>
             <div className={styles.panelMetric}>
               <span>Alert threshold</span>
@@ -722,16 +728,16 @@ function MonitorInsightPanel({
             <div className={styles.panelMetric}>
               <span>Current revenue</span>
               <strong style={model.isAlerting ? { color: severity?.accentColor } : undefined}>
-                {formatMoneyAmount(model.actualValue)}
+                {formatMoneyAmount(model.actualValue, model.currency)}
               </strong>
             </div>
             <div className={styles.panelMetric}>
               <span>Usual revenue</span>
-              <strong>{formatMoneyAmount(model.expectedValue)}</strong>
+              <strong>{formatMoneyAmount(model.expectedValue, model.currency)}</strong>
             </div>
             <div className={styles.panelMetric}>
               <span>Alert threshold</span>
-              <strong>{formatMoneyAmount(model.thresholdValue)}</strong>
+              <strong>{formatMoneyAmount(model.thresholdValue, model.currency)}</strong>
             </div>
           </>
         ) : (
@@ -922,7 +928,7 @@ function RevenueAlertMonitor({
                 boxShadow: `0 1px 2px ${severity.accentShadow}`,
               }}
             >
-              Threshold ({formatMoneyAmount(model.thresholdValue)})
+              Threshold ({formatMoneyAmount(model.thresholdValue, model.currency)})
             </div>
             <svg
               viewBox={`0 0 ${width} ${height}`}
@@ -944,7 +950,7 @@ function RevenueAlertMonitor({
                   <g key={`${tick}-${index}`}>
                     <line x1={plot.left} x2={plot.right} y1={tickY} y2={tickY} className={styles.gridLine} />
                     <text x={plot.left - 14} y={tickY + 4} textAnchor="end" className={styles.axisLabel}>
-                      {formatMoneyAmount(tick)}
+                      {formatMoneyAmount(tick, model.currency)}
                     </text>
                   </g>
                 );
@@ -1015,7 +1021,7 @@ function RevenueAlertMonitor({
                 <i className={styles.legendBlue} /> Current revenue
               </span>
             <span>
-              <i className={severity.legendClass} /> Alert threshold ({formatMoneyAmount(model.thresholdValue)})
+              <i className={severity.legendClass} /> Alert threshold ({formatMoneyAmount(model.thresholdValue, model.currency)})
             </span>
           </div>
         </div>
@@ -1072,10 +1078,8 @@ function AccountMonitor({
   );
 }
 
-function ActiveAlertRow({ alert, now }: { alert: AlertLike; now: Date }) {
+function ActiveAlertRow({ alert }: { alert: AlertLike }) {
   const severity = getSeverityPresentation(alert.severity);
-  const activeUntil =
-    alert.windowEnd && alert.windowEnd > now ? ` - Active until ${fmtDate(alert.windowEnd)}` : "";
   const detectedAt = fmtDetectedDate(alert.createdAt);
 
   return (
@@ -1086,8 +1090,7 @@ function ActiveAlertRow({ alert, now }: { alert: AlertLike; now: Date }) {
         <p>{buildReadableAlertMessage(alert)}</p>
         <span>
           {getSeverityLabel(alert.severity)} · {detectedAt ? `Detected ${detectedAt}` : alert.detectedLabel ? `Detected ${alert.detectedLabel}` : `Triggered ${fmtDate(alert.createdAt)}`}
-          {activeUntil}
-        </span>
+          </span>
       </div>
     </article>
   );
@@ -1099,7 +1102,7 @@ function HistoryRow({ alert }: { alert: AlertLike }) {
       <div>
         <h3>{alertLabel(alert.type)}</h3>
         <p>{alert.message}</p>
-        <span>{alert.displayTimestamp ?? `Ended ${fmtDate(alert.windowEnd)}`}</span>
+        <span>{alert.displayTimestamp ?? `Detected ${fmtDate(alert.createdAt)}`}</span>
       </div>
     </article>
   );
@@ -1161,6 +1164,7 @@ export default async function AccountDetailPage({
                         : 0.5,
                     baselineLabel: "recent performance",
                     window: "current monitoring window",
+                    currency: demoAccount.currency ?? "EUR",
                     revenueSeries: demoAccount.revenueSeries,
                     displayMessage: demoAccount.message,
                   }
@@ -1178,7 +1182,7 @@ export default async function AccountDetailPage({
             ),
           } satisfies AlertLike,
         ]
-      : alerts.filter((alert) => alert.windowEnd && alert.windowEnd > now);
+      : alerts.filter((alert) => alert.status === "active");
 
   const historicalAlerts =
     demoAccount
@@ -1196,7 +1200,7 @@ export default async function AccountDetailPage({
                 displayTimestamp: entry.timestamp,
               }) satisfies AlertLike
           )
-      : alerts.filter((alert) => !alert.windowEnd || alert.windowEnd <= now);
+      : alerts.filter((alert) => alert.status !== "active");
 
   const topAlert = activeAlerts[0] ?? null;
   const chartModel = buildRevenueChartModel(accountId, topAlert, now);
@@ -1238,7 +1242,7 @@ export default async function AccountDetailPage({
 
             <div className={styles.alertStack} id="current-alert">
               {activeAlerts.length > 0 ? (
-                activeAlerts.map((alert) => <ActiveAlertRow key={alert.id ?? alert.type} alert={alert} now={now} />)
+                activeAlerts.map((alert) => <ActiveAlertRow key={alert.id ?? alert.type} alert={alert} />)
               ) : (
                 <div className={styles.emptyState}>No active alerts for this account right now.</div>
               )}

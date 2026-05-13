@@ -1,6 +1,7 @@
 "use client";
 
 import SeverityHelpPopover from "@/components/SeverityHelpPopover";
+import { formatMoneyAmount, normalizeCurrencyCode } from "@/lib/currency";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import detailStyles from "@/app/dashboard/accounts/[accountId]/page.module.css";
@@ -29,6 +30,7 @@ type RevenueContext = {
   dropRatio: number;
   alertThresholdAmount: number;
   windowLabel: string;
+  currency: string;
 };
 
 type PaymentFailureContext = {
@@ -52,6 +54,7 @@ type RevenueChartModel = {
   thresholdValue: number;
   activeIndex: number;
   isAlerting: boolean;
+  currency: string;
 };
 
 type FailureChartPoint = {
@@ -107,14 +110,6 @@ function safeParseContext(input?: string | null) {
   } catch {
     return null;
   }
-}
-
-function formatMoneyAmount(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0,
-  }).format(value);
 }
 
 function formatCount(value: number) {
@@ -265,6 +260,10 @@ function getRevenueContext(alert?: CurrentAlertRailItem | null): RevenueContext 
         : Math.round(baselineAmount * 0.5),
     windowLabel:
       typeof parsed.window === "string" ? parsed.window : "current monitoring window",
+    currency:
+      typeof parsed.currency === "string"
+        ? normalizeCurrencyCode(parsed.currency)
+        : "EUR",
   };
 }
 
@@ -361,6 +360,7 @@ function buildRevenueChartModel(alert: CurrentAlertRailItem, now: Date): Revenue
       thresholdValue,
       activeIndex: points.length - 1,
       isAlerting: latestValue < thresholdValue,
+      currency: revenueContext?.currency ?? "EUR",
     };
   }
 
@@ -394,6 +394,7 @@ function buildRevenueChartModel(alert: CurrentAlertRailItem, now: Date): Revenue
     thresholdValue,
     activeIndex: points.length - 1,
     isAlerting: actualValue < thresholdValue,
+    currency: revenueContext?.currency ?? "EUR",
   };
 }
 
@@ -617,7 +618,9 @@ function MonitorInsightPanel({
             <div className={detailStyles.panelMetric}>
               <span>Usual failed payments</span>
               <strong>
-                {formatCount(paymentContext.normalFailures ?? paymentContext.threshold)}
+                {paymentContext.normalFailures !== null
+                  ? formatCount(paymentContext.normalFailures)
+                  : "Not enough history yet"}
               </strong>
             </div>
             <div className={detailStyles.panelMetric}>
@@ -630,16 +633,16 @@ function MonitorInsightPanel({
             <div className={detailStyles.panelMetric}>
               <span>Current revenue</span>
               <strong style={model.isAlerting ? { color: severity.accentColor } : undefined}>
-                {formatMoneyAmount(model.actualValue)}
-              </strong>
+                {formatMoneyAmount(model.actualValue, model.currency)}
+                </strong>
             </div>
             <div className={detailStyles.panelMetric}>
               <span>Usual revenue</span>
-              <strong>{formatMoneyAmount(model.expectedValue)}</strong>
+              <strong>{formatMoneyAmount(model.expectedValue, model.currency)}</strong>
             </div>
             <div className={detailStyles.panelMetric}>
               <span>Alert threshold</span>
-              <strong>{formatMoneyAmount(model.thresholdValue)}</strong>
+              <strong>{formatMoneyAmount(model.thresholdValue, model.currency)}</strong>
             </div>
           </>
         ) : null}
@@ -789,7 +792,7 @@ function RevenueAlertMonitor({
                 boxShadow: `0 1px 2px ${severity.accentShadow}`,
               }}
             >
-              Threshold ({formatMoneyAmount(model.thresholdValue)})
+              Threshold ({formatMoneyAmount(model.thresholdValue, model.currency)})
             </div>
             <svg
               viewBox={`0 0 ${width} ${height}`}
@@ -811,7 +814,7 @@ function RevenueAlertMonitor({
                   <g key={`${tick}-${index}`}>
                     <line x1={plot.left} x2={plot.right} y1={tickY} y2={tickY} className={detailStyles.gridLine} />
                     <text x={plot.left - 14} y={tickY + 4} textAnchor="end" className={detailStyles.axisLabel}>
-                      {formatMoneyAmount(tick)}
+                      {formatMoneyAmount(tick, model.currency)}
                     </text>
                   </g>
                 );
@@ -890,7 +893,7 @@ function RevenueAlertMonitor({
                 <i className={detailStyles.legendBlue} /> Current revenue
               </span>
               <span>
-                <i className={severity.legendClass} /> Alert threshold ({formatMoneyAmount(model.thresholdValue)})
+                <i className={severity.legendClass} /> Alert threshold ({formatMoneyAmount(model.thresholdValue, model.currency)})
               </span>
             </div>
           </div>
@@ -946,7 +949,7 @@ function SelectedAlertDetail({
               disabled={!canSelectLeft}
               aria-label="Select previous alert"
             >
-              Previous
+              <ArrowLeftIcon />
             </button>
             <button
               type="button"
@@ -955,7 +958,7 @@ function SelectedAlertDetail({
               disabled={!canSelectRight}
               aria-label="Select next alert"
             >
-              Next
+              <ArrowRightIcon />
             </button>
           </div>
         </div>
@@ -988,7 +991,7 @@ function SelectedAlertDetail({
             disabled={!canSelectLeft}
             aria-label="Select previous alert"
           >
-            Previous
+            <ArrowLeftIcon />
           </button>
           <button
             type="button"
@@ -997,7 +1000,7 @@ function SelectedAlertDetail({
             disabled={!canSelectRight}
             aria-label="Select next alert"
           >
-            Next
+            <ArrowRightIcon />
           </button>
         </div>
       </div>

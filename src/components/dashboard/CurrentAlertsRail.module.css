@@ -1,5 +1,5 @@
 .section {
-  margin-top: 48px;
+  margin-top: 56px;
   padding-top: 24px;
   border-top: 1px solid rgba(193, 198, 215, 0.34);
 }
@@ -44,10 +44,6 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 4px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: inset 0 0 0 1px rgba(193, 198, 215, 0.48);
 }
 
 .arrowButton {
@@ -94,7 +90,7 @@
 .railViewport {
   position: relative;
   overflow: hidden;
-  padding: 12px 0 14px;
+  padding: 12px 8px 14px;
   margin-top: -4px;
 }
 
@@ -137,7 +133,7 @@
   scroll-behavior: smooth;
   -ms-overflow-style: none;
   scrollbar-width: none;
-  padding: 2px 0 4px;
+  padding: 2px 4px 4px;
 }
 
 .rail::-webkit-scrollbar {
@@ -258,8 +254,8 @@
 }
 
 .detailSection {
-  margin-top: 34px;
-  padding-top: 26px;
+  margin-top: 42px;
+  padding-top: 28px;
   border-top: 1px solid rgba(193, 198, 215, 0.28);
 }
 
@@ -283,14 +279,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 34px;
-  padding: 0 12px;
+  width: 38px;
+  height: 38px;
   border: none;
   border-radius: 999px;
   background: #ffffff;
   color: #4b5563;
-  font-size: 0.8rem;
-  font-weight: 700;
   box-shadow: inset 0 0 0 1px rgba(193, 198, 215, 0.65);
   cursor: pointer;
   transition: transform 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
@@ -420,7 +414,7 @@
   }
 
   .section {
-    margin-top: 36px;
+    margin-top: 42px;
     padding-top: 20px;
   }
 

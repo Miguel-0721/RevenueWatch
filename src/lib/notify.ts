@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { formatMoneyAmount, normalizeCurrencyCode } from "@/lib/currency";
 import { prisma } from "@/lib/prisma";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -31,14 +32,6 @@ function escapeHtml(value: string) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-function formatMoneyAmount(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0,
-  }).format(value / 100);
 }
 
 function formatCount(value: number) {
@@ -132,7 +125,11 @@ function buildMainMessage(type: string, message: string, context?: string | null
   }
 
   if (type === "payment_failed") {
-    return "Payment failures are significantly higher than usual compared to recent activity.";
+    if (parsed && typeof parsed.displayMessage === "string") {
+      return parsed.displayMessage;
+    }
+
+    return message;
   }
 
   return message;
@@ -172,6 +169,8 @@ function buildKeyAlertValues(type: string, context?: string | null) {
   }
 
   if (type === "revenue_drop") {
+    const currency =
+      typeof parsed.currency === "string" ? normalizeCurrencyCode(parsed.currency) : undefined;
     const currentRevenue =
       typeof parsed.currentAmount === "number"
         ? parsed.currentAmount
@@ -198,9 +197,9 @@ function buildKeyAlertValues(type: string, context?: string | null) {
           : null;
 
     return [
-      currentRevenue !== null ? `Current revenue: ${formatMoneyAmount(currentRevenue)}` : null,
-      usualRevenue !== null ? `Usual revenue: ${formatMoneyAmount(usualRevenue)}` : null,
-      threshold !== null ? `Alert threshold: ${formatMoneyAmount(threshold)}` : null,
+      currentRevenue !== null ? `Current revenue: ${formatMoneyAmount(currentRevenue, currency)}` : null,
+      usualRevenue !== null ? `Usual revenue: ${formatMoneyAmount(usualRevenue, currency)}` : null,
+      threshold !== null ? `Alert threshold: ${formatMoneyAmount(threshold, currency)}` : null,
     ].filter((line): line is string => Boolean(line));
   }
 
