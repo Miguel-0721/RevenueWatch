@@ -46,3 +46,6 @@ prisma/dev.db
 
 prisma/*.db-journal
 .tmp/
+
+.vercel
+.env*.local
