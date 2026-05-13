@@ -9,6 +9,7 @@ import { redirect } from "next/navigation";
 import styles from "./page.module.css";
 
 export const dynamic = "force-dynamic";
+// No-op change to trigger a fresh deployment when config-only updates are missed.
 
 type DisplayAlert = {
   id: string;
