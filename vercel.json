@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/check-revenue-drops",
+      "schedule": "0 * * * *"
+    }
+  ]
+}
