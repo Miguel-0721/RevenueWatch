@@ -12,7 +12,8 @@
     "seed:revenue-baseline": "node scripts/seedRevenueBaseline.js",
     "reset:local-payment-alert-test": "node scripts/resetLocalPaymentAlertTest.js",
     "reset:local-revenue-drop-test": "node scripts/resetLocalRevenueDropTest.js",
-    "test:revenue-drop-email": "node scripts/testRevenueDropEmail.mjs"
+    "test:revenue-drop-email": "node scripts/testRevenueDropEmail.mjs",
+    "test:payment-failure-email": "node scripts/testPaymentFailureEmail.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

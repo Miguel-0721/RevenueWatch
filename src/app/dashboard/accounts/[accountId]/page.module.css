@@ -265,6 +265,18 @@
   padding: 26px;
 }
 
+.healthyChartCard {
+  padding: 22px;
+}
+
+.healthyChartCard .chartLayout {
+  gap: 20px;
+}
+
+.healthyChartCard .chartHeader {
+  margin-bottom: 14px;
+}
+
 .chartLayout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 330px;
@@ -492,6 +504,7 @@
 .legendBlue,
 .legendRed,
 .legendAmber,
+.legendDashBlue,
 .legendDashRed,
 .legendDashAmber {
   width: 8px;
@@ -509,6 +522,13 @@
 
 .legendAmber {
   background: #b7791f;
+}
+
+.legendDashBlue {
+  width: 16px;
+  height: 0;
+  border-radius: 0;
+  border-top: 2px dashed #0058bc;
 }
 
 .legendDashRed {
@@ -666,20 +686,20 @@
 }
 
 .failureMiniChart .failureChartWrap {
-  height: 180px;
+  height: 164px;
 }
 
 .failureMiniChart .chartFooter {
-  margin-top: 14px;
-  padding-top: 14px;
+  margin-top: 12px;
+  padding-top: 12px;
 }
 
 .monitorPanel {
   position: relative;
   display: grid;
   align-content: space-between;
-  gap: 18px;
-  padding: 22px;
+  gap: 16px;
+  padding: 20px;
   border-radius: 10px;
   background:
     linear-gradient(180deg, #f7f9fc 0%, #ffffff 100%);
@@ -794,6 +814,13 @@
   line-height: 1;
   font-weight: 900;
   letter-spacing: -0.04em;
+}
+
+.metricFallbackValue {
+  color: #5f6b7b;
+  font-size: 15px;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
 }
 
 .panelContext {
@@ -922,6 +949,30 @@
   color: #717786;
   font-size: 14px;
   font-weight: 700;
+}
+
+.healthyMonitorStack {
+  display: grid;
+  gap: 12px;
+}
+
+.monitoringChartNote {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  z-index: 3;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(193, 198, 215, 0.22);
+  color: #5f6b7b;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(25, 28, 29, 0.04);
+  pointer-events: none;
 }
 
 @media (max-width: 980px) {

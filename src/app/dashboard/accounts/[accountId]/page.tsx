@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import SeverityHelpPopover from "@/components/SeverityHelpPopover";
+import { getAlertSensitivityConfig } from "@/lib/alert-sensitivity";
 import { formatMoneyAmount, normalizeCurrencyCode } from "@/lib/currency";
 import { getDemoAccountById, getDemoAlertHistory, getDemoSeverity } from "@/lib/demoData";
 import { prisma } from "@/lib/prisma";
@@ -80,6 +81,42 @@ type FailureChartModel = {
   activeIndex: number;
 };
 
+type RevenueBaselineLevel =
+  | "same_day_and_hour"
+  | "same_day_type_and_hour"
+  | "same_hour";
+
+type FailureBaselineLevel =
+  | "same_day_and_hour"
+  | "same_day_type_and_hour"
+  | "same_hour";
+
+type RevenueMetricSample = {
+  amount: number;
+  periodEnd: Date;
+};
+
+type HealthyRevenueMonitoringState = {
+  model: RevenueChartModel | null;
+  currentAmount: number;
+  baselineAmount: number | null;
+  thresholdValue: number | null;
+  currency: string;
+  baselineLabel: string;
+  windowLabel: string;
+  hasEnoughHistory: boolean;
+  placeholderLabels: string[];
+};
+
+type HealthyPaymentMonitoringState = {
+  model: FailureChartModel;
+  failures: number;
+  normalFailures: number | null;
+  threshold: number;
+  windowLabel: string;
+  hasEnoughHistory: boolean;
+};
+
 function safeParseContext(input?: string | null) {
   if (!input) return null;
 
@@ -142,12 +179,30 @@ function fmtUtcHour(hour: number) {
   return `${String(hour).padStart(2, "0")}:00`;
 }
 
+function buildRecentHourLabels(now: Date, count: number) {
+  return Array.from({ length: count }, (_, index) => {
+    const relativeHour = count - 1 - index;
+    const hour = (now.getUTCHours() - relativeHour + 24) % 24;
+    return fmtUtcHour(hour);
+  });
+}
+
 function nextHourLabel(label: string) {
   const match = label.match(/^(\d{2}):(\d{2})$/);
   if (!match) return label;
 
   const hour = Number(match[1]);
   return `${String((hour + 1) % 24).padStart(2, "0")}:${match[2]}`;
+}
+
+function dayTypeDays(dayOfWeek: number) {
+  return dayOfWeek === 0 || dayOfWeek === 6 ? [0, 6] : [1, 2, 3, 4, 5];
+}
+
+function revenueBaselineLabel(level: RevenueBaselineLevel) {
+  if (level === "same_day_and_hour") return "same day and same hour";
+  if (level === "same_day_type_and_hour") return "same weekday/weekend type and same hour";
+  return "same hour";
 }
 
 function buildTickIndexes(length: number) {
@@ -164,6 +219,109 @@ function buildTickIndexes(length: number) {
     length - 1,
   ];
   return [...new Set(candidates)];
+}
+
+function summarizeRevenueWindows(samples: RevenueMetricSample[]) {
+  const totalsByWindow = new Map<string, number>();
+
+  for (const sample of samples) {
+    const d = new Date(sample.periodEnd);
+    const key = `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}-${d.getUTCHours()}`;
+    totalsByWindow.set(key, (totalsByWindow.get(key) ?? 0) + sample.amount);
+  }
+
+  const totals = Array.from(totalsByWindow.values());
+  const total = totals.reduce((sum, amount) => sum + amount, 0);
+
+  return {
+    average: totals.length > 0 ? total / totals.length : 0,
+    sampleCount: totals.length,
+  };
+}
+
+function median(values: number[]) {
+  if (values.length === 0) return 0;
+
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+
+  return sorted.length % 2 === 0
+    ? (sorted[middle - 1] + sorted[middle]) / 2
+    : sorted[middle];
+}
+
+function shiftDateByDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function countEventsInWindow(eventDates: Date[], start: Date, end: Date) {
+  return eventDates.filter((date) => date >= start && date < end).length;
+}
+
+function summarizeFailureWindows(counts: number[]) {
+  return {
+    median: median(counts),
+    sampleCount: counts.length,
+  };
+}
+
+function buildFailureSeries(eventDates: Date[], now: Date, bucketCount = 6) {
+  const currentBucketStart = new Date(now);
+  currentBucketStart.setUTCMinutes(0, 0, 0);
+
+  return Array.from({ length: bucketCount }, (_, index) => {
+    const bucketStart = new Date(currentBucketStart);
+    bucketStart.setUTCHours(currentBucketStart.getUTCHours() - (bucketCount - 1 - index));
+
+    const bucketEnd = new Date(bucketStart);
+    bucketEnd.setUTCHours(bucketStart.getUTCHours() + 1);
+
+    return {
+      time: `${String(bucketStart.getUTCHours()).padStart(2, "0")}:00`,
+      failures: countEventsInWindow(eventDates, bucketStart, bucketEnd),
+    };
+  });
+}
+
+function buildRevenueSeriesFromSnapshot({
+  recentMetrics,
+  baselineAmount,
+  currentAmount,
+  now,
+  bucketCount = 6,
+}: {
+  recentMetrics: Array<{ amount: number; periodEnd: Date }>;
+  baselineAmount: number;
+  currentAmount: number;
+  now: Date;
+  bucketCount?: number;
+}) {
+  const anchorHourStart = new Date(now);
+  anchorHourStart.setUTCMinutes(0, 0, 0);
+
+  return Array.from({ length: bucketCount }, (_, index) => {
+    const bucketStart = new Date(anchorHourStart);
+    bucketStart.setUTCHours(anchorHourStart.getUTCHours() - (bucketCount - 1 - index));
+
+    const bucketEnd = new Date(bucketStart);
+    bucketEnd.setUTCHours(bucketStart.getUTCHours() + 1);
+
+    const observedRevenue = recentMetrics
+      .filter((metric) => metric.periodEnd >= bucketStart && metric.periodEnd < bucketEnd)
+      .reduce((sum, metric) => sum + metric.amount, 0);
+
+    const fallbackRevenue =
+      index === bucketCount - 1
+        ? currentAmount
+        : Math.round(baselineAmount * (0.97 + ((index % 3) - 1) * 0.02));
+
+    return {
+      time: `${String(bucketStart.getUTCHours()).padStart(2, "0")}:00`,
+      revenue: observedRevenue > 0 ? observedRevenue : fallbackRevenue,
+    };
+  });
 }
 
 function alertLabel(type: string) {
@@ -269,6 +427,27 @@ function getRevenueContext(alert?: AlertLike | null): RevenueContext | null {
       typeof parsed.currency === "string"
         ? normalizeCurrencyCode(parsed.currency)
         : "EUR",
+  };
+}
+
+function getMonitoringPresentation() {
+  return {
+    label: "Normal",
+    accentColor: "#0058bc",
+    accentSoft: "#e7f1ff",
+    accentTint: "rgba(0, 88, 188, 0.025)",
+    accentZone: "rgba(0, 88, 188, 0.035)",
+    accentShadow: "rgba(0, 88, 188, 0.1)",
+    accentLine: "rgba(0, 88, 188, 0.28)",
+    barSoft: "rgba(0, 88, 188, 0.22)",
+    barStrong: "rgba(0, 88, 188, 0.44)",
+    barActive: "#0058bc",
+    barShadow: "rgba(0, 88, 188, 0.14)",
+    legendClass: styles.legendBlue,
+    dashClass: styles.legendDashBlue,
+    iconClass: styles.alertIconWarning,
+    panelClass: styles.monitorPanelNormal,
+    statusClass: styles.statusHealthy,
   };
 }
 
@@ -495,6 +674,272 @@ function buildFailureChartModel(topAlert: AlertLike | null, paymentContext: Paym
     windowLabel: paymentContext?.windowLabel ?? "current monitoring window",
     peakFailures: Math.max(...points.map((point) => point.failures)),
     activeIndex: points.length - 1,
+  };
+}
+
+async function getHealthyRevenueMonitoringState({
+  stripeAccountId,
+  alertSensitivity,
+  now,
+}: {
+  stripeAccountId: string;
+  alertSensitivity?: string | null;
+  now: Date;
+}): Promise<HealthyRevenueMonitoringState> {
+  const config = getAlertSensitivityConfig(alertSensitivity);
+  const currentWindowStart = new Date(now.getTime() - config.revenueWindowMinutes * 60 * 1000);
+  const revenueSnapshotStart = new Date(
+    currentWindowStart.getTime() - (6 - 1) * 60 * 60 * 1000
+  );
+  const baselineStart = new Date(now.getTime() - config.baselineHours * 60 * 60 * 1000);
+
+  const latestMetric = await prisma.revenueMetric.findFirst({
+    where: { stripeAccountId },
+    orderBy: { periodEnd: "desc" },
+    select: { currency: true },
+  });
+  const metricCurrency = normalizeCurrencyCode(latestMetric?.currency);
+
+  const [currentRevenue, recentRevenueMetrics] = await Promise.all([
+    prisma.revenueMetric.aggregate({
+      _sum: { amount: true },
+      where: {
+        stripeAccountId,
+        periodEnd: { gte: currentWindowStart },
+        OR: [{ currency: metricCurrency }, { currency: null }],
+      },
+    }),
+    prisma.revenueMetric.findMany({
+      where: {
+        stripeAccountId,
+        periodEnd: { gte: revenueSnapshotStart, lte: now },
+        OR: [{ currency: metricCurrency }, { currency: null }],
+      },
+      select: {
+        amount: true,
+        periodEnd: true,
+      },
+      orderBy: {
+        periodEnd: "asc",
+      },
+    }),
+  ]);
+
+  const currentAmount = currentRevenue._sum.amount ?? 0;
+  const nowHour = now.getUTCHours();
+  const nowDay = now.getUTCDay();
+  const baselineCandidates: Array<{
+    level: RevenueBaselineLevel;
+    dayFilter?: { equals?: number; in?: number[] };
+  }> = [
+    { level: "same_day_and_hour", dayFilter: { equals: nowDay } },
+    { level: "same_day_type_and_hour", dayFilter: { in: dayTypeDays(nowDay) } },
+    { level: "same_hour" },
+  ];
+
+  let selectedBaseline:
+    | {
+        level: RevenueBaselineLevel;
+        amount: number;
+        sampleCount: number;
+      }
+    | null = null;
+
+  for (const candidate of baselineCandidates) {
+    const baselineMetrics = await prisma.revenueMetric.findMany({
+      where: {
+        stripeAccountId,
+        periodEnd: { gte: baselineStart, lt: currentWindowStart },
+        hourOfDay: nowHour,
+        OR: [{ currency: metricCurrency }, { currency: null }],
+        ...(candidate.dayFilter
+          ? candidate.dayFilter.equals !== undefined
+            ? { dayOfWeek: candidate.dayFilter.equals }
+            : { dayOfWeek: { in: candidate.dayFilter.in } }
+          : {}),
+      },
+      select: {
+        amount: true,
+        periodEnd: true,
+      },
+    });
+
+    const summary = summarizeRevenueWindows(baselineMetrics);
+
+    if (summary.sampleCount >= config.minSamples) {
+      selectedBaseline = {
+        level: candidate.level,
+        amount: summary.average,
+        sampleCount: summary.sampleCount,
+      };
+      break;
+    }
+  }
+
+  if (!selectedBaseline || selectedBaseline.amount < config.minBaselineRevenue) {
+    return {
+      model: null,
+      currentAmount,
+      baselineAmount: null,
+      thresholdValue: null,
+      currency: metricCurrency,
+      baselineLabel: "similar recent time periods",
+      windowLabel: "current monitoring window",
+      hasEnoughHistory: false,
+      placeholderLabels: buildRecentHourLabels(now, 5),
+    };
+  }
+
+  const thresholdValue = Math.round(selectedBaseline.amount * (1 - config.dropThreshold));
+  const revenueSeries = buildRevenueSeriesFromSnapshot({
+    recentMetrics: recentRevenueMetrics,
+    baselineAmount: selectedBaseline.amount,
+    currentAmount,
+    now,
+  });
+  const syntheticAlert: AlertLike = {
+    type: "revenue_drop",
+    createdAt: now,
+    context: JSON.stringify({
+      baselineAmount: selectedBaseline.amount,
+      currentAmount,
+      alertThresholdAmount: thresholdValue,
+      baselineLabel: revenueBaselineLabel(selectedBaseline.level),
+      window: "current monitoring window",
+      currency: metricCurrency,
+      revenueSeries,
+      threshold: config.dropThreshold,
+    }),
+  };
+
+  return {
+    model: buildRevenueChartModel(stripeAccountId, syntheticAlert, now),
+    currentAmount,
+    baselineAmount: selectedBaseline.amount,
+    thresholdValue,
+    currency: metricCurrency,
+    baselineLabel: revenueBaselineLabel(selectedBaseline.level),
+    windowLabel: "current monitoring window",
+    hasEnoughHistory: true,
+    placeholderLabels: buildRecentHourLabels(now, 5),
+  };
+}
+
+async function getHealthyPaymentMonitoringState({
+  stripeAccountId,
+  alertSensitivity,
+  now,
+}: {
+  stripeAccountId: string;
+  alertSensitivity?: string | null;
+  now: Date;
+}): Promise<HealthyPaymentMonitoringState> {
+  const config = getAlertSensitivityConfig(alertSensitivity);
+  const currentWindowStart = new Date(now.getTime() - config.failureWindowMinutes * 60 * 1000);
+  const historyStart = new Date(
+    currentWindowStart.getTime() - config.failureLookbackDays * 24 * 60 * 60 * 1000
+  );
+
+  const failureEvents = await prisma.stripeEvent.findMany({
+    where: {
+      stripeAccountId,
+      type: "payment_intent.payment_failed",
+      createdAt: { gte: historyStart, lte: now },
+    },
+    select: {
+      createdAt: true,
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
+  });
+
+  const failureDates = failureEvents.map((failureEvent) => new Date(failureEvent.createdAt));
+  const recentFailureSeries = buildFailureSeries(failureDates, now);
+  const failures = countEventsInWindow(failureDates, currentWindowStart, now);
+  const currentDay = currentWindowStart.getUTCDay();
+
+  const comparisonWindows = Array.from({ length: config.failureLookbackDays }, (_, index) => {
+    const daysAgo = index + 1;
+    const comparisonStart = shiftDateByDays(currentWindowStart, -daysAgo);
+    const comparisonEnd = shiftDateByDays(now, -daysAgo);
+
+    return {
+      dayOfWeek: comparisonStart.getUTCDay(),
+      count: countEventsInWindow(failureDates, comparisonStart, comparisonEnd),
+    };
+  });
+
+  const comparisonCandidates: Array<{
+    level: FailureBaselineLevel;
+    windows: typeof comparisonWindows;
+  }> = [
+    {
+      level: "same_day_and_hour",
+      windows: comparisonWindows.filter((window) => window.dayOfWeek === currentDay),
+    },
+    {
+      level: "same_day_type_and_hour",
+      windows: comparisonWindows.filter((window) =>
+        dayTypeDays(currentDay).includes(window.dayOfWeek)
+      ),
+    },
+    {
+      level: "same_hour",
+      windows: comparisonWindows,
+    },
+  ];
+
+  let selectedBaseline:
+    | {
+        level: FailureBaselineLevel;
+        usualFailures: number;
+        sampleCount: number;
+      }
+    | null = null;
+
+  for (const candidate of comparisonCandidates) {
+    const summary = summarizeFailureWindows(candidate.windows.map((window) => window.count));
+
+    if (summary.sampleCount >= config.failureMinSamples) {
+      selectedBaseline = {
+        level: candidate.level,
+        usualFailures: summary.median,
+        sampleCount: summary.sampleCount,
+      };
+      break;
+    }
+  }
+
+  const normalFailures = selectedBaseline?.usualFailures ?? null;
+  const threshold = selectedBaseline
+    ? Math.max(normalFailures ?? 0, config.failureBaselineFloor) * config.failureSpikeMultiplier
+    : config.failureFallbackMinCurrent;
+  const syntheticAlert: AlertLike = {
+    type: "payment_failed",
+    createdAt: now,
+    context: JSON.stringify({
+      failureSeries: recentFailureSeries,
+      failureThreshold: threshold,
+      normalFailures,
+      baseline: normalFailures,
+      window: "current monitoring window",
+    }),
+  };
+  const paymentContext: PaymentFailureContext = {
+    failures,
+    normalFailures,
+    threshold,
+    windowLabel: "current monitoring window",
+  };
+
+  return {
+    model: buildFailureChartModel(syntheticAlert, paymentContext),
+    failures,
+    normalFailures,
+    threshold,
+    windowLabel: "current monitoring window",
+    hasEnoughHistory: Boolean(selectedBaseline),
   };
 }
 
@@ -748,23 +1193,306 @@ function MonitorInsightPanel({
   );
 }
 
-function HealthyMonitorCard({ lastEventAt }: { lastEventAt?: Date | null }) {
+function HealthyMonitoringPanel({
+  title,
+  description,
+  metrics,
+  contextLabel,
+  contextText,
+}: {
+  title: string;
+  description: string;
+  metrics: Array<{ label: string; value: string }>;
+  contextLabel?: string;
+  contextText?: string;
+}) {
   return (
-    <section className={styles.chartCard}>
-      <div className={styles.chartLayoutSingle}>
+    <aside className={`${styles.monitorPanel} ${styles.monitorPanelNormal}`}>
+      <div>
+        <span className={styles.panelEyebrow}>
+          <span className={styles.panelStatusDot} aria-hidden="true" />
+          Monitoring status
+        </span>
+        <h3>{title}</h3>
+        <p>{description}</p>
+      </div>
+
+      <div className={styles.panelGrid}>
+        {metrics.map((metric) => (
+          <div key={metric.label} className={styles.panelMetric}>
+            <span>{metric.label}</span>
+            <strong
+              className={
+                ["Building baseline", "Collecting history", "Will appear after enough history"].includes(
+                  metric.value
+                )
+                  ? styles.metricFallbackValue
+                  : undefined
+              }
+            >
+              {metric.value}
+            </strong>
+          </div>
+        ))}
+      </div>
+
+      {contextLabel && contextText ? (
+        <div className={styles.panelContext}>
+          <div>
+            <span>{contextLabel}</span>
+            <strong>{contextText}</strong>
+          </div>
+        </div>
+      ) : null}
+    </aside>
+  );
+}
+
+function MonitoringPlaceholderChart({
+  labels,
+  note,
+}: {
+  labels: string[];
+  note: string;
+}) {
+  const width = 1000;
+  const height = 300;
+  const plot = {
+    left: 74,
+    right: 980,
+    top: 18,
+    bottom: 246,
+  };
+  const xIndexes = buildTickIndexes(labels.length);
+  const x = (index: number) =>
+    plot.left + (index / Math.max(1, labels.length - 1)) * (plot.right - plot.left);
+  const yGuideFractions = [0, 0.33, 0.66, 1];
+
+  return (
+    <>
+      <div className={styles.chartWrap}>
+        <div className={styles.monitoringChartNote}>{note}</div>
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="none"
+          className={styles.chartSvg}
+          role="img"
+          aria-label="Monitoring chart placeholder while RevenueWatch builds history"
+        >
+          {yGuideFractions.map((fraction, index) => {
+            const y = plot.bottom - (plot.bottom - plot.top) * fraction;
+            return (
+              <line
+                key={index}
+                x1={plot.left}
+                x2={plot.right}
+                y1={y}
+                y2={y}
+                className={styles.gridLine}
+              />
+            );
+          })}
+          {xIndexes.map((index) => (
+            <text
+              key={index}
+              x={x(index)}
+              y={height - 12}
+              textAnchor={
+                index === 0 ? "start" : index === labels.length - 1 ? "end" : "middle"
+              }
+              className={styles.axisLabel}
+            >
+              {labels[index]}
+            </text>
+          ))}
+        </svg>
+      </div>
+      <div className={`${styles.chartFooter} ${styles.chartFooterCompact}`}>
+        <div className={styles.legend}>
+          <span>
+            <i className={styles.legendBlue} /> Monitoring history will appear here
+          </span>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function HealthyRevenueMonitor({
+  state,
+}: {
+  state: HealthyRevenueMonitoringState;
+}) {
+  const monitoring = getMonitoringPresentation();
+
+  return (
+    <section className={`${styles.chartCard} ${styles.healthyChartCard}`}>
+      <div className={styles.chartLayout}>
         <div className={styles.chartMain}>
           <div className={styles.chartHeader}>
             <div>
-              <h2>Monitoring active</h2>
-              <p>No issues detected for this account right now.</p>
-              <div className={styles.chartMeta}>Read-only monitoring</div>
+              <h2>Revenue monitoring</h2>
+              <p>
+                Track recent revenue against the normal threshold RevenueWatch uses for this
+                account.
+              </p>
+              <div className={styles.chartMeta}>Current monitoring window</div>
             </div>
+            <span className={styles.liveBadge} style={{ color: monitoring.accentColor }}>
+              <span
+                style={{
+                  background: monitoring.accentColor,
+                  boxShadow: `0 0 0 6px ${monitoring.accentShadow}`,
+                }}
+              />
+              {monitoring.label}
+            </span>
+          </div>
+
+          {state.model ? (
+            <RevenueChartFigure model={state.model} severity={monitoring} />
+          ) : (
+            <MonitoringPlaceholderChart
+              labels={state.placeholderLabels}
+              note="Building baseline"
+            />
+          )}
+        </div>
+
+        <HealthyMonitoringPanel
+          title="Revenue monitoring"
+          description={
+            state.hasEnoughHistory
+              ? "RevenueWatch compares this account against similar recent time periods and confirms revenue is safely above the alert threshold."
+              : "RevenueWatch is collecting activity for this account. Revenue-drop monitoring becomes more reliable after enough similar periods are available."
+          }
+          metrics={[
+            {
+              label: "Current revenue",
+              value: formatMoneyAmount(state.currentAmount, state.currency),
+            },
+            {
+              label: "Usual revenue",
+              value:
+                state.baselineAmount !== null
+                  ? formatMoneyAmount(state.baselineAmount, state.currency)
+                  : "Building baseline",
+            },
+            {
+              label: "Alert threshold",
+              value:
+                state.thresholdValue !== null
+                  ? formatMoneyAmount(state.thresholdValue, state.currency)
+                  : "Will appear after enough history",
+            },
+            {
+              label: "Status",
+              value: "Normal",
+            },
+          ]}
+          contextLabel={state.hasEnoughHistory ? "Comparison basis" : undefined}
+          contextText={
+            state.hasEnoughHistory
+              ? `Usual revenue is based on ${state.baselineLabel}.`
+              : undefined
+          }
+        />
+      </div>
+    </section>
+  );
+}
+
+function HealthyPaymentMonitor({
+  state,
+}: {
+  state: HealthyPaymentMonitoringState;
+}) {
+  const monitoring = getMonitoringPresentation();
+
+  return (
+    <section className={`${styles.chartCard} ${styles.healthyChartCard}`}>
+      <div className={styles.chartLayout}>
+        <div className={styles.chartMain}>
+          <div className={styles.chartHeader}>
+            <div>
+              <h2>Payment failure monitoring</h2>
+              <p>
+                Review recent failed payments against the alert threshold RevenueWatch checks for
+                this account.
+              </p>
+              <div className={styles.chartMeta}>Current monitoring window</div>
+            </div>
+            <span className={styles.liveBadge} style={{ color: monitoring.accentColor }}>
+              <span
+                style={{
+                  background: monitoring.accentColor,
+                  boxShadow: `0 0 0 6px ${monitoring.accentShadow}`,
+                }}
+              />
+              {monitoring.label}
+            </span>
+          </div>
+
+          <div className={styles.failureMiniChart}>
+            {!state.hasEnoughHistory ? (
+              <div className={styles.monitoringChartNote}>{`Collecting monitoring history`}</div>
+            ) : null}
+            <FailureChart model={state.model} severity={monitoring} />
           </div>
         </div>
 
-        <MonitorInsightPanel topAlert={null} paymentContext={null} lastEventAt={lastEventAt} />
+        <HealthyMonitoringPanel
+          title="Payment failure monitoring"
+          description={
+            state.hasEnoughHistory
+              ? "RevenueWatch compares recent failed payments to similar recent windows and confirms they remain below the alert threshold."
+              : "RevenueWatch is collecting activity for this account. Comparison history will become more useful after enough similar windows are available."
+          }
+          metrics={[
+            {
+              label: "Current failed payments",
+              value: formatCount(state.failures),
+            },
+            {
+              label: "Usual failed payments",
+              value:
+                state.normalFailures !== null
+                  ? formatCount(state.normalFailures)
+                  : "Collecting history",
+            },
+            {
+              label: "Alert threshold",
+              value: formatCount(state.threshold),
+            },
+            {
+              label: "Status",
+              value: "Normal",
+            },
+          ]}
+          contextLabel={state.hasEnoughHistory ? "Comparison basis" : undefined}
+          contextText={
+            state.hasEnoughHistory
+              ? "Usual failed payments are based on similar recent time periods."
+              : undefined
+          }
+        />
       </div>
     </section>
+  );
+}
+
+function HealthyMonitorCard({
+  revenueState,
+  paymentState,
+}: {
+  revenueState: HealthyRevenueMonitoringState;
+  paymentState: HealthyPaymentMonitoringState;
+}) {
+  return (
+    <div className={styles.healthyMonitorStack}>
+      <HealthyRevenueMonitor state={revenueState} />
+      <HealthyPaymentMonitor state={paymentState} />
+    </div>
   );
 }
 
@@ -818,17 +1546,11 @@ function PaymentFailureMonitor({
   );
 }
 
-function RevenueAlertMonitor({
+function RevenueChartFigure({
   model,
-  topAlert,
-  paymentContext,
-  lastEventAt,
   severity,
 }: {
   model: RevenueChartModel;
-  topAlert: AlertLike;
-  paymentContext: PaymentFailureContext | null;
-  lastEventAt?: Date | null;
   severity: ReturnType<typeof getSeverityPresentation>;
 }) {
   const width = 1000;
@@ -858,8 +1580,6 @@ function RevenueAlertMonitor({
   const activePoint = model.points[model.activeIndex];
   const triggerPoint =
     model.points.find((point) => point.actual <= model.thresholdValue) ?? activePoint;
-  const previousPoint =
-    triggerPoint.index > 0 ? model.points[triggerPoint.index - 1] : triggerPoint;
   const thresholdY = y(model.thresholdValue);
   const yTicks = buildMoneyTicks(maxValue);
   const xTickIndexes = buildTickIndexes(model.points.length);
@@ -872,6 +1592,139 @@ function RevenueAlertMonitor({
   const centeredCandidate = plot.left + plotWidth / 2;
   const thresholdLabelX = Math.min(rightLimit, Math.max(leftLimit, centeredCandidate));
 
+  return (
+    <>
+      <div className={styles.chartWrap}>
+        <div
+          className={styles.thresholdPill}
+          style={{
+            top: `${(thresholdY / height) * 100}%`,
+            left: `${(thresholdLabelX / width) * 100}%`,
+            background: severity.accentSoft,
+            color: severity.accentColor,
+            boxShadow: `0 1px 2px ${severity.accentShadow}`,
+          }}
+        >
+          Threshold ({formatMoneyAmount(model.thresholdValue, model.currency)})
+        </div>
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="none"
+          className={styles.chartSvg}
+          role="img"
+          aria-label="Revenue chart showing current revenue and the alert threshold"
+        >
+          <defs>
+            <linearGradient id="accountChartFill" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#0058bc" stopOpacity="0.14" />
+              <stop offset="100%" stopColor="#0058bc" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          {yTicks.map((tick, index) => {
+            const tickY = y(tick);
+
+            return (
+              <g key={`${tick}-${index}`}>
+                <line x1={plot.left} x2={plot.right} y1={tickY} y2={tickY} className={styles.gridLine} />
+                <text x={plot.left - 14} y={tickY + 4} textAnchor="end" className={styles.axisLabel}>
+                  {formatMoneyAmount(tick, model.currency)}
+                </text>
+              </g>
+            );
+          })}
+          {xTickIndexes.map((tickIndex) => (
+            <text
+              key={tickIndex}
+              x={x(tickIndex)}
+              y={height - 12}
+              textAnchor={
+                tickIndex === 0 ? "start" : tickIndex === model.points.length - 1 ? "end" : "middle"
+              }
+              className={styles.axisLabel}
+            >
+              {model.points[tickIndex]?.label}
+            </text>
+          ))}
+          <rect
+            x={plot.left}
+            y={thresholdY}
+            width={plot.right - plot.left}
+            height={plot.bottom - thresholdY}
+            style={{ fill: severity.accentZone }}
+          />
+          {model.isAlerting ? (
+            <line
+              x1={x(triggerPoint.index)}
+              x2={x(triggerPoint.index)}
+              y1={plot.top}
+              y2={plot.bottom}
+              style={{ stroke: severity.accentLine, strokeWidth: 1, strokeDasharray: "4 7" }}
+            />
+          ) : null}
+          <path
+            d={`${actualPath} L${plot.right},${plot.bottom} L${plot.left},${plot.bottom} Z`}
+            fill="url(#accountChartFill)"
+          />
+          <line
+            x1={plot.left}
+            x2={plot.right}
+            y1={thresholdY}
+            y2={thresholdY}
+            style={{
+              fill: "none",
+              stroke: severity.accentColor,
+              strokeWidth: 1.5,
+              strokeDasharray: "9 6",
+              strokeLinecap: "round",
+              strokeLinejoin: "round",
+            }}
+          />
+          <path d={actualPath} className={styles.actualPath} />
+          {model.isAlerting ? (
+            <circle
+              cx={triggerX}
+              cy={triggerY}
+              r="4"
+              style={{ fill: severity.accentColor, stroke: "#ffffff", strokeWidth: 2 }}
+            />
+          ) : (
+            <circle
+              cx={x(activePoint.index)}
+              cy={y(activePoint.actual)}
+              r="4"
+              className={styles.activePoint}
+            />
+          )}
+        </svg>
+      </div>
+
+      <div className={`${styles.chartFooter} ${styles.chartFooterCompact}`}>
+        <div className={styles.legend}>
+          <span>
+            <i className={styles.legendBlue} /> Current revenue
+          </span>
+          <span>
+            <i className={severity.legendClass} /> Alert threshold ({formatMoneyAmount(model.thresholdValue, model.currency)})
+          </span>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function RevenueAlertMonitor({
+  model,
+  topAlert,
+  paymentContext,
+  lastEventAt,
+  severity,
+}: {
+  model: RevenueChartModel;
+  topAlert: AlertLike;
+  paymentContext: PaymentFailureContext | null;
+  lastEventAt?: Date | null;
+  severity: ReturnType<typeof getSeverityPresentation>;
+}) {
   return (
     <section className={styles.chartCard}>
       <div className={styles.chartLayout}>
@@ -892,116 +1745,8 @@ function RevenueAlertMonitor({
               {severity.label}
             </span>
           </div>
-
-          <div className={styles.chartWrap}>
-            <div
-              className={styles.thresholdPill}
-              style={{
-                top: `${(thresholdY / height) * 100}%`,
-                left: `${(thresholdLabelX / width) * 100}%`,
-                background: severity.accentSoft,
-                color: severity.accentColor,
-                boxShadow: `0 1px 2px ${severity.accentShadow}`,
-              }}
-            >
-              Threshold ({formatMoneyAmount(model.thresholdValue, model.currency)})
-            </div>
-            <svg
-              viewBox={`0 0 ${width} ${height}`}
-              preserveAspectRatio="none"
-              className={styles.chartSvg}
-              role="img"
-              aria-label="Revenue chart showing current revenue and the alert threshold"
-            >
-              <defs>
-                <linearGradient id="accountChartFill" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stopColor="#0058bc" stopOpacity="0.14" />
-                  <stop offset="100%" stopColor="#0058bc" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              {yTicks.map((tick, index) => {
-                const tickY = y(tick);
-
-                return (
-                  <g key={`${tick}-${index}`}>
-                    <line x1={plot.left} x2={plot.right} y1={tickY} y2={tickY} className={styles.gridLine} />
-                    <text x={plot.left - 14} y={tickY + 4} textAnchor="end" className={styles.axisLabel}>
-                      {formatMoneyAmount(tick, model.currency)}
-                    </text>
-                  </g>
-                );
-              })}
-              {xTickIndexes.map((tickIndex) => (
-                <text
-                  key={tickIndex}
-                  x={x(tickIndex)}
-                  y={height - 12}
-                  textAnchor={
-                    tickIndex === 0 ? "start" : tickIndex === model.points.length - 1 ? "end" : "middle"
-                  }
-                  className={styles.axisLabel}
-                >
-                  {model.points[tickIndex]?.label}
-                </text>
-              ))}
-              <rect
-                x={plot.left}
-                y={thresholdY}
-                width={plot.right - plot.left}
-                height={plot.bottom - thresholdY}
-                style={{ fill: severity.accentZone }}
-              />
-              {model.isAlerting ? (
-                <line
-                  x1={x(triggerPoint.index)}
-                  x2={x(triggerPoint.index)}
-                  y1={plot.top}
-                  y2={plot.bottom}
-                  style={{ stroke: severity.accentLine, strokeWidth: 1, strokeDasharray: "4 7" }}
-                />
-              ) : null}
-              <path d={`${actualPath} L${plot.right},${plot.bottom} L${plot.left},${plot.bottom} Z`} fill="url(#accountChartFill)" />
-              <line
-                x1={plot.left}
-                x2={plot.right}
-                y1={thresholdY}
-                y2={thresholdY}
-                style={{
-                  fill: "none",
-                  stroke: severity.accentColor,
-                  strokeWidth: 1.5,
-                  strokeDasharray: "9 6",
-                  strokeLinecap: "round",
-                  strokeLinejoin: "round",
-                }}
-              />
-              <path d={actualPath} className={styles.actualPath} />
-              {model.isAlerting ? (
-                <>
-                  <circle
-                    cx={triggerX}
-                    cy={triggerY}
-                    r="4"
-                    style={{ fill: severity.accentColor, stroke: "#ffffff", strokeWidth: 2 }}
-                  />
-                </>
-              ) : (
-                <circle cx={x(activePoint.index)} cy={y(activePoint.actual)} r="4" className={styles.activePoint} />
-              )}
-            </svg>
-          </div>
-
-          <div className={`${styles.chartFooter} ${styles.chartFooterCompact}`}>
-            <div className={styles.legend}>
-              <span>
-                <i className={styles.legendBlue} /> Current revenue
-              </span>
-            <span>
-              <i className={severity.legendClass} /> Alert threshold ({formatMoneyAmount(model.thresholdValue, model.currency)})
-            </span>
-          </div>
+          <RevenueChartFigure model={model} severity={severity} />
         </div>
-      </div>
 
         <MonitorInsightPanel
           model={model}
@@ -1019,15 +1764,17 @@ function AccountMonitor({
   model,
   topAlert,
   paymentContext,
-  lastEventAt,
+  healthyRevenueState,
+  healthyPaymentState,
 }: {
   model: RevenueChartModel;
   topAlert: AlertLike | null;
   paymentContext: PaymentFailureContext | null;
-  lastEventAt?: Date | null;
+  healthyRevenueState: HealthyRevenueMonitoringState;
+  healthyPaymentState: HealthyPaymentMonitoringState;
 }) {
   if (!topAlert) {
-    return <HealthyMonitorCard lastEventAt={lastEventAt} />;
+    return <HealthyMonitorCard revenueState={healthyRevenueState} paymentState={healthyPaymentState} />;
   }
 
   const severity = getSeverityPresentation(topAlert.severity);
@@ -1037,7 +1784,7 @@ function AccountMonitor({
       <PaymentFailureMonitor
         topAlert={topAlert}
         paymentContext={paymentContext}
-        lastEventAt={lastEventAt}
+        lastEventAt={undefined}
         severity={severity}
       />
     );
@@ -1048,7 +1795,7 @@ function AccountMonitor({
       model={model}
       topAlert={topAlert}
       paymentContext={paymentContext}
-      lastEventAt={lastEventAt}
+      lastEventAt={undefined}
       severity={severity}
     />
   );
@@ -1191,6 +1938,87 @@ export default async function AccountDetailPage({
   const headerStatus = detailSeverity
     ? { label: detailSeverity.label, className: detailSeverity.statusClass }
     : { label: "Monitoring active", className: styles.statusHealthy };
+  const healthyRevenueState =
+    !topAlert && account
+      ? await getHealthyRevenueMonitoringState({
+          stripeAccountId: account.stripeAccountId,
+          alertSensitivity: account.alertSensitivity,
+          now,
+        })
+      : !topAlert && demoAccount
+        ? {
+            model:
+              typeof demoAccount.usualRevenue === "number" &&
+              typeof demoAccount.currentRevenue === "number"
+                ? buildRevenueChartModel(
+                    demoAccount.id,
+                    {
+                      type: "revenue_drop",
+                      createdAt: now,
+                      context: JSON.stringify({
+                        baselineAmount: demoAccount.usualRevenue,
+                        currentAmount: demoAccount.currentRevenue,
+                        alertThresholdAmount: Math.round(demoAccount.usualRevenue * 0.5),
+                        baselineLabel: "recent performance",
+                        window: "current monitoring window",
+                        currency: demoAccount.currency ?? "EUR",
+                        revenueSeries: demoAccount.revenueSeries,
+                        threshold: 0.5,
+                      }),
+                    },
+                    now
+                  )
+                : null,
+            currentAmount: demoAccount.currentRevenue ?? 0,
+            baselineAmount: demoAccount.usualRevenue ?? null,
+            thresholdValue:
+              typeof demoAccount.usualRevenue === "number"
+                ? Math.round(demoAccount.usualRevenue * 0.5)
+                : null,
+            currency: demoAccount.currency ?? "EUR",
+            baselineLabel: "recent performance",
+            windowLabel: "current monitoring window",
+            hasEnoughHistory:
+              typeof demoAccount.usualRevenue === "number" &&
+              typeof demoAccount.currentRevenue === "number",
+            placeholderLabels: buildRecentHourLabels(now, 5),
+          }
+        : null;
+  const healthyPaymentState =
+    !topAlert && account
+      ? await getHealthyPaymentMonitoringState({
+          stripeAccountId: account.stripeAccountId,
+          alertSensitivity: account.alertSensitivity,
+          now,
+        })
+      : !topAlert
+        ? {
+            model: buildFailureChartModel(
+              {
+                type: "payment_failed",
+                createdAt: now,
+                context: JSON.stringify({
+                  failureSeries: demoAccount?.failureSeries ?? [],
+                  failureThreshold: getAlertSensitivityConfig().failureFallbackMinCurrent,
+                  normalFailures: null,
+                  baseline: null,
+                  window: "current monitoring window",
+                }),
+              },
+              {
+                failures: demoAccount?.currentFailures ?? 0,
+                normalFailures: null,
+                threshold: getAlertSensitivityConfig().failureFallbackMinCurrent,
+                windowLabel: "current monitoring window",
+              }
+            ),
+            failures: demoAccount?.currentFailures ?? 0,
+            normalFailures: null,
+            threshold: getAlertSensitivityConfig().failureFallbackMinCurrent,
+            windowLabel: "current monitoring window",
+            hasEnoughHistory: false,
+          }
+        : null;
 
   return (
     <main className={styles.page}>
@@ -1221,7 +2049,52 @@ export default async function AccountDetailPage({
           </div>
         </header>
 
-        <AccountMonitor model={chartModel} topAlert={topAlert} paymentContext={paymentContext} lastEventAt={lastEvent?.createdAt} />
+        <AccountMonitor
+          model={chartModel}
+          topAlert={topAlert}
+          paymentContext={paymentContext}
+          healthyRevenueState={
+            healthyRevenueState ?? {
+              model: null,
+              currentAmount: 0,
+              baselineAmount: null,
+              thresholdValue: null,
+              currency: "EUR",
+              baselineLabel: "similar recent time periods",
+              windowLabel: "current monitoring window",
+              hasEnoughHistory: false,
+              placeholderLabels: buildRecentHourLabels(now, 5),
+            }
+          }
+          healthyPaymentState={
+            healthyPaymentState ?? {
+              model: buildFailureChartModel(
+                {
+                  type: "payment_failed",
+                  createdAt: now,
+                  context: JSON.stringify({
+                    failureSeries: [],
+                    failureThreshold: getAlertSensitivityConfig().failureFallbackMinCurrent,
+                    normalFailures: null,
+                    baseline: null,
+                    window: "current monitoring window",
+                  }),
+                },
+                {
+                  failures: 0,
+                  normalFailures: null,
+                  threshold: getAlertSensitivityConfig().failureFallbackMinCurrent,
+                  windowLabel: "current monitoring window",
+                }
+              ),
+              failures: 0,
+              normalFailures: null,
+              threshold: getAlertSensitivityConfig().failureFallbackMinCurrent,
+              windowLabel: "current monitoring window",
+              hasEnoughHistory: false,
+            }
+          }
+        />
 
         <section className={styles.lowerGrid}>
           <div>
