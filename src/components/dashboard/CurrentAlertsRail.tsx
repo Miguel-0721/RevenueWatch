@@ -1124,6 +1124,17 @@ function RevenueChartFigure({
   );
 }
 
+function AlertsEmptyIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={className ?? styles.emptyStateIcon}>
+      <path
+        fill="currentColor"
+        d="M12 2 5 5v6c0 5 3.4 9.74 7 11 3.6-1.26 7-6 7-11V5l-7-3Zm0 3.1 4.8 2.06v3.83c0 3.88-2.5 7.82-4.8 9-2.3-1.18-4.8-5.12-4.8-9V7.16L12 5.1Zm-.9 3.4v4.2h1.8V8.5h-1.8Zm0 5.6v1.8h1.8v-1.8h-1.8Z"
+      />
+    </svg>
+  );
+}
+
 function RevenueAlertMonitor({
   alert,
   model,
@@ -1322,42 +1333,59 @@ export default function CurrentAlertsRail({
   return (
     <section className={styles.section} aria-label="Current alerts">
       <header className={styles.header}>
-        <div>
-          <h2 className={styles.title}>Current alerts</h2>
-          <p className={styles.intro}>Review the accounts that need attention right now.</p>
+        <div className={styles.headerTitle}>
+          <div className={styles.headerTitleRow}>
+            <AlertsEmptyIcon className={styles.sectionIcon} />
+            <div>
+              <h2 className={styles.title}>Current alerts</h2>
+              <p className={styles.intro}>Review the accounts that need attention right now.</p>
+            </div>
+          </div>
         </div>
 
         <div className={styles.controls}>
           <span className={styles.count}>{pendingLabel}</span>
-          <div className={styles.arrowGroup}>
-            <button
-              type="button"
-              className={`${styles.arrowButton}${!canSelectLeft ? ` ${styles.arrowButtonDisabled}` : ""}`}
-              aria-label="Scroll alerts left"
-              aria-disabled={!canSelectLeft}
-              disabled={!canSelectLeft}
-              onClick={() => moveSelection("left")}
-            >
-              <ArrowLeftIcon />
-            </button>
-            <button
-              type="button"
-              className={`${styles.arrowButton}${!canSelectRight ? ` ${styles.arrowButtonDisabled}` : ""}`}
-              aria-label="Scroll alerts right"
-              aria-disabled={!canSelectRight}
-              disabled={!canSelectRight}
-              onClick={() => moveSelection("right")}
-            >
-              <ArrowRightIcon />
-            </button>
-          </div>
+          {alerts.length > 0 ? (
+            <div className={styles.arrowGroup}>
+              <button
+                type="button"
+                className={`${styles.arrowButton}${!canSelectLeft ? ` ${styles.arrowButtonDisabled}` : ""}`}
+                aria-label="Scroll alerts left"
+                aria-disabled={!canSelectLeft}
+                disabled={!canSelectLeft}
+                onClick={() => moveSelection("left")}
+              >
+                <ArrowLeftIcon />
+              </button>
+              <button
+                type="button"
+                className={`${styles.arrowButton}${!canSelectRight ? ` ${styles.arrowButtonDisabled}` : ""}`}
+                aria-label="Scroll alerts right"
+                aria-disabled={!canSelectRight}
+                disabled={!canSelectRight}
+                onClick={() => moveSelection("right")}
+              >
+                <ArrowRightIcon />
+              </button>
+            </div>
+          ) : null}
         </div>
       </header>
 
       {alerts.length === 0 ? (
-        <div className={`${styles.emptyState} ${styles.emptyStateCompact}`}>
-          <h3>No active alerts</h3>
-          <p>RevenueWatch is monitoring your connected Stripe accounts.</p>
+        <div className={styles.emptyStateSurface}>
+          <div className={styles.emptyStateCard}>
+            <div className={styles.emptyStateIconWrap}>
+              <AlertsEmptyIcon />
+            </div>
+            <div className={styles.emptyStateCopy}>
+              <h3>No active alerts</h3>
+              <p>
+                RevenueWatch is monitoring your connected Stripe accounts. Any alerts that need
+                review will appear here.
+              </p>
+            </div>
+          </div>
         </div>
       ) : (
         <>

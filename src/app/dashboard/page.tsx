@@ -160,6 +160,10 @@ function formatHistoryTime(date: Date) {
 }
 
 function buildStatusCopy(activeAlertsCount: number, accountCount: number) {
+  if (accountCount === 0) {
+    return "Connect a Stripe account to start monitoring revenue and failed payments.";
+  }
+
   if (activeAlertsCount > 0) {
     return `${accountCount} connected Stripe account${
       accountCount === 1 ? "" : "s"
@@ -238,28 +242,41 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     await syncUserPlanFromStripe(session.user.id);
   }
 
-  const [user, alerts, stripeAccounts, lastEvents] = await Promise.all([
+  const [user, stripeAccounts] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.user.id },
       select: { plan: true },
     }),
-    prisma.alert.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 50,
-    }),
     prisma.stripeAccount.findMany({
       where: { userId: session.user.id },
       orderBy: { createdAt: "desc" },
-    }),
-    prisma.stripeEvent.groupBy({
-      by: ["stripeAccountId"],
-      _max: { createdAt: true },
     }),
   ]);
 
   if (!user) {
     redirect("/login");
   }
+
+  const accountIds = stripeAccounts.map((account) => account.stripeAccountId);
+  const [alerts, lastEvents] =
+    accountIds.length > 0
+      ? await Promise.all([
+          prisma.alert.findMany({
+            where: {
+              stripeAccountId: { in: accountIds },
+            },
+            orderBy: { createdAt: "desc" },
+            take: 50,
+          }),
+          prisma.stripeEvent.groupBy({
+            by: ["stripeAccountId"],
+            where: {
+              stripeAccountId: { in: accountIds },
+            },
+            _max: { createdAt: true },
+          }),
+        ])
+      : [[], []];
 
   const demoMode = hasDemoAccount(stripeAccounts.map((account) => account.stripeAccountId));
   const realLastEventByAccount = new Map(
@@ -548,15 +565,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             <div className={styles.historyTimeline}>
               {recentHistory.length === 0 ? (
                 <div className={styles.emptyStateCard}>
-                  <div className={styles.emptyStateIconWrap}>
-                    <HistoryIcon />
-                  </div>
-                  <div className={styles.emptyStateCopy}>
-                    <h3>No alert history yet</h3>
-                    <p>Past alert activity will appear here.</p>
-                  </div>
+                <div className={styles.emptyStateIconWrap}>
+                  <HistoryIcon />
                 </div>
-              ) : (
+                <div className={styles.emptyStateCopy}>
+                  <h3>No alert history yet</h3>
+                  <p>Alerts will appear here after RevenueWatch detects activity that needs review.</p>
+                </div>
+              </div>
+            ) : (
                 recentHistory.map((item) => (
                   <div key={item.id} className={styles.timelineItem}>
                     <div className={styles.timelineDot} />
