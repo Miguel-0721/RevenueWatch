@@ -358,6 +358,10 @@
     linear-gradient(180deg, rgba(248, 250, 252, 0.95) 0%, rgba(255, 255, 255, 0.55) 100%);
 }
 
+.chartWrapExpanded {
+  height: 348px;
+}
+
 .thresholdPill {
   position: absolute;
   left: 50%;
@@ -547,18 +551,20 @@
 
 .failureChartWrap {
   position: relative;
-  height: 300px;
+  height: 356px;
   border-radius: 10px;
   overflow: hidden;
   background:
-    repeating-linear-gradient(
-      to top,
-      rgba(193, 198, 215, 0.18) 0,
-      rgba(193, 198, 215, 0.18) 1px,
-      transparent 1px,
-      transparent 46px
-    ),
     linear-gradient(180deg, rgba(255, 248, 248, 0.86) 0%, rgba(255, 255, 255, 0.9) 100%);
+}
+
+.failureGridLine {
+  position: absolute;
+  left: 46px;
+  right: 22px;
+  z-index: 0;
+  border-top: 1px solid rgba(193, 198, 215, 0.22);
+  pointer-events: none;
 }
 
 .failureYAxis {
@@ -686,12 +692,12 @@
 }
 
 .failureMiniChart .failureChartWrap {
-  height: 164px;
+  height: 286px;
 }
 
 .failureMiniChart .chartFooter {
-  margin-top: 12px;
-  padding-top: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
 }
 
 .monitorPanel {
@@ -810,17 +816,18 @@
 .panelMetric strong {
   display: block;
   color: #191c1d;
-  font-size: 21px;
-  line-height: 1;
-  font-weight: 900;
-  letter-spacing: -0.04em;
+  font-size: 18px;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.03em;
 }
 
 .metricFallbackValue {
   color: #5f6b7b;
-  font-size: 15px;
-  line-height: 1.3;
-  letter-spacing: -0.01em;
+  font-size: 13px;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
+  font-weight: 700 !important;
 }
 
 .panelContext {
@@ -918,6 +925,16 @@
   text-transform: uppercase;
 }
 
+.historyDetected {
+  margin-top: 10px;
+  color: #7a8190;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+
 .rowAction {
   align-self: center;
   color: #0058bc;
@@ -956,23 +973,31 @@
   gap: 12px;
 }
 
-.monitoringChartNote {
+.monitoringChartEmptyState {
   position: absolute;
-  top: 16px;
+  top: 50%;
   left: 50%;
-  z-index: 3;
-  transform: translateX(-50%);
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(193, 198, 215, 0.22);
-  color: #5f6b7b;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-  box-shadow: 0 2px 6px rgba(25, 28, 29, 0.04);
+  z-index: 2;
+  width: min(360px, calc(100% - 72px));
+  transform: translate(-50%, -46%);
+  text-align: center;
   pointer-events: none;
+}
+
+.monitoringChartEmptyState strong {
+  display: block;
+  color: #414755;
+  font-size: 14px;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.monitoringChartEmptyState p {
+  margin: 8px 0 0;
+  color: #5f6b7b;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 @media (max-width: 980px) {

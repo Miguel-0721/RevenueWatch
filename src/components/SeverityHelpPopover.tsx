@@ -27,12 +27,16 @@ export default function SeverityHelpPopover({
   const body =
     alertType === "payment_failed"
       ? {
-          review: "Review Needed: payment failures are around 2× higher than usual.",
-          high: "High Severity: payment failures are around 4× higher than usual.",
+          review: "Review Needed: payment failures are around 2x higher than usual.",
+          high: "High Severity: payment failures are around 4x higher than usual.",
+          note:
+            "RevenueWatch compares the current period with similar recent periods for this account.",
         }
       : {
           review: "Review Needed: revenue is 30%+ lower than usual.",
           high: "High Severity: revenue is 50%+ lower than usual.",
+          note:
+            "RevenueWatch compares the current period with similar recent time periods for this account. The chart may show both thresholds during an active revenue-drop alert so you can see why the severity was assigned.",
         };
 
   return (
@@ -54,9 +58,7 @@ export default function SeverityHelpPopover({
             <div>{body.review}</div>
             <div>{body.high}</div>
           </div>
-          <div className={styles.note}>
-            RevenueWatch compares the current period with similar recent periods for this account.
-          </div>
+          <div className={styles.note}>{body.note}</div>
         </div>
       ) : null}
     </div>

@@ -42,6 +42,7 @@ type PaymentFailureContext = {
   failures: number;
   normalFailures: number | null;
   threshold: number;
+  criticalThreshold: number | null;
   windowLabel: string;
 };
 
@@ -56,7 +57,8 @@ type RevenueChartModel = {
   points: ChartPoint[];
   expectedValue: number;
   actualValue: number;
-  thresholdValue: number;
+  reviewThresholdValue: number;
+  highSeverityThresholdValue: number;
   peakValue: number;
   lowValue: number;
   activeIndex: number;
@@ -76,6 +78,7 @@ type FailureChartModel = {
   failures: number;
   normalFailures: number | null;
   threshold: number;
+  criticalThreshold: number | null;
   windowLabel: string;
   peakFailures: number;
   activeIndex: number;
@@ -113,9 +116,12 @@ type HealthyPaymentMonitoringState = {
   failures: number;
   normalFailures: number | null;
   threshold: number;
+  criticalThreshold: number | null;
   windowLabel: string;
   hasEnoughHistory: boolean;
 };
+
+type ThresholdDisplayMode = "review-only" | "both" | "critical-only";
 
 function safeParseContext(input?: string | null) {
   if (!input) return null;
@@ -451,11 +457,20 @@ function getMonitoringPresentation() {
   };
 }
 
-function getPaymentFailureContext(alert?: AlertLike | null): PaymentFailureContext | null {
+function getThresholdDisplayMode(severity?: string | null): ThresholdDisplayMode {
+  if (severity === "critical" || severity === "warning") return "both";
+  return "review-only";
+}
+
+function getPaymentFailureContext(
+  alert?: AlertLike | null,
+  alertSensitivity?: string | null
+): PaymentFailureContext | null {
   if (!alert || alert.type !== "payment_failed") return null;
 
   const parsed = safeParseContext(alert.context);
   if (!parsed) return null;
+  const config = getAlertSensitivityConfig(alertSensitivity);
 
   const failures =
     typeof parsed.failuresCounted === "number"
@@ -466,16 +481,35 @@ function getPaymentFailureContext(alert?: AlertLike | null): PaymentFailureConte
 
   if (failures === null) return null;
 
+  const normalFailures =
+    typeof parsed.normalFailures === "number"
+      ? parsed.normalFailures
+      : typeof parsed.baseline === "number"
+        ? parsed.baseline
+        : null;
+  const threshold =
+    typeof parsed.failureThreshold === "number" ? parsed.failureThreshold : 5;
+  const baselineFloor =
+    typeof parsed.baselineFloor === "number"
+      ? parsed.baselineFloor
+      : config.failureBaselineFloor;
+  const criticalMultiplier = config.failureCriticalMultiplier;
+  const reviewMultiplier =
+    typeof parsed.failureSpikeMultiplier === "number" && parsed.failureSpikeMultiplier > 0
+      ? parsed.failureSpikeMultiplier
+      : config.failureSpikeMultiplier;
+  const criticalThreshold =
+    normalFailures !== null
+      ? Math.round(Math.max(normalFailures, baselineFloor) * criticalMultiplier)
+      : typeof parsed.failureSpikeMultiplier === "number" && parsed.failureSpikeMultiplier > 0
+        ? Math.round(threshold * (criticalMultiplier / reviewMultiplier))
+        : null;
+
   return {
     failures,
-    normalFailures:
-      typeof parsed.normalFailures === "number"
-        ? parsed.normalFailures
-        : typeof parsed.baseline === "number"
-          ? parsed.baseline
-          : null,
-    threshold:
-      typeof parsed.failureThreshold === "number" ? parsed.failureThreshold : 5,
+    normalFailures,
+    threshold,
+    criticalThreshold,
     windowLabel:
       typeof parsed.window === "string" ? parsed.window : "current monitoring window",
   };
@@ -501,13 +535,42 @@ function buildReadableAlertMessage(alert: AlertLike) {
   return alert.message ?? "Alert details unavailable.";
 }
 
+function buildHistoryAlertMessage(alert: AlertLike) {
+  const revenueContext = getRevenueContext(alert);
+  if (revenueContext) {
+    const dropPercent = Math.round(revenueContext.dropRatio * 100);
+    if (Number.isFinite(dropPercent)) {
+      return `Sales were ${dropPercent}% lower than usual for this window.`;
+    }
+
+    return "Sales were much lower than usual for this window.";
+  }
+
+  const paymentContext = getPaymentFailureContext(alert);
+  if (paymentContext) {
+    const parsed = safeParseContext(alert.context);
+    const spikeMultiple =
+      parsed && typeof parsed.spikeMultiple === "number" ? parsed.spikeMultiple : null;
+
+    if (spikeMultiple !== null && Number.isFinite(spikeMultiple)) {
+      return `Failed payments were ${Math.round(spikeMultiple)}x higher than usual.`;
+    }
+
+    return "Failed payments were higher than usual compared to recent activity.";
+  }
+
+  return alert.message ?? "Alert details unavailable.";
+}
+
 function buildRevenueChartModel(accountId: string, topAlert: AlertLike | null, now: Date): RevenueChartModel {
   const parsed = safeParseContext(topAlert?.context);
   const revenueContext = getRevenueContext(topAlert);
   const defaultExpected = 2400;
   const expectedValue = revenueContext?.baselineAmount ?? defaultExpected;
   const actualValue = revenueContext?.currentAmount ?? Math.round(defaultExpected * 0.94);
-  const thresholdValue = revenueContext?.alertThresholdAmount ?? Math.round(expectedValue * 0.5);
+  const reviewThresholdValue =
+    revenueContext?.alertThresholdAmount ?? Math.round(expectedValue * 0.7);
+  const highSeverityThresholdValue = Math.round(expectedValue * 0.5);
   const focusedBucketCount = 5;
   const revenueSeries = Array.isArray(parsed?.revenueSeries)
     ? parsed.revenueSeries
@@ -521,7 +584,7 @@ function buildRevenueChartModel(accountId: string, topAlert: AlertLike | null, n
     : null;
 
   if (revenueSeries && revenueSeries.length > 0) {
-    const triggerIndex = revenueSeries.findIndex((point) => point.revenue <= thresholdValue);
+    const triggerIndex = revenueSeries.findIndex((point) => point.revenue <= reviewThresholdValue);
     const anchorIndex = triggerIndex >= 0 ? triggerIndex : revenueSeries.length - 1;
     const windowStart = Math.max(0, anchorIndex - (focusedBucketCount - 1));
     const visibleSeries = revenueSeries.slice(windowStart, anchorIndex + 1);
@@ -538,12 +601,13 @@ function buildRevenueChartModel(accountId: string, topAlert: AlertLike | null, n
       points,
       expectedValue,
       actualValue: latestValue,
-      thresholdValue,
+      reviewThresholdValue,
+      highSeverityThresholdValue,
       peakValue: Math.max(...actualValues),
       lowValue: Math.min(...actualValues),
       activeIndex: points.length - 1,
       windowLabel: revenueContext?.windowLabel ?? "current monitoring window",
-      isAlerting: latestValue < thresholdValue,
+      isAlerting: latestValue < reviewThresholdValue,
       currency: revenueContext?.currency ?? "EUR",
     };
   }
@@ -574,12 +638,13 @@ function buildRevenueChartModel(accountId: string, topAlert: AlertLike | null, n
     points,
     expectedValue,
     actualValue,
-    thresholdValue,
+    reviewThresholdValue,
+    highSeverityThresholdValue,
     peakValue: Math.max(...points.map((point) => point.actual)),
     lowValue: Math.min(...points.map((point) => point.actual)),
     activeIndex: points.length - 1,
     windowLabel: revenueContext?.windowLabel ?? "current monitoring window",
-    isAlerting: actualValue < thresholdValue,
+    isAlerting: actualValue < reviewThresholdValue,
     currency: revenueContext?.currency ?? "EUR",
   };
 }
@@ -617,13 +682,58 @@ function buildMoneyTicks(maxValue: number) {
   });
 }
 
-function buildCountTicks(maxValue: number) {
-  const roughStep = Math.max(1, maxValue / 3);
-  const niceSteps = [5, 10, 20, 25, 50, 100, 200];
-  const step = niceSteps.find((candidate) => candidate >= roughStep) ?? niceSteps[niceSteps.length - 1];
-  const top = Math.max(step, Math.ceil(maxValue / step) * step);
+function getNiceChartMax(value: number) {
+  const padded = Math.max(2, value * 1.2);
+  const magnitude = 10 ** Math.floor(Math.log10(padded));
+  const normalized = padded / magnitude;
+  const niceFactors = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+  const factor = niceFactors.find((candidate) => candidate >= normalized) ?? 10;
 
-  return Array.from({ length: Math.floor(top / step) + 1 }, (_, index) => index * step);
+  return factor * magnitude;
+}
+
+function chooseFailureAxisStep(targetMax: number, highlightedValues: number[]) {
+  const niceSteps = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, 60, 75, 100];
+  const candidates = niceSteps.filter((step) => step * 5 >= targetMax);
+
+  const scored = candidates.map((step) => {
+    const penalty = highlightedValues.reduce((score, value) => {
+      if (!Number.isFinite(value) || value <= 0) return score;
+      const remainder = value % step;
+      const distance = Math.min(remainder, step - remainder);
+      return score + distance;
+    }, 0);
+
+    return {
+      step,
+      maxValue: step * 5,
+      penalty,
+    };
+  });
+
+  scored.sort((a, b) => a.penalty - b.penalty || a.maxValue - b.maxValue);
+  return scored[0]?.step ?? 1;
+}
+
+function buildFailureAxis(model: FailureChartModel, highlightedValues: number[]) {
+  const relevantValues = [
+    model.failures,
+    model.normalFailures ?? 0,
+    model.threshold,
+    model.criticalThreshold ?? 0,
+    model.peakFailures,
+    ...model.points.map((point) => point.failures),
+  ].filter((value) => Number.isFinite(value) && value >= 0);
+  const relevantMax = Math.max(0, ...relevantValues);
+  const targetMax = getNiceChartMax(relevantMax);
+  const step = chooseFailureAxisStep(targetMax, highlightedValues);
+  const top = step * 5;
+  const ticks = Array.from({ length: 6 }, (_, index) => index * step);
+
+  return {
+    maxValue: top,
+    ticks,
+  };
 }
 
 function buildFailureChartModel(topAlert: AlertLike | null, paymentContext: PaymentFailureContext | null): FailureChartModel {
@@ -654,6 +764,7 @@ function buildFailureChartModel(topAlert: AlertLike | null, paymentContext: Paym
       failures,
       normalFailures: paymentContext?.normalFailures ?? null,
       threshold,
+      criticalThreshold: paymentContext?.criticalThreshold ?? null,
       windowLabel: paymentContext?.windowLabel ?? "current monitoring window",
       peakFailures: Math.max(...points.map((point) => point.failures)),
       activeIndex: points.length - 1,
@@ -671,6 +782,7 @@ function buildFailureChartModel(topAlert: AlertLike | null, paymentContext: Paym
     failures,
     normalFailures: paymentContext?.normalFailures ?? null,
     threshold,
+    criticalThreshold: paymentContext?.criticalThreshold ?? null,
     windowLabel: paymentContext?.windowLabel ?? "current monitoring window",
     peakFailures: Math.max(...points.map((point) => point.failures)),
     activeIndex: points.length - 1,
@@ -915,6 +1027,9 @@ async function getHealthyPaymentMonitoringState({
   const threshold = selectedBaseline
     ? Math.max(normalFailures ?? 0, config.failureBaselineFloor) * config.failureSpikeMultiplier
     : config.failureFallbackMinCurrent;
+  const criticalThreshold = selectedBaseline
+    ? Math.max(normalFailures ?? 0, config.failureBaselineFloor) * config.failureCriticalMultiplier
+    : null;
   const syntheticAlert: AlertLike = {
     type: "payment_failed",
     createdAt: now,
@@ -930,6 +1045,7 @@ async function getHealthyPaymentMonitoringState({
     failures,
     normalFailures,
     threshold,
+    criticalThreshold,
     windowLabel: "current monitoring window",
   };
 
@@ -938,6 +1054,7 @@ async function getHealthyPaymentMonitoringState({
     failures,
     normalFailures,
     threshold,
+    criticalThreshold,
     windowLabel: "current monitoring window",
     hasEnoughHistory: Boolean(selectedBaseline),
   };
@@ -946,14 +1063,34 @@ async function getHealthyPaymentMonitoringState({
 function FailureChart({
   model,
   severity,
+  thresholdDisplayMode,
 }: {
   model: FailureChartModel;
   severity: ReturnType<typeof getSeverityPresentation>;
+  thresholdDisplayMode: ThresholdDisplayMode;
 }) {
-  const scaleMax = Math.max(model.peakFailures, model.threshold);
-  const countTicks = buildCountTicks(scaleMax);
-  const maxValue = countTicks[countTicks.length - 1] ?? scaleMax;
-  const thresholdPercent = Math.min(86, Math.max(12, (model.threshold / maxValue) * 100));
+  const showReviewThreshold = thresholdDisplayMode !== "critical-only";
+  const showCriticalThreshold =
+    thresholdDisplayMode !== "review-only" && model.criticalThreshold !== null;
+  const highlightedValues = [
+    ...(showReviewThreshold ? [model.threshold] : []),
+    ...(showCriticalThreshold && model.criticalThreshold !== null
+      ? [model.criticalThreshold]
+      : []),
+  ];
+  const axis = buildFailureAxis(model, highlightedValues);
+  const countTicks = axis.ticks;
+  const maxValue = axis.maxValue;
+  const plotInsetTop = 22;
+  const plotInsetBottom = 48;
+  const plotInsetTotal = plotInsetTop + plotInsetBottom;
+  const thresholdRatio = Math.min(1, Math.max(0, model.threshold / maxValue));
+  const criticalThresholdRatio =
+    showCriticalThreshold && model.criticalThreshold !== null
+      ? Math.min(1, Math.max(0, model.criticalThreshold / maxValue))
+      : null;
+  const plotPositionCss = (ratio: number, offsetPx = 0) =>
+    `calc(${plotInsetBottom}px + (100% - ${plotInsetTotal}px) * ${ratio}${offsetPx === 0 ? "" : ` ${offsetPx < 0 ? "-" : "+"} ${Math.abs(offsetPx)}px`})`;
   const bucketCount = model.points.length;
   const timeBoundaryLabels = [
     ...model.points.map((point) => point.label),
@@ -983,6 +1120,15 @@ function FailureChart({
   return (
     <>
       <div className={styles.failureChartWrap}>
+        {countTicks.map((tick) => (
+          <div
+            key={`grid-${tick}`}
+            className={styles.failureGridLine}
+            style={{
+              bottom: plotPositionCss(Math.min(1, Math.max(0, tick / maxValue))),
+            }}
+          />
+        ))}
         <div className={styles.failureYAxis}>
           {countTicks.map((tick) => (
             <span
@@ -995,24 +1141,50 @@ function FailureChart({
             </span>
           ))}
         </div>
-        <div
-          className={styles.failureThresholdLine}
-          style={{
-            bottom: `${thresholdPercent}%`,
-            borderTopColor: severity.accentColor,
-          }}
-        />
-        <div
-          className={styles.failureThreshold}
-          style={{
-            left: `${thresholdChipCenter}%`,
-            bottom: `calc(${thresholdPercent}% - 10px)`,
-            background: severity.accentSoft,
-            color: severity.accentColor,
-          }}
-        >
-          Threshold: {formatCount(model.threshold)}
-        </div>
+        {showReviewThreshold ? (
+          <>
+            <div
+              className={styles.failureThresholdLine}
+              style={{
+                bottom: plotPositionCss(thresholdRatio),
+                borderTopColor: "#b7791f",
+              }}
+            />
+            <div
+              className={styles.failureThreshold}
+              style={{
+                left: `${thresholdChipCenter}%`,
+                bottom: plotPositionCss(thresholdRatio, -10),
+                background: "#fff1c2",
+                color: "#9a6700",
+              }}
+            >
+              Review threshold: {formatCount(model.threshold)}
+            </div>
+          </>
+        ) : null}
+        {criticalThresholdRatio !== null ? (
+          <>
+            <div
+              className={styles.failureThresholdLine}
+              style={{
+                bottom: plotPositionCss(criticalThresholdRatio),
+                borderTopColor: "#ba1a1a",
+              }}
+            />
+            <div
+              className={styles.failureThreshold}
+              style={{
+                left: `${thresholdChipCenter}%`,
+                bottom: plotPositionCss(criticalThresholdRatio, -10),
+                background: "#ffdad6",
+                color: "#ba1a1a",
+              }}
+            >
+              Critical threshold: {formatCount(model.criticalThreshold ?? 0)}
+            </div>
+          </>
+        ) : null}
 
         <div className={styles.failureBars} aria-label="Failed payments over the current period">
           {barLayouts.map(({ point, leftPercent, widthPercent }) => {
@@ -1072,9 +1244,16 @@ function FailureChart({
           <span>
             <i className={severity.legendClass} /> Failed payments
           </span>
-          <span>
-            <i className={severity.dashClass} /> Threshold
-          </span>
+          {showReviewThreshold ? (
+            <span>
+              <i className={styles.legendDashAmber} /> Review threshold
+            </span>
+          ) : null}
+          {showCriticalThreshold ? (
+            <span>
+              <i className={styles.legendDashRed} /> Critical threshold
+            </span>
+          ) : null}
         </div>
       </div>
     </>
@@ -1096,6 +1275,7 @@ function MonitorInsightPanel({
 }) {
   const isPaymentFailure = topAlert?.type === "payment_failed" && paymentContext;
   const isRevenueDrop = topAlert?.type === "revenue_drop" && model;
+  const thresholdDisplayMode = getThresholdDisplayMode(topAlert?.severity);
 
   const panelClassName = `${styles.monitorPanel} ${
     topAlert ? severity?.panelClass ?? styles.monitorPanelIssueCritical : styles.monitorPanelNormal
@@ -1145,10 +1325,18 @@ function MonitorInsightPanel({
                   : "Not enough history yet"}
               </strong>
             </div>
-            <div className={styles.panelMetric}>
-              <span>Alert threshold</span>
-              <strong>{formatCount(paymentContext.threshold)}</strong>
-            </div>
+            {thresholdDisplayMode !== "critical-only" ? (
+              <div className={styles.panelMetric}>
+                <span>Review threshold</span>
+                <strong>{formatCount(paymentContext.threshold)}</strong>
+              </div>
+            ) : null}
+            {thresholdDisplayMode !== "review-only" && paymentContext.criticalThreshold !== null ? (
+              <div className={styles.panelMetric}>
+                <span>Critical threshold</span>
+                <strong>{formatCount(paymentContext.criticalThreshold)}</strong>
+              </div>
+            ) : null}
           </>
         ) : isRevenueDrop && model ? (
           <>
@@ -1162,10 +1350,18 @@ function MonitorInsightPanel({
               <span>Usual revenue</span>
               <strong>{formatMoneyAmount(model.expectedValue, model.currency)}</strong>
             </div>
-            <div className={styles.panelMetric}>
-              <span>Alert threshold</span>
-              <strong>{formatMoneyAmount(model.thresholdValue, model.currency)}</strong>
-            </div>
+            {thresholdDisplayMode !== "critical-only" ? (
+              <div className={styles.panelMetric}>
+                <span>Review threshold</span>
+                <strong>{formatMoneyAmount(model.reviewThresholdValue, model.currency)}</strong>
+              </div>
+            ) : null}
+            {thresholdDisplayMode !== "review-only" ? (
+              <div className={styles.panelMetric}>
+                <span>Critical threshold</span>
+                <strong>{formatMoneyAmount(model.highSeverityThresholdValue, model.currency)}</strong>
+              </div>
+            ) : null}
           </>
         ) : (
           <>
@@ -1199,20 +1395,25 @@ function HealthyMonitoringPanel({
   metrics,
   contextLabel,
   contextText,
+  helpAlertType,
 }: {
   title: string;
   description: string;
   metrics: Array<{ label: string; value: string }>;
   contextLabel?: string;
   contextText?: string;
+  helpAlertType: "revenue_drop" | "payment_failed";
 }) {
   return (
     <aside className={`${styles.monitorPanel} ${styles.monitorPanelNormal}`}>
       <div>
-        <span className={styles.panelEyebrow}>
-          <span className={styles.panelStatusDot} aria-hidden="true" />
-          Monitoring status
-        </span>
+        <div className={styles.panelEyebrowRow}>
+          <span className={styles.panelEyebrow}>
+            <span className={styles.panelStatusDot} aria-hidden="true" />
+            Monitoring status
+          </span>
+          <SeverityHelpPopover alertType={helpAlertType} />
+        </div>
         <h3>{title}</h3>
         <p>{description}</p>
       </div>
@@ -1223,7 +1424,7 @@ function HealthyMonitoringPanel({
             <span>{metric.label}</span>
             <strong
               className={
-                ["Building baseline", "Collecting history", "Will appear after enough history"].includes(
+                ["Building baseline", "Collecting history", "Available after enough history"].includes(
                   metric.value
                 )
                   ? styles.metricFallbackValue
@@ -1250,10 +1451,8 @@ function HealthyMonitoringPanel({
 
 function MonitoringPlaceholderChart({
   labels,
-  note,
 }: {
   labels: string[];
-  note: string;
 }) {
   const width = 1000;
   const height = 300;
@@ -1271,7 +1470,13 @@ function MonitoringPlaceholderChart({
   return (
     <>
       <div className={styles.chartWrap}>
-        <div className={styles.monitoringChartNote}>{note}</div>
+        <div className={styles.monitoringChartEmptyState}>
+          <strong>Building baseline</strong>
+          <p>
+            RevenueWatch is collecting activity for this account. Revenue history will
+            appear here after enough similar periods are available.
+          </p>
+        </div>
         <svg
           viewBox={`0 0 ${width} ${height}`}
           preserveAspectRatio="none"
@@ -1350,12 +1555,13 @@ function HealthyRevenueMonitor({
           </div>
 
           {state.model ? (
-            <RevenueChartFigure model={state.model} severity={monitoring} />
-          ) : (
-            <MonitoringPlaceholderChart
-              labels={state.placeholderLabels}
-              note="Building baseline"
+            <RevenueChartFigure
+              model={state.model}
+              severity={monitoring}
+              thresholdDisplayMode="review-only"
             />
+          ) : (
+            <MonitoringPlaceholderChart labels={state.placeholderLabels} />
           )}
         </div>
 
@@ -1379,11 +1585,11 @@ function HealthyRevenueMonitor({
                   : "Building baseline",
             },
             {
-              label: "Alert threshold",
+              label: "Review threshold",
               value:
                 state.thresholdValue !== null
                   ? formatMoneyAmount(state.thresholdValue, state.currency)
-                  : "Will appear after enough history",
+                  : "Available after enough history",
             },
             {
               label: "Status",
@@ -1396,6 +1602,7 @@ function HealthyRevenueMonitor({
               ? `Usual revenue is based on ${state.baselineLabel}.`
               : undefined
           }
+          helpAlertType="revenue_drop"
         />
       </div>
     </section>
@@ -1437,7 +1644,11 @@ function HealthyPaymentMonitor({
             {!state.hasEnoughHistory ? (
               <div className={styles.monitoringChartNote}>{`Collecting monitoring history`}</div>
             ) : null}
-            <FailureChart model={state.model} severity={monitoring} />
+            <FailureChart
+              model={state.model}
+              severity={monitoring}
+              thresholdDisplayMode="review-only"
+            />
           </div>
         </div>
 
@@ -1461,7 +1672,7 @@ function HealthyPaymentMonitor({
                   : "Collecting history",
             },
             {
-              label: "Alert threshold",
+              label: "Review threshold",
               value: formatCount(state.threshold),
             },
             {
@@ -1475,6 +1686,7 @@ function HealthyPaymentMonitor({
               ? "Usual failed payments are based on similar recent time periods."
               : undefined
           }
+          helpAlertType="payment_failed"
         />
       </div>
     </section>
@@ -1531,7 +1743,11 @@ function PaymentFailureMonitor({
           </div>
 
           <div className={styles.failureMiniChart}>
-            <FailureChart model={failureModel} severity={severity} />
+            <FailureChart
+              model={failureModel}
+              severity={severity}
+              thresholdDisplayMode={getThresholdDisplayMode(topAlert.severity)}
+            />
           </div>
         </div>
 
@@ -1549,9 +1765,13 @@ function PaymentFailureMonitor({
 function RevenueChartFigure({
   model,
   severity,
+  thresholdDisplayMode,
+  expandedHeight = false,
 }: {
   model: RevenueChartModel;
   severity: ReturnType<typeof getSeverityPresentation>;
+  thresholdDisplayMode: ThresholdDisplayMode;
+  expandedHeight?: boolean;
 }) {
   const width = 1000;
   const height = 300;
@@ -1566,7 +1786,8 @@ function RevenueChartFigure({
   const maxValue =
     Math.max(
       ...model.points.flatMap((point) => [point.expected, point.actual]),
-      model.thresholdValue
+      model.reviewThresholdValue,
+      model.highSeverityThresholdValue
     ) * 1.18;
 
   const domain = Math.max(1, model.points.length - 1);
@@ -1579,34 +1800,58 @@ function RevenueChartFigure({
   const actualPath = buildLinePath(actualCoordinates);
   const activePoint = model.points[model.activeIndex];
   const triggerPoint =
-    model.points.find((point) => point.actual <= model.thresholdValue) ?? activePoint;
-  const thresholdY = y(model.thresholdValue);
+    model.points.find((point) => point.actual <= model.reviewThresholdValue) ?? activePoint;
+  const reviewThresholdY = y(model.reviewThresholdValue);
+  const highSeverityThresholdY = y(model.highSeverityThresholdValue);
+  const showReviewThreshold = thresholdDisplayMode !== "critical-only";
+  const showCriticalThreshold = thresholdDisplayMode !== "review-only";
+  const showWarningZone = showReviewThreshold && showCriticalThreshold && severity.accentColor !== "#ba1a1a";
+  const showCriticalZone = showCriticalThreshold && severity.accentColor === "#ba1a1a";
   const yTicks = buildMoneyTicks(maxValue);
   const xTickIndexes = buildTickIndexes(model.points.length);
   const triggerX = x(triggerPoint.index);
   const triggerY = y(triggerPoint.actual);
-  const thresholdLabelWidth = 140;
-  const thresholdLabelHalfWidth = thresholdLabelWidth / 2;
-  const leftLimit = plot.left + thresholdLabelHalfWidth + 12;
-  const rightLimit = plot.right - thresholdLabelHalfWidth - 12;
-  const centeredCandidate = plot.left + plotWidth / 2;
-  const thresholdLabelX = Math.min(rightLimit, Math.max(leftLimit, centeredCandidate));
+  const thresholdLabelX = plot.left + plotWidth / 2;
+  const reviewThresholdColor = "#b7791f";
+  const reviewThresholdSoft = "#fff1c2";
+  const reviewThresholdShadow = "rgba(154, 103, 0, 0.12)";
+  const highSeverityThresholdColor = "#ba1a1a";
+  const highSeverityThresholdSoft = "#ffdad6";
+  const highSeverityThresholdShadow = "rgba(186, 26, 26, 0.1)";
 
   return (
     <>
-      <div className={styles.chartWrap}>
-        <div
-          className={styles.thresholdPill}
-          style={{
-            top: `${(thresholdY / height) * 100}%`,
-            left: `${(thresholdLabelX / width) * 100}%`,
-            background: severity.accentSoft,
-            color: severity.accentColor,
-            boxShadow: `0 1px 2px ${severity.accentShadow}`,
-          }}
-        >
-          Threshold ({formatMoneyAmount(model.thresholdValue, model.currency)})
-        </div>
+      <div
+        className={`${styles.chartWrap} ${expandedHeight ? styles.chartWrapExpanded : ""}`.trim()}
+      >
+        {showReviewThreshold ? (
+          <div
+            className={styles.thresholdPill}
+            style={{
+              top: `${(reviewThresholdY / height) * 100}%`,
+              left: `${(thresholdLabelX / width) * 100}%`,
+              background: reviewThresholdSoft,
+              color: reviewThresholdColor,
+              boxShadow: `0 1px 2px ${reviewThresholdShadow}`,
+            }}
+          >
+            Review threshold ({formatMoneyAmount(model.reviewThresholdValue, model.currency)})
+          </div>
+        ) : null}
+        {showCriticalThreshold ? (
+          <div
+            className={styles.thresholdPill}
+            style={{
+              top: `${(highSeverityThresholdY / height) * 100}%`,
+              left: `${(thresholdLabelX / width) * 100}%`,
+              background: highSeverityThresholdSoft,
+              color: highSeverityThresholdColor,
+              boxShadow: `0 1px 2px ${highSeverityThresholdShadow}`,
+            }}
+          >
+            Critical threshold ({formatMoneyAmount(model.highSeverityThresholdValue, model.currency)})
+          </div>
+        ) : null}
         <svg
           viewBox={`0 0 ${width} ${height}`}
           preserveAspectRatio="none"
@@ -1645,13 +1890,24 @@ function RevenueChartFigure({
               {model.points[tickIndex]?.label}
             </text>
           ))}
-          <rect
-            x={plot.left}
-            y={thresholdY}
-            width={plot.right - plot.left}
-            height={plot.bottom - thresholdY}
-            style={{ fill: severity.accentZone }}
-          />
+          {showWarningZone ? (
+            <rect
+              x={plot.left}
+              y={reviewThresholdY}
+              width={plot.right - plot.left}
+              height={Math.max(0, highSeverityThresholdY - reviewThresholdY)}
+              style={{ fill: "rgba(154, 103, 0, 0.035)" }}
+            />
+          ) : null}
+          {showCriticalZone ? (
+            <rect
+              x={plot.left}
+              y={highSeverityThresholdY}
+              width={plot.right - plot.left}
+              height={plot.bottom - highSeverityThresholdY}
+              style={{ fill: "rgba(186, 26, 26, 0.04)" }}
+            />
+          ) : null}
           {model.isAlerting ? (
             <line
               x1={x(triggerPoint.index)}
@@ -1665,20 +1921,38 @@ function RevenueChartFigure({
             d={`${actualPath} L${plot.right},${plot.bottom} L${plot.left},${plot.bottom} Z`}
             fill="url(#accountChartFill)"
           />
-          <line
-            x1={plot.left}
-            x2={plot.right}
-            y1={thresholdY}
-            y2={thresholdY}
-            style={{
-              fill: "none",
-              stroke: severity.accentColor,
-              strokeWidth: 1.5,
-              strokeDasharray: "9 6",
-              strokeLinecap: "round",
-              strokeLinejoin: "round",
-            }}
-          />
+          {showReviewThreshold ? (
+            <line
+              x1={plot.left}
+              x2={plot.right}
+              y1={reviewThresholdY}
+              y2={reviewThresholdY}
+              style={{
+                fill: "none",
+                stroke: reviewThresholdColor,
+                strokeWidth: 1.5,
+                strokeDasharray: "9 6",
+                strokeLinecap: "round",
+                strokeLinejoin: "round",
+              }}
+            />
+          ) : null}
+          {showCriticalThreshold ? (
+            <line
+              x1={plot.left}
+              x2={plot.right}
+              y1={highSeverityThresholdY}
+              y2={highSeverityThresholdY}
+              style={{
+                fill: "none",
+                stroke: highSeverityThresholdColor,
+                strokeWidth: 1.5,
+                strokeDasharray: "9 6",
+                strokeLinecap: "round",
+                strokeLinejoin: "round",
+              }}
+            />
+          ) : null}
           <path d={actualPath} className={styles.actualPath} />
           {model.isAlerting ? (
             <circle
@@ -1703,9 +1977,16 @@ function RevenueChartFigure({
           <span>
             <i className={styles.legendBlue} /> Current revenue
           </span>
-          <span>
-            <i className={severity.legendClass} /> Alert threshold ({formatMoneyAmount(model.thresholdValue, model.currency)})
-          </span>
+          {showReviewThreshold ? (
+            <span>
+              <i className={styles.legendDashAmber} /> Review threshold ({formatMoneyAmount(model.reviewThresholdValue, model.currency)})
+            </span>
+          ) : null}
+          {showCriticalThreshold ? (
+            <span>
+              <i className={styles.legendDashRed} /> Critical threshold ({formatMoneyAmount(model.highSeverityThresholdValue, model.currency)})
+            </span>
+          ) : null}
         </div>
       </div>
     </>
@@ -1745,7 +2026,12 @@ function RevenueAlertMonitor({
               {severity.label}
             </span>
           </div>
-          <RevenueChartFigure model={model} severity={severity} />
+          <RevenueChartFigure
+            model={model}
+            severity={severity}
+            thresholdDisplayMode={getThresholdDisplayMode(topAlert.severity)}
+            expandedHeight
+          />
         </div>
 
         <MonitorInsightPanel
@@ -1820,12 +2106,14 @@ function ActiveAlertRow({ alert }: { alert: AlertLike }) {
 }
 
 function HistoryRow({ alert }: { alert: AlertLike }) {
+  const detectedAt = fmtDetectedDate(alert.createdAt) ?? fmtDate(alert.createdAt);
+
   return (
     <article className={styles.resolvedRow}>
       <div>
         <h3>{alertLabel(alert.type)}</h3>
-        <p>{alert.message}</p>
-        <span>{alert.displayTimestamp ?? `Detected ${fmtDate(alert.createdAt)}`}</span>
+        <p>{buildHistoryAlertMessage(alert)}</p>
+        <span className={styles.historyDetected}>Detected {detectedAt}</span>
       </div>
     </article>
   );
@@ -1932,7 +2220,10 @@ export default async function AccountDetailPage({
 
   const topAlert = activeAlerts[0] ?? null;
   const chartModel = buildRevenueChartModel(accountId, topAlert, now);
-  const paymentContext = getPaymentFailureContext(topAlert);
+  const paymentContext = getPaymentFailureContext(
+    topAlert,
+    account?.alertSensitivity ?? "conservative"
+  );
   const accountName = account?.name ?? demoAccount?.name ?? accountId;
   const detailSeverity = topAlert ? getSeverityPresentation(topAlert.severity) : null;
   const headerStatus = detailSeverity
@@ -2009,12 +2300,14 @@ export default async function AccountDetailPage({
                 failures: demoAccount?.currentFailures ?? 0,
                 normalFailures: null,
                 threshold: getAlertSensitivityConfig().failureFallbackMinCurrent,
+                criticalThreshold: null,
                 windowLabel: "current monitoring window",
               }
             ),
             failures: demoAccount?.currentFailures ?? 0,
             normalFailures: null,
             threshold: getAlertSensitivityConfig().failureFallbackMinCurrent,
+            criticalThreshold: null,
             windowLabel: "current monitoring window",
             hasEnoughHistory: false,
           }
@@ -2084,12 +2377,14 @@ export default async function AccountDetailPage({
                   failures: 0,
                   normalFailures: null,
                   threshold: getAlertSensitivityConfig().failureFallbackMinCurrent,
+                  criticalThreshold: null,
                   windowLabel: "current monitoring window",
                 }
               ),
               failures: 0,
               normalFailures: null,
               threshold: getAlertSensitivityConfig().failureFallbackMinCurrent,
+              criticalThreshold: null,
               windowLabel: "current monitoring window",
               hasEnoughHistory: false,
             }
