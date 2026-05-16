@@ -8,7 +8,10 @@
   flex: 1;
   position: relative;
   overflow: hidden;
-  padding: 44px 0 36px;
+  display: flex;
+  align-items: center;
+  min-height: calc(100vh - 176px);
+  padding: 40px 0 44px;
   background:
     radial-gradient(circle at 18% 18%, rgba(0, 112, 235, 0.035), transparent 20%),
     linear-gradient(180deg, #f8f9fa 0%, #f3f4f5 100%);
@@ -37,6 +40,7 @@
   align-items: center;
   max-width: 1080px;
   margin: 0 auto;
+  min-height: 100%;
   padding: 0 24px;
 }
 
@@ -44,26 +48,7 @@
   max-width: 450px;
 }
 
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border-radius: 999px;
-  background: rgba(0, 112, 235, 0.14);
-  color: #2f5ea8;
-  font-size: 0.74rem;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-.eyebrowIcon {
-  font-size: 0.9rem;
-}
-
 .copy h1 {
-  margin-top: 18px;
   font-size: clamp(2.35rem, 4vw, 4.25rem);
   line-height: 0.94;
   font-weight: 900;
@@ -283,6 +268,8 @@
 
 @media (max-width: 980px) {
   .main {
+    display: block;
+    min-height: auto;
     padding: 52px 0 48px;
   }
 
@@ -294,10 +281,6 @@
   .copy {
     max-width: none;
     text-align: center;
-  }
-
-  .eyebrow {
-    margin: 0 auto;
   }
 
   .copy p {
@@ -325,7 +308,6 @@
   }
 
   .copy h1 {
-    margin-top: 16px;
     font-size: clamp(2rem, 10vw, 3rem);
   }
 

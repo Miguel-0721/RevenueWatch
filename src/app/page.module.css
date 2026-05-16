@@ -1481,7 +1481,7 @@
 }
 
 .assuranceSection {
-  padding: 42px 0;
+  padding: 34px 0;
   background: var(--surface-container-low);
   border-top: 1px solid rgba(193, 198, 215, 0.1);
   border-bottom: 1px solid rgba(193, 198, 215, 0.1);
@@ -1512,6 +1512,76 @@
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+}
+
+.faqSection {
+  padding: 68px 0 56px;
+  background: var(--surface);
+}
+
+.faqGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 40px;
+}
+
+.faqCard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: flex-start;
+  height: 100%;
+  padding: 20px;
+  border-radius: 24px;
+  background: var(--surface-container-lowest);
+  border: 1px solid rgba(193, 198, 215, 0.12);
+  box-shadow: 0 10px 24px rgba(25, 28, 29, 0.03);
+}
+
+.faqIconWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: rgba(0, 88, 188, 0.1);
+  flex-shrink: 0;
+}
+
+.faqIcon {
+  color: var(--primary);
+  font-size: 18px;
+}
+
+.faqCard h3 {
+  margin-bottom: 8px;
+  font-size: 1rem;
+  line-height: 1.32;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.faqCard p {
+  color: var(--on-surface-variant);
+  font-size: 0.92rem;
+  line-height: 1.62;
+}
+
+.faqCta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  margin-top: 34px;
+  text-align: center;
+}
+
+.faqCta p {
+  color: var(--on-surface);
+  font-size: 0.96rem;
+  font-weight: 700;
 }
 
 @media (min-width: 1024px) {
@@ -1551,6 +1621,7 @@
   .pricingGrid,
   .insightGrid,
   .valueGrid,
+  .faqGrid,
   .monitoringRow,
   .monitoringRowReverse {
     grid-template-columns: 1fr;
@@ -1616,7 +1687,8 @@
   .workflowSection,
   .pricingSection,
   .monitoringSection,
-  .assuranceSection {
+  .assuranceSection,
+  .faqSection {
     padding-top: 52px;
     padding-bottom: 52px;
   }
@@ -1644,7 +1716,8 @@
   .stepOne,
   .stepTwo,
   .stepThree,
-  .pricingCard {
+  .pricingCard,
+  .faqCard {
     padding: 22px;
     border-radius: 22px;
   }

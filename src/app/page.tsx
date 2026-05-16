@@ -7,6 +7,49 @@ import StitchIcon from "@/components/StitchIcon";
 import type { IconName } from "@/components/StitchIcon";
 import styles from "./page.module.css";
 
+const FAQ_ITEMS = [
+  {
+    question: "Does RevenueWatch move money or change my Stripe account?",
+    answer:
+      "No. RevenueWatch is monitoring-only. It reads Stripe activity so it can detect revenue drops and payment failure spikes. It does not move money, issue refunds, create charges, or change your Stripe settings.",
+  },
+  {
+    question: "Why does RevenueWatch need Stripe access?",
+    answer:
+      "RevenueWatch needs access to read payment activity from your connected Stripe account. That is how it checks if revenue is lower than usual or if payment failures are increasing.",
+  },
+  {
+    question: "What happens after I connect Stripe?",
+    answer:
+      "RevenueWatch starts monitoring the connected account and imports recent Stripe activity where available. This helps build a baseline faster, so graphs and alerts can become useful sooner.",
+  },
+  {
+    question: "Does RevenueWatch work for new or low-volume Stripe accounts?",
+    answer:
+      "Yes, but revenue-drop alerts work best when the account has regular payment activity. New or low-volume accounts may need time to build a reliable baseline before revenue-drop thresholds appear.",
+  },
+  {
+    question: "Will I get alerts for every small change?",
+    answer:
+      "No. RevenueWatch is intentionally conservative. It is built to avoid noisy alerts and only flag changes that look meaningfully different from recent normal activity.",
+  },
+  {
+    question: "What alerts does RevenueWatch support?",
+    answer:
+      "RevenueWatch currently focuses on two alert types: revenue drops and payment failure spikes.",
+  },
+  {
+    question: "Can I disconnect Stripe?",
+    answer:
+      "Yes. You can disconnect a Stripe account at any time. Disconnecting pauses monitoring for that account. It does not delete your Stripe account or change anything in Stripe.",
+  },
+  {
+    question: "Does RevenueWatch predict future revenue?",
+    answer:
+      "No. RevenueWatch does not predict the future or recommend what to do. It only monitors Stripe activity and alerts you when something looks unusually different from recent normal patterns.",
+  },
+];
+
 function HeroWidget() {
   return (
     <div className={styles.heroWidgetWrap}>
@@ -195,6 +238,20 @@ function PricingCard({
       >
         {cta}
       </Link>
+    </article>
+  );
+}
+
+function FAQCard({ question, answer }: { question: string; answer: string }) {
+  return (
+    <article className={styles.faqCard}>
+      <div className={styles.faqIconWrap}>
+        <StitchIcon name="verified" className={styles.faqIcon} />
+      </div>
+      <div>
+        <h3>{question}</h3>
+        <p>{answer}</p>
+      </div>
     </article>
   );
 }
@@ -776,6 +833,31 @@ export default function HomePage() {
           <ScrollReveal as="p" className={styles.pricingFootnote} delayMs={120}>
             All plans use read-only Stripe access. RevenueWatch never moves money
             or changes Stripe account settings.
+          </ScrollReveal>
+        </div>
+      </section>
+
+      <section className={styles.faqSection}>
+        <div className={styles.shell}>
+          <ScrollReveal className={styles.centerHeading}>
+            <h2>Frequently asked questions</h2>
+            <p>A few clear answers before you connect Stripe.</p>
+          </ScrollReveal>
+
+          <div className={styles.faqGrid}>
+            {FAQ_ITEMS.map((item, index) => (
+              <ScrollReveal key={item.question} delayMs={40 + index * 30}>
+                <FAQCard question={item.question} answer={item.answer} />
+              </ScrollReveal>
+            ))}
+          </div>
+
+          <ScrollReveal className={styles.faqCta} delayMs={120}>
+            <p>Ready to monitor your Stripe account?</p>
+            <Link href="/login" className={styles.primaryAction}>
+              Get started
+              <StitchIcon name="arrow_forward" className={styles.arrowIcon} />
+            </Link>
           </ScrollReveal>
         </div>
       </section>

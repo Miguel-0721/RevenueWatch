@@ -6,6 +6,8 @@ import StitchIcon from "@/components/StitchIcon";
 import { signIn, auth } from "../../auth";
 import styles from "./login.module.css";
 
+const SHOW_MICROSOFT_LOGIN = false;
+
 function GoogleIcon() {
   return (
     <svg viewBox="0 0 48 48" className={styles.providerIcon} aria-hidden="true">
@@ -76,18 +78,14 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
   return (
     <div className={styles.page}>
-      <Navbar mode="marketing" ctaLabel="Sign in" ctaHref="/login" />
+      <Navbar mode="marketing" hideCta />
       <main className={styles.main}>
         <section className={styles.heroShell}>
           <div className={styles.copy}>
-            <div className={styles.eyebrow}>
-              <StitchIcon name="monitoring" className={styles.eyebrowIcon} />
-              Dashboard access
-            </div>
             <h1>
               Access <span>RevenueWatch</span>.
             </h1>
-            <p>Sign in with your work account to open the dashboard and review alerts.</p>
+            <p>Sign in with your work account to open your dashboard and review alerts.</p>
             <div className={styles.trustLine}>
               <span>Read-only access.</span>
               <span>No money movement.</span>
@@ -99,7 +97,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             <div className={styles.card}>
               <div className={styles.cardHeader}>
                 <h2>Sign in</h2>
-                <p>Use Google or Microsoft to continue.</p>
+                <p>{SHOW_MICROSOFT_LOGIN ? "Use Google or Microsoft to continue." : "Use Google to continue."}</p>
               </div>
 
               <div className={styles.actions}>
@@ -125,22 +123,24 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                   </button>
                 </form>
 
-                <div className={styles.providerForm}>
-                  <button
-                    type="button"
-                    className={`${styles.providerButton} ${styles.providerButtonMuted}`}
-                    aria-disabled="true"
-                  >
-                    <div className={styles.providerMeta}>
-                      <MicrosoftIcon />
-                      <div className={styles.providerCopy}>
-                        <span className={styles.providerLabel}>Continue with Microsoft</span>
-                        <span className={styles.providerHint}>Coming soon</span>
+                {SHOW_MICROSOFT_LOGIN ? (
+                  <div className={styles.providerForm}>
+                    <button
+                      type="button"
+                      className={`${styles.providerButton} ${styles.providerButtonMuted}`}
+                      aria-disabled="true"
+                    >
+                      <div className={styles.providerMeta}>
+                        <MicrosoftIcon />
+                        <div className={styles.providerCopy}>
+                          <span className={styles.providerLabel}>Continue with Microsoft</span>
+                          <span className={styles.providerHint}>Coming soon</span>
+                        </div>
                       </div>
-                    </div>
-                    <span className={styles.soonBadge}>Soon</span>
-                  </button>
-                </div>
+                      <span className={styles.soonBadge}>Soon</span>
+                    </button>
+                  </div>
+                ) : null}
               </div>
 
               <div className={styles.supportStrip}>
@@ -150,7 +150,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 </div>
                 <div className={styles.supportItem}>
                   <StitchIcon name="notifications" className={styles.supportIcon} />
-                  Alert-ready access
+                  Monitoring access
                 </div>
               </div>
 
