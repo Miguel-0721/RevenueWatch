@@ -14,6 +14,7 @@
     "reset:local-revenue-drop-test": "node scripts/resetLocalRevenueDropTest.js",
     "test:stripe-backfill": "node scripts/testStripeBackfill.mjs",
     "verify:stripe-backfill": "node scripts/verifyStripeBackfill.mjs",
+    "clean:test-data": "node scripts/cleanMyTestData.mjs",
     "test:revenue-drop-email": "node scripts/testRevenueDropEmail.mjs",
     "test:payment-failure-email": "node scripts/testPaymentFailureEmail.mjs"
   },
