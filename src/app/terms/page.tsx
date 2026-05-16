@@ -12,9 +12,8 @@ export default function TermsPage() {
         <section className="legal-section">
           <h2>Overview</h2>
           <p>
-            These Terms of Service govern your use of RevenueWatch. RevenueWatch
-            is operated by Parmora. By accessing or using the service, you agree
-            to these terms.
+            These Terms of Service govern your use of RevenueWatch. By
+            accessing or using the service, you agree to these terms.
           </p>
         </section>
 

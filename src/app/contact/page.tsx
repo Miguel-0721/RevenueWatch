@@ -18,7 +18,7 @@ export default async function ContactPage({ searchParams }: ContactPageProps) {
         <h1 className="legal-title">Contact</h1>
         <p className="legal-updated">RevenueWatch</p>
         <p className="legal-meta">
-          RevenueWatch is operated by Parmora, registered in the Netherlands.
+          RevenueWatch support and account inquiries are handled from the Netherlands.
         </p>
 
         {isProInquiry ? (

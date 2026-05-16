@@ -9,7 +9,7 @@ export default function MarketingFooter() {
           <div className="rw-footer-logo">
             <RevenueWatchLogo compact />
           </div>
-          <p>{"\u00A9 2026 RevenueWatch \u2022 Operated by Parmora"}</p>
+          <p>{"\u00A9 2026 RevenueWatch"}</p>
         </div>
 
         <nav className="rw-footer-links" aria-label="Footer">
