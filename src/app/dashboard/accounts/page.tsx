@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { AutoBackfillTrigger } from "./AutoBackfillTrigger";
 import { getActiveDemoAlerts, hasDemoAccount } from "@/lib/demoData";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
@@ -9,6 +10,18 @@ type AccountAlertSummary = {
   type: string;
   severity: "critical" | "warning";
   createdAt: Date | null;
+};
+
+type AccountBackfillStatus = "pending" | "running" | "completed" | "failed";
+
+type AccountListItem = {
+  id: string;
+  name: string | null;
+  status: string;
+  stripeAccountId: string;
+  backfillStatus: AccountBackfillStatus;
+  backfillStartedAt: Date | null;
+  lastBackfilledAt: Date | null;
 };
 
 function formatRelativeTime(date: Date | null | undefined) {
@@ -71,7 +84,7 @@ export default async function DashboardAccountsPage({
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const connectStatus = resolvedSearchParams?.connect;
 
-  const accounts = await prisma.stripeAccount.findMany({
+  const accounts = (await (prisma as any).stripeAccount.findMany({
     where: { userId: session.user.id },
     orderBy: { createdAt: "desc" },
     select: {
@@ -79,8 +92,11 @@ export default async function DashboardAccountsPage({
       name: true,
       status: true,
       stripeAccountId: true,
+      backfillStatus: true,
+      backfillStartedAt: true,
+      lastBackfilledAt: true,
     },
-  });
+  })) as AccountListItem[];
 
   const accountIds = accounts.map((account) => account.stripeAccountId);
 
@@ -164,6 +180,15 @@ export default async function DashboardAccountsPage({
 
   return (
     <section className={styles.shell}>
+      <AutoBackfillTrigger
+        stripeAccountIds={sortedAccounts
+          .filter(
+            (account) =>
+              account.status === "active" &&
+              account.backfillStatus === "pending"
+          )
+          .map((account) => account.stripeAccountId)}
+      />
       <div className={styles.stickyIntro}>
         <header className={styles.header}>
           <div>
@@ -250,6 +275,17 @@ export default async function DashboardAccountsPage({
                       <div className={styles.cardMeta}>
                         {formatRelativeTime(lastEventByAccount.get(account.stripeAccountId))}
                       </div>
+                      {account.backfillStatus === "pending" ||
+                      account.backfillStatus === "running" ? (
+                        <div className={styles.cardHint}>
+                          Importing recent Stripe activity. RevenueWatch is building baseline history for this account.
+                        </div>
+                      ) : null}
+                      {account.backfillStatus === "failed" ? (
+                        <div className={styles.cardHint}>
+                          Recent activity import failed. Monitoring continues from new Stripe activity.
+                        </div>
+                      ) : null}
                       {topAlert ? (
                         <div className={styles.cardSignal}>{alertLabel(topAlert.type)}</div>
                       ) : null}

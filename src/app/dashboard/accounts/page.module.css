@@ -180,6 +180,12 @@
   font-weight: 600;
 }
 
+.cardHint {
+  color: #6a7280;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
 .cardActions {
   display: flex;
   align-items: center;

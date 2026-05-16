@@ -3090,3 +3090,497 @@ This should remain the quick regression check after:
 - dashboard route changes
 - alert rail/detail UI changes
 - account-detail severity/chart changes
+
+---
+
+## Memory Update: 2026-05-14 to 2026-05-16
+
+### Current Git State
+
+- Latest pushed commit as of this memory update:
+  - `23da8b0` - `Add Stripe backfill tooling and align monitoring`
+- Important earlier pushed commits in this same work stream:
+  - `5c73779` - `Fix dashboard empty states and alert scoping`
+  - `ef90b29` - `Sync dashboard and account detail charts`
+  - `24468ee` - `Polish alert emails and account monitoring UI`
+- Current local unpushed work also exists after `23da8b0`:
+  - automatic post-connect Stripe backfill trigger
+  - StripeAccount backfill status schema fields + migration
+  - retry-storm fix for the auto backfill trigger
+
+### Revenue Monitoring: Final Product Direction
+
+Revenue monitoring on the account detail page is no longer a generic analytics chart.
+
+Current intended behavior:
+- the chart should always remain visible
+- healthy / no-history states keep the chart shell visible
+- baseline-building states should feel like active monitoring, not a broken empty graph
+- right-side metric cards should stay calm and readable
+
+Important content rules:
+- no giant empty-state replacement
+- no fake full chart series when there is not enough history
+- use calm copy such as:
+  - `Building baseline`
+  - `Collecting monitoring history`
+  - `Available after enough history`
+
+### Payment Failure Monitoring: Final Product Direction
+
+Payment failure monitoring now follows the same clarity standard as revenue monitoring.
+
+Current intended behavior:
+- chart has more vertical room than before
+- Y-axis is dynamic and based on visible bars + visible thresholds
+- grid lines, threshold lines, and labels should all align to the same scale
+- threshold labeling uses the same naming system as revenue monitoring
+
+Important chart trust rule:
+- threshold line placement must be mathematically exact
+- the line itself should align to the actual Y-axis value
+- label bubble placement must not visually suggest the line is on the wrong value
+
+### Threshold Naming Rules
+
+Use these threshold labels consistently across the product:
+- `Review threshold`
+- `Critical threshold`
+
+Do not mix:
+- `Alert threshold`
+- `High severity threshold`
+
+Where this naming now matters:
+- account detail charts
+- dashboard selected alert detail charts
+- legends
+- right-side metric cards
+- email threshold wording where shown
+
+### Threshold Display Rules for Monitoring Charts
+
+Important product rule that should currently be treated as the source of truth:
+
+Normal / no active alert:
+- show `Review threshold` only
+
+Review Needed:
+- show both
+  - `Review threshold`
+  - `Critical threshold`
+
+High Severity / Critical:
+- show both
+  - `Review threshold`
+  - `Critical threshold`
+
+Reason:
+- users need to understand both:
+  - why the alert triggered
+  - what makes the issue critical
+
+Applies to:
+- revenue drop charts
+- payment failure charts
+- chart bubbles
+- legends
+- right-side threshold cards
+
+### Revenue Severity Rule Alignment
+
+This was an important correctness fix.
+
+Previous bug:
+- backend revenue critical severity used `dropRatio >= 0.8`
+- UI/help/chart language communicated `50%+ lower than usual`
+- this was a real mismatch
+
+Current intended revenue severity rules:
+- Review Needed / warning:
+  - revenue is `30%+ lower than usual`
+- High Severity / critical:
+  - revenue is `50%+ lower than usual`
+
+Important files involved:
+- `src/lib/alert-sensitivity.ts`
+- `src/lib/revenue-drop.ts`
+- `src/app/dashboard/accounts/[accountId]/page.tsx`
+- `src/lib/notify.ts`
+
+### Revenue Alert Emails
+
+Email design work was done to bring alert emails closer to the homepage `How RevenueWatch works` alert preview card.
+
+Important final direction:
+- white rounded compact card
+- RevenueWatch wordmark
+- thin divider
+- `REVENUEWATCH ALERT`
+- title + severity badge
+- neutral connected account box
+- `CURRENT ISSUE`
+- compact metric cards
+- review button
+- subtle informational footer
+
+Important implementation constraints:
+- email-safe HTML
+- inline styles
+- Gmail compatibility first
+
+Related files:
+- `src/lib/notify.ts`
+
+Local test commands that exist:
+- `npm run test:revenue-drop-email`
+- `npm run test:payment-failure-email`
+
+Important note:
+- local email test commands can fail if the local machine cannot reach Neon/Postgres
+- PowerShell execution policy issues were worked around by using `npm.cmd`
+
+### Account Detail Page: Monitoring and History Polish
+
+Important account-detail work completed:
+- healthy/no-history revenue chart keeps shell visible
+- centered baseline-building empty state was added/refined
+- right-side metric fallback copy was softened
+- payment failure chart height was increased
+- revenue chart height was increased
+- alert history wording was made calmer and more user-facing
+- later revenue history summaries were improved to show drop percentage from alert context when available
+
+Important history wording rule:
+- avoid raw technical baseline text in Alert History cards
+
+Revenue history summary behavior:
+- if `dropRatio` exists in alert context:
+  - show `Sales were X% lower than usual for this window.`
+- fallback:
+  - `Sales were much lower than usual for this window.`
+
+Payment failure history summary behavior:
+- default:
+  - `Failed payments were higher than usual compared to recent activity.`
+- optionally may include safe multiple wording when available, but should stay calm
+
+### Dashboard: Data Isolation Fix
+
+This was a launch-critical fix.
+
+Problem that existed:
+- authenticated users with no connected accounts could still see demo/sample alert history
+
+Current required dashboard behavior:
+- real user with zero connected Stripe accounts:
+  - no active alerts
+  - no alert history
+  - no demo alerts
+- real user with connected accounts:
+  - see only alerts for their own connected Stripe accounts
+
+Important implementation rule:
+- dashboard alert queries must always scope through the signed-in user’s `StripeAccount` rows
+- never query all alerts globally for the authenticated dashboard
+
+Main file:
+- `src/app/dashboard/page.tsx`
+
+### Dashboard: Empty States and Rail Cleanup
+
+Current dashboard polish decisions:
+- `Current alerts` empty state should visually match the `Alert History` empty state pattern
+- heading icons should be consistent
+- `Current alerts` cards no longer need a bottom-right `Review` link
+  - cards are selectable summaries only
+  - the action happens in the selected alert panel via `Review account`
+
+Files involved:
+- `src/components/dashboard/CurrentAlertsRail.tsx`
+- `src/components/dashboard/CurrentAlertsRail.module.css`
+
+### Dashboard and Account Detail Chart Consistency
+
+The dashboard and account detail pages should now use the same chart behavior and visual rules as closely as possible.
+
+Important rule:
+- do not let dashboard and account detail chart systems drift into separate meanings
+
+Areas that were aligned:
+- threshold naming
+- threshold line logic
+- threshold bubble placement
+- revenue warning/critical zone visualization
+- payment failure scaling and grid alignment
+- selected alert detail panel matching account detail logic
+
+Main dashboard chart file:
+- `src/components/dashboard/CurrentAlertsRail.tsx`
+
+### 90-Day Stripe Historical Backfill
+
+This was a major backend/data readiness addition.
+
+Reason:
+- RevenueWatch compares current activity with similar recent time periods
+- 30 days is weak for same weekday/hour sampling
+- 90 days gives much better baseline coverage for the same weekday/hour comparisons
+
+Current backfill scope:
+- last 90 days only
+- successful PaymentIntents from connected Stripe accounts
+- failed PaymentIntents from connected Stripe accounts when safely inferable from the API
+
+Important product rules for backfill:
+- no alerts from backfilled data
+- no emails from backfilled data
+- no cooldowns from backfilled data
+- no Stripe writes
+- backfill is for:
+  - graph usefulness
+  - baseline building
+
+Current helper:
+- `src/lib/stripe-backfill.ts`
+
+What it does:
+- reads PaymentIntents from Stripe in connected-account context
+- writes successful history to:
+  - `RevenueMetric`
+  - synthetic success `StripeEvent`
+- writes failed history to:
+  - synthetic failure `StripeEvent`
+
+Stripe API used:
+- `stripe.paymentIntents.list(...)`
+
+Connected account scoping:
+- `stripeAccount: stripeAccountId`
+
+Pagination:
+- auto-pagination via `for await`
+
+Current cap:
+- maximum `2000` PaymentIntents processed per run
+- if cap is hit:
+  - `backfillIncomplete: true`
+
+### Backfill Duplicate Prevention
+
+No schema change was needed for duplicate prevention inside the helper itself.
+
+Current duplicate strategy:
+- synthetic StripeEvent IDs
+- success:
+  - `backfill:payment_intent.succeeded:<paymentIntentId>`
+- failure:
+  - `backfill:payment_intent.payment_failed:<paymentIntentId>`
+
+Important rule:
+- synthetic StripeEvent IDs should never conflict with real webhook event IDs
+
+RevenueMetric duplicate prevention:
+- success path checks the synthetic success event first
+- if not present, it creates:
+  - synthetic success StripeEvent
+  - matching RevenueMetric
+- both happen in one transaction
+
+### Backfill Route
+
+Current protected route:
+- `POST /api/internal/backfill-stripe-account`
+
+Main file:
+- `src/app/api/internal/backfill-stripe-account/route.ts`
+
+Current protection method:
+- signed-in user session required
+- request body includes `stripeAccountId`
+- route verifies the account:
+  - belongs to the signed-in user
+  - is active
+
+Route response summary currently includes:
+- `ok`
+- `stripeAccountId`
+- `processedPaymentIntents`
+- `successfulPaymentsImported`
+- `failedPaymentsImported`
+- `skippedDuplicates`
+- `backfillIncomplete`
+
+### Local Backfill Test and Verification Scripts
+
+Two important local-only scripts now exist.
+
+1. Seed-and-run end-to-end test:
+- command:
+  - `npm run test:stripe-backfill`
+- file:
+  - `scripts/testStripeBackfill.mjs`
+
+What it does:
+- refuses production
+- refuses live Stripe keys
+- creates connected-account test PaymentIntents under:
+  - `acct_1SmJXjBxSH4LpaGs`
+- creates:
+  - 3 successful PaymentIntents
+  - 2 failed PaymentIntents
+- runs the helper twice
+- verifies:
+  - first run imports rows
+  - second run skips duplicates
+
+Important Stripe test-mode creation detail:
+- the script had to explicitly use:
+  - `automatic_payment_methods: { enabled: true, allow_redirects: "never" }`
+- otherwise Stripe could require a redirect-based payment method return URL
+
+2. Read-only verification command:
+- command:
+  - `npm run verify:stripe-backfill -- acct_...`
+- file:
+  - `scripts/verifyStripeBackfill.mjs`
+
+What it reports:
+- `RevenueMetric` count
+- total revenue amount
+- date range
+- currency breakdown
+- synthetic success backfill event count
+- synthetic failure backfill event count
+- normal webhook event count
+- `hourOfDay` / `dayOfWeek` population health
+- duplicate-health summary
+- basic baseline readiness summary
+
+### Verified Backfill Test Result
+
+The connected sandbox account `acct_1SmJXjBxSH4LpaGs` was successfully tested locally.
+
+Observed successful local result:
+- first run:
+  - processed `5` PaymentIntents
+  - inserted `3` RevenueMetric rows
+  - inserted `2` synthetic failed StripeEvent rows
+  - skipped duplicates `0`
+- second run:
+  - inserted `0`
+  - skipped duplicates `5`
+
+Verified DB result:
+- synthetic success events: `3`
+- synthetic failure events: `2`
+- matching revenue metrics: `3`
+- duplicate health: healthy
+
+### Automatic Post-Connect Backfill Trigger (Current Local WIP)
+
+This work was started locally after the latest push and is not necessarily pushed yet.
+
+Current local direction:
+- callback must remain fast
+- callback must not await backfill
+- after redirect to `/dashboard/accounts`, the app should auto-trigger backfill once for newly connected accounts
+
+Current local schema additions on `StripeAccount`:
+- `backfillStatus`
+- `lastBackfilledAt`
+- `backfillStartedAt`
+- `backfillError`
+
+Current local migration:
+- `prisma/migrations/20260516090000_add_stripe_account_backfill_status/`
+
+Current intended backfill status values:
+- `pending`
+- `running`
+- `completed`
+- `failed`
+
+Current local trigger approach:
+- `src/app/dashboard/accounts/AutoBackfillTrigger.tsx`
+- only auto-trigger `pending` accounts
+- do NOT auto-trigger `failed` accounts
+- use a per-tab/session attempted-account guard
+- do not refresh-loop on `alreadyRunning`
+
+Current calm failed copy:
+- `Recent activity import failed. Monitoring continues from new Stripe activity.`
+
+### Important Backfill Retry-Storm Lesson
+
+There was a local bug where opening `/dashboard/accounts` caused repeated:
+- `POST /api/internal/backfill-stripe-account 500`
+
+Root cause:
+- the client auto-trigger retried both `pending` and `failed`
+- it also refreshed after `alreadyRunning`
+- that combination could cause repeated POST storms
+
+Correct behavior going forward:
+- auto-trigger only `pending`
+- if route returns `failed`, stop automatic retries
+- `completed` and `running` should return safe `200` JSON states
+
+### Prisma Generate Issue On This Windows Machine
+
+There is a recurring local environment problem:
+- `npx prisma generate` can fail with Windows `EPERM` / rename / spawn errors because the Prisma engine DLL is locked
+
+This has affected:
+- full builds
+- local client regeneration after schema changes
+
+Workaround that was used locally:
+- narrow `(prisma as any)` casts around new `StripeAccount` backfill fields until Prisma client can be regenerated cleanly in a normal environment
+
+Important rule:
+- this is a local-machine problem, not intended product behavior
+
+### Current Important Files For Monitoring + Backfill Work
+
+If a future chat needs to continue this exact work, inspect these first:
+- `PROJECT_MEMORY.md`
+- `src/lib/revenue-drop.ts`
+- `src/lib/alert-sensitivity.ts`
+- `src/lib/notify.ts`
+- `src/lib/stripe-backfill.ts`
+- `src/app/api/stripe/webhook/route.ts`
+- `src/app/api/stripe/callback/route.ts`
+- `src/app/api/internal/backfill-stripe-account/route.ts`
+- `scripts/testStripeBackfill.mjs`
+- `scripts/verifyStripeBackfill.mjs`
+- `src/app/dashboard/page.tsx`
+- `src/components/dashboard/CurrentAlertsRail.tsx`
+- `src/app/dashboard/accounts/page.tsx`
+- `src/app/dashboard/accounts/AutoBackfillTrigger.tsx`
+- `src/app/dashboard/accounts/[accountId]/page.tsx`
+
+### Current Default Verification Commands
+
+Quick regression check used repeatedly:
+- `npx.cmd tsc --noEmit`
+
+Backfill-specific local commands:
+- `npm.cmd run test:stripe-backfill`
+- `npm.cmd run verify:stripe-backfill -- acct_...`
+
+Email-specific local commands:
+- `npm.cmd run test:revenue-drop-email`
+- `npm.cmd run test:payment-failure-email`
+
+### Memory Rule Going Forward
+
+Future work should preserve these principles unless the product direction explicitly changes:
+- callback stays fast
+- backfill stays read-only and no-alert
+- threshold labels stay consistent
+- revenue severity rules stay aligned at:
+  - review = 30% drop
+  - critical = 50% drop
+- dashboard data remains strictly user-scoped
+- account-detail and dashboard charts should not drift into separate meanings

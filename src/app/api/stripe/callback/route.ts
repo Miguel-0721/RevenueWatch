@@ -133,22 +133,25 @@ export async function GET(req: Request) {
       displayName = pickDisplayName(accountData);
     }
 
-    await prisma.stripeAccount.upsert({
+    await (prisma as any).stripeAccount.upsert({
       where: { stripeAccountId },
       update: {
         status: "active",
         userId: session.user.id,
         name: displayName,
+        backfillStatus: "pending",
+        backfillError: null,
       },
       create: {
         stripeAccountId,
         status: "active",
         userId: session.user.id,
         name: displayName,
+        backfillStatus: "pending",
       },
     });
 
-    return NextResponse.redirect(new URL("/dashboard", req.url));
+    return NextResponse.redirect(new URL("/dashboard/accounts", req.url));
   } catch (error) {
     console.error("OAuth exception:", error);
 

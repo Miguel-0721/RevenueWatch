@@ -73,6 +73,10 @@ model StripeAccount {
   stripeAccountId String   @unique
   status          String   @default("active")
   alertSensitivity String  @default("conservative")
+  backfillStatus  String   @default("pending")
+  lastBackfilledAt DateTime?
+  backfillStartedAt DateTime?
+  backfillError   String?
   name            String?
   createdAt       DateTime @default(now())
 
