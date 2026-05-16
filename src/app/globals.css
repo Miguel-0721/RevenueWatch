@@ -129,6 +129,9 @@ img {
 .rw-logo {
   display: inline-flex;
   align-items: center;
+  line-height: 0;
+  --logo-box-width: 112px;
+  --logo-box-height: 30px;
 }
 
 .rw-logo-wordmark {
@@ -139,9 +142,21 @@ img {
   letter-spacing: -0.06em;
 }
 
+.rw-logo-frame {
+  position: relative;
+  display: block;
+  width: var(--logo-box-width);
+  height: var(--logo-box-height);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
 .rw-logo-image {
-  width: auto;
-  height: 46px;
+  position: absolute;
+  left: calc(var(--logo-box-width) * -0.159);
+  top: calc(var(--logo-box-height) * -0.845);
+  width: calc(var(--logo-box-width) * 1.308);
+  height: calc(var(--logo-box-height) * 2.794);
   max-width: none;
   object-fit: contain;
 }
@@ -150,8 +165,24 @@ img {
   font-size: 1.86rem;
 }
 
-.rw-logo-compact .rw-logo-image {
-  height: 50px;
+.rw-logo-compact {
+  --logo-box-width: 110px;
+  --logo-box-height: 30px;
+}
+
+.rw-logo-header {
+  --logo-box-width: 128px;
+  --logo-box-height: 32px;
+}
+
+.rw-logo-footer {
+  --logo-box-width: 110px;
+  --logo-box-height: 30px;
+}
+
+.rw-logo-sidebar {
+  --logo-box-width: 118px;
+  --logo-box-height: 30px;
 }
 
 .rw-nav-links {

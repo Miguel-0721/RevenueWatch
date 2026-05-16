@@ -7,7 +7,7 @@ export default function MarketingFooter() {
       <div className="rw-shell rw-footer-inner">
         <div className="rw-footer-brand">
           <div className="rw-footer-logo">
-            <RevenueWatchLogo compact />
+            <RevenueWatchLogo compact size="footer" />
           </div>
           <p>{"\u00A9 2026 Parveil"}</p>
         </div>

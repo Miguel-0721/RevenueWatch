@@ -88,11 +88,6 @@
   align-items: center;
 }
 
-.sidebarBrandLogo :global(.rw-logo-image) {
-  height: 58px;
-  width: auto;
-}
-
 .sidebarNav {
   display: flex;
   flex-direction: column;

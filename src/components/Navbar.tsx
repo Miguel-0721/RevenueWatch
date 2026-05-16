@@ -13,7 +13,7 @@ type NavbarProps = {
 function Brand() {
   return (
     <Link href="/" className="rw-brand">
-      <RevenueWatchLogo />
+      <RevenueWatchLogo size="header" />
     </Link>
   );
 }

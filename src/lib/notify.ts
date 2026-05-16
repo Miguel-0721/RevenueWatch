@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 const resend = new Resend(process.env.RESEND_API_KEY);
 const ALERT_SENDER = "Parveil <alerts@parveil.com>";
 const ALERT_REPLY_TO = "contact@parveil.com";
+const EMAIL_BRAND_ICON_URL = "https://parveil.com/parveil-icon.png?v=3";
 
 type SendAlertEmailArgs = {
   type: string;
@@ -312,7 +313,16 @@ function formatMetricLabel(label: string) {
 }
 
 function buildEmailBrandHeader() {
-  return `<div style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:34px;line-height:1;font-weight:800;letter-spacing:-0.06em;color:#0058bc;">Parveil</div>`;
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+    <tr>
+      <td valign="middle" style="padding:0 10px 0 0;">
+        <img src="${EMAIL_BRAND_ICON_URL}" alt="" width="30" height="30" style="display:block;border:0;outline:none;text-decoration:none;width:30px;height:30px;object-fit:contain;" />
+      </td>
+      <td valign="middle" style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:30px;line-height:1;font-weight:800;letter-spacing:-0.06em;color:#0058bc;">
+        Parveil
+      </td>
+    </tr>
+  </table>`;
 }
 
 function buildHtmlEmail({

@@ -34,7 +34,7 @@ export default async function DashboardLayout({
             <div className={styles.sidebarBrand}>
               <Link href="/dashboard" className={styles.sidebarBrandLink}>
                 <div className={styles.sidebarBrandContent}>
-                  <RevenueWatchLogo className={styles.sidebarBrandLogo} compact />
+                  <RevenueWatchLogo className={styles.sidebarBrandLogo} compact size="sidebar" />
                   <div className={styles.sidebarBrandSub}>MONITORING CENTER</div>
                 </div>
               </Link>
