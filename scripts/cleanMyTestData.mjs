@@ -82,7 +82,7 @@ async function main() {
     billingFieldsWillBeDeleted: false,
   };
 
-  console.log("RevenueWatch test-data cleanup preview");
+  console.log("Parveil test-data cleanup preview");
   console.log(JSON.stringify(summary, null, 2));
   console.log("\nStripe accounts targeted:");
   console.log(

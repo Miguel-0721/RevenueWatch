@@ -12,12 +12,8 @@ export default function RevenueWatchLogo({
     .join(" ");
 
   return (
-    <span className={classes}>
-      <img
-        src="/brand/revenuewatch-wordmark.png"
-        alt="RevenueWatch"
-        className="rw-logo-image"
-      />
+    <span className={classes} aria-label="Parveil">
+      <span className="rw-logo-wordmark">Parveil</span>
     </span>
   );
 }

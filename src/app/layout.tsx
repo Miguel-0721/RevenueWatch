@@ -9,9 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "RevenueWatch",
-  description:
-    "Catch payment failures and revenue drops across Stripe accounts with read-only monitoring and alerts.",
+  title: "Parveil",
+  description: "Read-only Stripe monitoring for revenue drops and payment failures.",
 };
 
 export default function RootLayout({

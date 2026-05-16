@@ -163,7 +163,7 @@ async function main() {
 
   const runId = `backfill-test-${Date.now()}`;
   const metadata = {
-    revenuewatch_backfill_test: runId,
+    parveil_backfill_test: runId,
   };
 
   const successfulPaymentIntents = await Promise.all([

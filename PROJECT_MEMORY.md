@@ -1,7 +1,12 @@
 # PROJECT MEMORY
 
-This file is the persistent project memory for the RevenueWatch website and app.
+This file is the persistent project memory for the Parveil website and app.
 Use it at the start of future chats so work can continue without relearning the project from scratch.
+
+Current branding note:
+- `Parveil` is the current product name.
+- `RevenueWatch` was the previous product name.
+- Historical notes, old asset names, and repo references may still mention `RevenueWatch` where they describe past work.
 
 ---
 
@@ -19,7 +24,7 @@ Use it at the start of future chats so work can continue without relearning the 
 
 ## Algemeen
 
-RevenueWatch is a simple monitoring and alerting product for Stripe.
+Parveil is a simple monitoring and alerting product for Stripe.
 
 Core idea:
 - It watches connected Stripe accounts in the background.
@@ -30,7 +35,7 @@ Core idea:
 - It is read-only.
 
 One-line explanation:
-- RevenueWatch is a safety alarm / early-warning system for Stripe revenue issues.
+- Parveil is a safety alarm / early-warning system for Stripe revenue issues.
 
 Important positioning:
 - Not an analytics platform.
@@ -58,7 +63,7 @@ Current major direction:
 
 ## Product Summary
 
-RevenueWatch watches Stripe accounts in the background and alerts the user when something unusual happens.
+Parveil watches Stripe accounts in the background and alerts the user when something unusual happens.
 
 Examples:
 - Revenue suddenly drops compared with the normal trend.

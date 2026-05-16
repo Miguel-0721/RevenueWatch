@@ -7,7 +7,7 @@ type AutoBackfillTriggerProps = {
   stripeAccountIds: string[];
 };
 
-const ATTEMPTED_STORAGE_KEY = "revenuewatch-backfill-attempted-accounts";
+const ATTEMPTED_STORAGE_KEY = "parveil-backfill-attempted-accounts";
 
 function readAttemptedAccounts() {
   if (typeof window === "undefined") {

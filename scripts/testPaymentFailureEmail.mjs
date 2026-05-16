@@ -76,7 +76,7 @@ async function main() {
   const appUrl =
     process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "http://localhost:3000";
 
-  console.log("Local RevenueWatch payment-failure test email requested:");
+  console.log("Local Parveil payment-failure test email requested:");
   console.log(
     JSON.stringify(
       {

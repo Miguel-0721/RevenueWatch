@@ -12,7 +12,7 @@ export default function TermsPage() {
         <section className="legal-section">
           <h2>Overview</h2>
           <p>
-            These Terms of Service govern your use of RevenueWatch. By
+            These Terms of Service govern your use of Parveil. By
             accessing or using the service, you agree to these terms.
           </p>
         </section>
@@ -20,7 +20,7 @@ export default function TermsPage() {
         <section className="legal-section">
           <h2>Service description</h2>
           <p>
-            RevenueWatch is a read-only monitoring and alerting tool for
+            Parveil is a read-only monitoring and alerting tool for
             connected Stripe accounts. It is intended to detect revenue drops and
             payment failure spikes and send operational alerts.
           </p>
@@ -29,7 +29,7 @@ export default function TermsPage() {
         <section className="legal-section">
           <h2>No financial advice</h2>
           <p>
-            RevenueWatch provides factual monitoring and alerting only. It does
+            Parveil provides factual monitoring and alerting only. It does
             not provide financial advice, legal advice, recommendations, or
             guarantees.
           </p>
@@ -38,7 +38,7 @@ export default function TermsPage() {
         <section className="legal-section">
           <h2>No money movement</h2>
           <p>
-            RevenueWatch does not move funds, issue refunds, modify payment
+            Parveil does not move funds, issue refunds, modify payment
             settings, or act as a payment processor.
           </p>
         </section>
@@ -64,7 +64,7 @@ export default function TermsPage() {
         <section className="legal-section">
           <h2>Limitation of liability</h2>
           <p>
-            To the maximum extent permitted by law, RevenueWatch is provided on
+            To the maximum extent permitted by law, Parveil is provided on
             an as-is and as-available basis. We are not liable for indirect,
             incidental, special, consequential, or business losses arising from
             the use of the service.
@@ -95,7 +95,7 @@ export default function TermsPage() {
           <h2>Contact</h2>
           <p>
             For questions about these terms, contact{" "}
-            <a href="mailto:contact@revenuewatch.app">contact@revenuewatch.app</a>.
+            <a href="mailto:contact@parveil.com">contact@parveil.com</a>.
           </p>
         </section>
       </div>

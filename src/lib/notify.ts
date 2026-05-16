@@ -3,8 +3,8 @@ import { formatMoneyAmount, normalizeCurrencyCode } from "@/lib/currency";
 import { prisma } from "@/lib/prisma";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const ALERT_SENDER = "RevenueWatch <alerts@revenuewatch.app>";
-const ALERT_REPLY_TO = "contact@revenuewatch.app";
+const ALERT_SENDER = "Parveil <alerts@parveil.com>";
+const ALERT_REPLY_TO = "contact@parveil.com";
 
 type SendAlertEmailArgs = {
   type: string;
@@ -48,14 +48,14 @@ function formatAlertType(type: string) {
 
 function formatAlertSubject(type: string) {
   if (type === "revenue_drop") {
-    return "RevenueWatch alert: Revenue drop detected";
+    return "Parveil alert: Revenue drop detected";
   }
 
   if (type === "payment_failed") {
-    return "RevenueWatch alert: Payment failure spike detected";
+    return "Parveil alert: Payment failure spike detected";
   }
 
-  return `RevenueWatch alert: ${formatAlertType(type)}`;
+  return `Parveil alert: ${formatAlertType(type)}`;
 }
 
 function formatSeverity(severity: string) {
@@ -311,8 +311,8 @@ function formatMetricLabel(label: string) {
     .replace("Usual failed payments", "Usual failed<br/>payments");
 }
 
-function buildEmailBrandHeader(wordmarkSrc: string) {
-  return `<img src="${escapeHtml(wordmarkSrc)}" alt="RevenueWatch" width="auto" style="display:block;width:auto;max-width:none;height:50px;object-fit:contain;" />`;
+function buildEmailBrandHeader() {
+  return `<div style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:34px;line-height:1;font-weight:800;letter-spacing:-0.06em;color:#0058bc;">Parveil</div>`;
 }
 
 function buildHtmlEmail({
@@ -324,7 +324,6 @@ function buildHtmlEmail({
   keyValues,
   metricCards,
   detailsUrl,
-  wordmarkSrc,
 }: {
   accountLabel: string;
   alertType: string;
@@ -334,7 +333,6 @@ function buildHtmlEmail({
   keyValues: string[];
   metricCards: Array<{ label: string; value: string; accent: boolean }>;
   detailsUrl: string | null;
-  wordmarkSrc: string;
 }) {
   const isCritical = severityLabel === "High Severity";
   const badgeBg = isCritical ? "#ffdad6" : "#fff1c2";
@@ -403,9 +401,9 @@ function buildHtmlEmail({
       <div style="background:#ffffff;border:1px solid rgba(193,198,215,0.1);border-radius:24px;box-shadow:0 12px 32px rgba(25,28,29,0.04), 0 4px 8px rgba(25,28,29,0.02);overflow:hidden;">
         <div style="padding:26px 24px 26px;">
           <div style="padding-bottom:16px;margin-bottom:22px;border-bottom:1px solid #eef2f7;">
-            ${buildEmailBrandHeader(wordmarkSrc)}
+            ${buildEmailBrandHeader()}
           </div>
-          <div style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:12px;line-height:1.2;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:#717786;">RevenueWatch alert</div>
+          <div style="font-family:Inter,Arial,Helvetica,sans-serif;font-size:12px;line-height:1.2;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:#717786;">Parveil alert</div>
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:9px;border-collapse:collapse;">
             <tr>
               <td valign="top" style="padding:0 14px 0 0;">
@@ -434,7 +432,7 @@ function buildHtmlEmail({
           ${metricCardsHtml}
           ${buttonHtml}
           <div style="font-family:Inter,Arial,Helvetica,sans-serif;margin-top:16px;font-size:12px;line-height:1.6;color:#717786;">
-            This alert is informational only. RevenueWatch does not predict future performance or recommend any action.
+            This alert is informational only. Parveil does not predict future performance or recommend any action.
           </div>
         </div>
       </div>
@@ -494,7 +492,6 @@ export async function sendAlertEmail({
     appUrl && stripeAccountId
       ? `${appUrl}/dashboard/accounts/${encodeURIComponent(stripeAccountId)}`
       : null;
-  const wordmarkSrc = `${appUrl}/brand/revenuewatch-wordmark.png`;
   const mainMessage = buildMainMessage(type, message, context);
   const alertTypeLabel = formatAlertType(type);
   const severityLabel = formatSeverity(severity);
@@ -509,7 +506,6 @@ export async function sendAlertEmail({
     keyValues,
     metricCards,
     detailsUrl,
-    wordmarkSrc,
   });
 
   console.log("ALERT EMAIL START", {
@@ -526,9 +522,9 @@ export async function sendAlertEmail({
       to: [recipient],
       subject: formatAlertSubject(type),
       html,
-      text: `RevenueWatch monitoring update
+      text: `Parveil monitoring update
 
-This is an automated, informational alert from RevenueWatch.
+This is an automated, informational alert from Parveil.
 
 Account: ${accountLabel}
 Alert type: ${alertTypeLabel}
@@ -538,7 +534,7 @@ Detected: ${detectedLabel}
 ${mainMessage}${contextSection}${detailsUrl ? `\n\nReview this alert:\n${detailsUrl}` : ""}
 
 Why you are receiving this:
-- RevenueWatch observed a sustained deviation from recent normal patterns.
+- Parveil observed a sustained deviation from recent normal patterns.
 - The detection is based on historical behavior, not a single event.
 
 Important notes:

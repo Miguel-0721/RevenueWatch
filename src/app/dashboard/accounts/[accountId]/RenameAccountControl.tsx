@@ -66,7 +66,7 @@ export default function RenameAccountControl({
             />
           </label>
           <p className={styles.renameHelp}>
-            This only changes the display name inside RevenueWatch. Your Stripe account is not changed.
+            This only changes the display name inside Parveil. Your Stripe account is not changed.
           </p>
           {state.error ? <p className={styles.renameError}>{state.error}</p> : null}
           <div className={styles.renameActions}>

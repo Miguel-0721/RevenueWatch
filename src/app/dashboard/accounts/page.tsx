@@ -193,7 +193,7 @@ export default async function DashboardAccountsPage({
         <header className={styles.header}>
           <div>
             <h1>Connected accounts</h1>
-            <p>Review the Stripe accounts RevenueWatch is monitoring and open a detailed account view when something needs attention.</p>
+            <p>Review the Stripe accounts Parveil is monitoring and open a detailed account view when something needs attention.</p>
           </div>
           <Link href="/api/stripe/connect" className={styles.addAccountLink}>
             Add account
@@ -278,7 +278,7 @@ export default async function DashboardAccountsPage({
                       {account.backfillStatus === "pending" ||
                       account.backfillStatus === "running" ? (
                         <div className={styles.cardHint}>
-                          Importing recent Stripe activity. RevenueWatch is building baseline history for this account.
+                          Importing recent Stripe activity. Parveil is building baseline history for this account.
                         </div>
                       ) : null}
                       {account.backfillStatus === "failed" ? (

@@ -1381,7 +1381,7 @@ export default function CurrentAlertsRail({
             <div className={styles.emptyStateCopy}>
               <h3>No active alerts</h3>
               <p>
-                RevenueWatch is monitoring your connected Stripe accounts. Any alerts that need
+                Parveil is monitoring your connected Stripe accounts. Any alerts that need
                 review will appear here.
               </p>
             </div>

@@ -16,9 +16,9 @@ export default async function ContactPage({ searchParams }: ContactPageProps) {
       <Navbar mode="marketing" />
       <div className="rw-shell legal-container">
         <h1 className="legal-title">Contact</h1>
-        <p className="legal-updated">RevenueWatch</p>
+        <p className="legal-updated">Parveil</p>
         <p className="legal-meta">
-          RevenueWatch support and account inquiries are handled from the Netherlands.
+          Parveil support and account inquiries are handled from the Netherlands.
         </p>
 
         {isProInquiry ? (
@@ -30,8 +30,8 @@ export default async function ContactPage({ searchParams }: ContactPageProps) {
             </p>
             <p>
               Contact us at{" "}
-              <a href="mailto:contact@revenuewatch.app?subject=RevenueWatch%20Pro%20upgrade">
-                contact@revenuewatch.app
+              <a href="mailto:contact@parveil.com?subject=Parveil%20Pro%20upgrade">
+                contact@parveil.com
               </a>{" "}
               and mention that you want to upgrade to Pro.
             </p>
@@ -42,7 +42,7 @@ export default async function ContactPage({ searchParams }: ContactPageProps) {
           <h2>General inquiries</h2>
           <p>
             For support, business inquiries, or general questions, contact us at{" "}
-            <a href="mailto:contact@revenuewatch.app">contact@revenuewatch.app</a>.
+            <a href="mailto:contact@parveil.com">contact@parveil.com</a>.
           </p>
           <p>Phone: +31 6 27128476</p>
           <p>Support is primarily handled via email for faster assistance.</p>
@@ -51,7 +51,7 @@ export default async function ContactPage({ searchParams }: ContactPageProps) {
         <section className="legal-section">
           <h2>Service description</h2>
           <p>
-            RevenueWatch is a read-only Stripe monitoring and alerting tool
+            Parveil is a read-only Stripe monitoring and alerting tool
             designed to detect payment failure spikes and revenue drops.
           </p>
         </section>

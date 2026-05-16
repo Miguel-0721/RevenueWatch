@@ -570,7 +570,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
                 </div>
                 <div className={styles.emptyStateCopy}>
                   <h3>No alert history yet</h3>
-                  <p>Alerts will appear here after RevenueWatch detects activity that needs review.</p>
+                  <p>Alerts will appear here after Parveil detects activity that needs review.</p>
                 </div>
               </div>
             ) : (

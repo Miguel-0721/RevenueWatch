@@ -1301,7 +1301,7 @@ function MonitorInsightPanel({
         <p>
           {topAlert
             ? buildReadableAlertMessage(topAlert)
-            : "No issues detected. RevenueWatch is checking this account in read-only mode."}
+            : "No issues detected. Parveil is checking this account in read-only mode."}
         </p>
         {topAlert ? (
           <div className={styles.detectedAt}>
@@ -1473,7 +1473,7 @@ function MonitoringPlaceholderChart({
         <div className={styles.monitoringChartEmptyState}>
           <strong>Building baseline</strong>
           <p>
-            RevenueWatch is collecting activity for this account. Revenue history will
+            Parveil is collecting activity for this account. Revenue history will
             appear here after enough similar periods are available.
           </p>
         </div>
@@ -1482,7 +1482,7 @@ function MonitoringPlaceholderChart({
           preserveAspectRatio="none"
           className={styles.chartSvg}
           role="img"
-          aria-label="Monitoring chart placeholder while RevenueWatch builds history"
+          aria-label="Monitoring chart placeholder while Parveil builds history"
         >
           {yGuideFractions.map((fraction, index) => {
             const y = plot.bottom - (plot.bottom - plot.top) * fraction;
@@ -1538,7 +1538,7 @@ function HealthyRevenueMonitor({
             <div>
               <h2>Revenue monitoring</h2>
               <p>
-                Track recent revenue against the normal threshold RevenueWatch uses for this
+                Track recent revenue against the normal threshold Parveil uses for this
                 account.
               </p>
               <div className={styles.chartMeta}>Current monitoring window</div>
@@ -1569,8 +1569,8 @@ function HealthyRevenueMonitor({
           title="Revenue monitoring"
           description={
             state.hasEnoughHistory
-              ? "RevenueWatch compares this account against similar recent time periods and confirms revenue is safely above the alert threshold."
-              : "RevenueWatch is collecting activity for this account. Revenue-drop monitoring becomes more reliable after enough similar periods are available."
+              ? "Parveil compares this account against similar recent time periods and confirms revenue is safely above the alert threshold."
+              : "Parveil is collecting activity for this account. Revenue-drop monitoring becomes more reliable after enough similar periods are available."
           }
           metrics={[
             {
@@ -1624,7 +1624,7 @@ function HealthyPaymentMonitor({
             <div>
               <h2>Payment failure monitoring</h2>
               <p>
-                Review recent failed payments against the alert threshold RevenueWatch checks for
+                Review recent failed payments against the alert threshold Parveil checks for
                 this account.
               </p>
               <div className={styles.chartMeta}>Current monitoring window</div>
@@ -1656,8 +1656,8 @@ function HealthyPaymentMonitor({
           title="Payment failure monitoring"
           description={
             state.hasEnoughHistory
-              ? "RevenueWatch compares recent failed payments to similar recent windows and confirms they remain below the alert threshold."
-              : "RevenueWatch is collecting activity for this account. Comparison history will become more useful after enough similar windows are available."
+              ? "Parveil compares recent failed payments to similar recent windows and confirms they remain below the alert threshold."
+              : "Parveil is collecting activity for this account. Comparison history will become more useful after enough similar windows are available."
           }
           metrics={[
             {

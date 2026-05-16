@@ -9,34 +9,34 @@ import styles from "./page.module.css";
 
 const FAQ_ITEMS = [
   {
-    question: "Does RevenueWatch move money or change my Stripe account?",
+    question: "Does Parveil move money or change my Stripe account?",
     answer:
-      "No. RevenueWatch is monitoring-only. It reads Stripe activity so it can detect revenue drops and payment failure spikes. It does not move money, issue refunds, create charges, or change your Stripe settings.",
+      "No. Parveil is monitoring-only. It reads Stripe activity so it can detect revenue drops and payment failure spikes. It does not move money, issue refunds, create charges, or change your Stripe settings.",
   },
   {
-    question: "Why does RevenueWatch need Stripe access?",
+    question: "Why does Parveil need Stripe access?",
     answer:
-      "RevenueWatch needs access to read payment activity from your connected Stripe account. That is how it checks if revenue is lower than usual or if payment failures are increasing.",
+      "Parveil needs access to read payment activity from your connected Stripe account. That is how it checks if revenue is lower than usual or if payment failures are increasing.",
   },
   {
     question: "What happens after I connect Stripe?",
     answer:
-      "RevenueWatch starts monitoring the connected account and imports recent Stripe activity where available. This helps build a baseline faster, so graphs and alerts can become useful sooner.",
+      "Parveil starts monitoring the connected account and imports recent Stripe activity where available. This helps build a baseline faster, so graphs and alerts can become useful sooner.",
   },
   {
-    question: "Does RevenueWatch work for new or low-volume Stripe accounts?",
+    question: "Does Parveil work for new or low-volume Stripe accounts?",
     answer:
       "Yes, but revenue-drop alerts work best when the account has regular payment activity. New or low-volume accounts may need time to build a reliable baseline before revenue-drop thresholds appear.",
   },
   {
     question: "Will I get alerts for every small change?",
     answer:
-      "No. RevenueWatch is intentionally conservative. It is built to avoid noisy alerts and only flag changes that look meaningfully different from recent normal activity.",
+      "No. Parveil is intentionally conservative. It is built to avoid noisy alerts and only flag changes that look meaningfully different from recent normal activity.",
   },
   {
-    question: "What alerts does RevenueWatch support?",
+    question: "What alerts does Parveil support?",
     answer:
-      "RevenueWatch currently focuses on two alert types: revenue drops and payment failure spikes.",
+      "Parveil currently focuses on two alert types: revenue drops and payment failure spikes.",
   },
   {
     question: "Can I disconnect Stripe?",
@@ -44,9 +44,9 @@ const FAQ_ITEMS = [
       "Yes. You can disconnect a Stripe account at any time. Disconnecting pauses monitoring for that account. It does not delete your Stripe account or change anything in Stripe.",
   },
   {
-    question: "Does RevenueWatch predict future revenue?",
+    question: "Does Parveil predict future revenue?",
     answer:
-      "No. RevenueWatch does not predict the future or recommend what to do. It only monitors Stripe activity and alerts you when something looks unusually different from recent normal patterns.",
+      "No. Parveil does not predict the future or recommend what to do. It only monitors Stripe activity and alerts you when something looks unusually different from recent normal patterns.",
   },
 ];
 
@@ -428,7 +428,7 @@ export default function HomePage() {
               </h1>
 
               <p>
-                RevenueWatch monitors your Stripe accounts in the background and
+                Parveil monitors your Stripe accounts in the background and
                 alerts you when payment failures or unusual revenue drops need
                 attention, before they become client-facing problems.
               </p>
@@ -461,7 +461,7 @@ export default function HomePage() {
       <section className={styles.insightSection}>
         <div className={styles.shell}>
           <ScrollReveal className={styles.centerHeading}>
-            <h2>What happens without RevenueWatch?</h2>
+            <h2>What happens without Parveil?</h2>
             <p>
               Stripe issues can sit quietly until they cost you revenue, time,
               or client trust.
@@ -497,7 +497,7 @@ export default function HomePage() {
       <section className={styles.valueSection}>
         <div className={styles.shell}>
           <ScrollReveal className={styles.centerHeading}>
-            <h2>What RevenueWatch saves.</h2>
+            <h2>What Parveil saves.</h2>
             <p>
               The payoff is simple: less manual checking, fewer missed issues,
               and fewer unpleasant surprises for clients.
@@ -542,9 +542,9 @@ export default function HomePage() {
       <section className={styles.monitoringSection}>
         <div className={styles.shell}>
           <ScrollReveal className={styles.centerHeading}>
-            <h2>See RevenueWatch in action.</h2>
+            <h2>See Parveil in action.</h2>
             <p>
-              See how RevenueWatch surfaces revenue drops and payment failure
+              See how Parveil surfaces revenue drops and payment failure
               spikes in a calm, reviewable way, so you can step in before they
               turn into bigger problems.
             </p>
@@ -560,7 +560,7 @@ export default function HomePage() {
                 <div className={styles.monitoringCopy}>
                   <h3>Catch unusual revenue drops</h3>
                   <p>
-                    When RevenueWatch detects a revenue drop, it shows a clear
+                    When Parveil detects a revenue drop, it shows a clear
                     alert view with current revenue, usual revenue for this
                     period, and the threshold that triggered the alert.
                   </p>
@@ -584,7 +584,7 @@ export default function HomePage() {
                   <h3>Spot payment failure spikes early</h3>
                   <p>
                     When failed payments spike within a short period,
-                    RevenueWatch surfaces the issue in a simple alert view so
+                    Parveil surfaces the issue in a simple alert view so
                     you can review the account before more customers are
                     affected.
                   </p>
@@ -612,9 +612,9 @@ export default function HomePage() {
       <section id="how-it-works" className={styles.workflowSection}>
         <div className={styles.shell}>
           <ScrollReveal className={`${styles.centerHeading} ${styles.workflowHeading}`}>
-            <h2>How RevenueWatch works.</h2>
+            <h2>How Parveil works.</h2>
             <p>
-              Connect Stripe, let RevenueWatch monitor in the background, and
+              Connect Stripe, let Parveil monitor in the background, and
               step in only when attention is needed.
             </p>
           </ScrollReveal>
@@ -626,7 +626,7 @@ export default function HomePage() {
                 <h3>Connect with Stripe.</h3>
                 <p>
                   Connect your Stripe account in about 30 seconds with secure,
-                  read-only OAuth access. RevenueWatch never moves money or
+                  read-only OAuth access. Parveil never moves money or
                   changes settings in your Stripe account.
                 </p>
               </div>
@@ -652,7 +652,7 @@ export default function HomePage() {
               <div>
                 <h3>Monitoring in the background.</h3>
                 <p>
-                  RevenueWatch monitors for <span>payment failure spikes</span>{" "}
+                  Parveil monitors for <span>payment failure spikes</span>{" "}
                   and unusual revenue drops in the background, so you do not
                   have to keep checking Stripe manually.
                 </p>
@@ -668,7 +668,7 @@ export default function HomePage() {
                 <div className={styles.darkStep}>3</div>
                 <h3>Get alerted early.</h3>
                 <p>
-                  Receive a clear alert when RevenueWatch detects an unusual
+                  Receive a clear alert when Parveil detects an unusual
                   change, so you can review it before it becomes a bigger
                   problem.
                 </p>
@@ -681,7 +681,7 @@ export default function HomePage() {
 
                 <div className={styles.noticeTop}>
                   <div className={styles.noticeTitle}>
-                    <span>RevenueWatch alert</span>
+                    <span>Parveil alert</span>
                     <strong>Revenue drop detected</strong>
                   </div>
 
@@ -744,7 +744,7 @@ export default function HomePage() {
                 </div>
                 <h3>Read-only access</h3>
                 <p>
-                  RevenueWatch connects through secure Stripe OAuth and never
+                  Parveil connects through secure Stripe OAuth and never
                   changes billing, payouts, or account settings. It only reads
                   the data needed for monitoring.
                 </p>
@@ -761,7 +761,7 @@ export default function HomePage() {
               <div>
                 <h3>No money movement</h3>
                 <p>
-                  RevenueWatch never moves funds, edits payouts, or performs
+                  Parveil never moves funds, edits payouts, or performs
                   financial actions inside your account.
                 </p>
               </div>
@@ -784,7 +784,7 @@ export default function HomePage() {
             <ScrollReveal delayMs={40}>
               <PricingCard
                 tier="Starter"
-                description="For testing RevenueWatch on one Stripe account."
+                description="For testing Parveil on one Stripe account."
                 price="Free"
                 items={[
                   "1 Stripe account",
@@ -831,7 +831,7 @@ export default function HomePage() {
           </div>
 
           <ScrollReveal as="p" className={styles.pricingFootnote} delayMs={120}>
-            All plans use read-only Stripe access. RevenueWatch never moves money
+            All plans use read-only Stripe access. Parveil never moves money
             or changes Stripe account settings.
           </ScrollReveal>
         </div>

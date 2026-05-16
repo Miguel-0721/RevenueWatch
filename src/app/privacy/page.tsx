@@ -12,7 +12,7 @@ export default function PrivacyPage() {
         <section className="legal-section">
           <h2>Overview</h2>
           <p>
-            RevenueWatch provides read-only monitoring and alerting for connected
+            Parveil provides read-only monitoring and alerting for connected
             Stripe accounts. This Privacy Policy explains what information we
             collect, how we use it, and how we protect it.
           </p>
@@ -32,7 +32,7 @@ export default function PrivacyPage() {
         <section className="legal-section">
           <h2>How we use information</h2>
           <ul>
-            <li>To operate RevenueWatch and provide monitoring and alerting services.</li>
+            <li>To operate Parveil and provide monitoring and alerting services.</li>
             <li>To send alert emails and service-related communications.</li>
             <li>To maintain reliability, security, and system performance.</li>
             <li>To investigate issues, prevent abuse, and comply with legal obligations.</li>
@@ -42,14 +42,14 @@ export default function PrivacyPage() {
         <section className="legal-section">
           <h2>Stripe data access</h2>
           <p>
-            RevenueWatch is designed as a read-only monitoring tool. We do not
+            Parveil is designed as a read-only monitoring tool. We do not
             move money, modify billing settings, or process customer payments on
             your behalf.
           </p>
           <p>
             Data accessed from Stripe is used solely for monitoring purposes and
             is not shared with third parties beyond operational service providers
-            needed to run RevenueWatch.
+            needed to run Parveil.
           </p>
         </section>
 
@@ -66,7 +66,7 @@ export default function PrivacyPage() {
           <h2>Data sharing</h2>
           <p>
             We do not sell your data. We may share data only with service
-            providers necessary to operate RevenueWatch, such as hosting, email
+            providers necessary to operate Parveil, such as hosting, email
             delivery, database, and infrastructure providers, or when required by
             law.
           </p>
@@ -104,7 +104,7 @@ export default function PrivacyPage() {
           <h2>Contact</h2>
           <p>
             For privacy questions, contact us at{" "}
-            <a href="mailto:contact@revenuewatch.app">contact@revenuewatch.app</a>.
+            <a href="mailto:contact@parveil.com">contact@parveil.com</a>.
           </p>
         </section>
       </div>

@@ -66,7 +66,7 @@ export default async function SettingsPage() {
                 lineHeight: 1.7,
               }}
             >
-              Account settings will live here. RevenueWatch will keep this surface
+              Account settings will live here. Parveil will keep this surface
               focused on access, notifications, and monitoring configuration.
             </p>
           </section>

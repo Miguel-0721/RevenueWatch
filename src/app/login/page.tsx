@@ -83,7 +83,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <section className={styles.heroShell}>
           <div className={styles.copy}>
             <h1>
-              Access <span>RevenueWatch</span>.
+              Access <span>Parveil</span>.
             </h1>
             <p>Sign in with your work account to open your dashboard and review alerts.</p>
             <div className={styles.trustLine}>

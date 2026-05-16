@@ -214,7 +214,7 @@ async function cancelManagedDuplicates({
 /**
  * ALERTING PHILOSOPHY
  *
- * RevenueWatch is an insurance-style monitoring system.
+ * Parveil is an insurance-style monitoring system.
  * It is intentionally conservative by design.
  *
  * Design principles:

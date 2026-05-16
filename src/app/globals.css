@@ -131,11 +131,23 @@ img {
   align-items: center;
 }
 
+.rw-logo-wordmark {
+  color: var(--primary);
+  font-size: 1.72rem;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.06em;
+}
+
 .rw-logo-image {
   width: auto;
   height: 46px;
   max-width: none;
   object-fit: contain;
+}
+
+.rw-logo-compact .rw-logo-wordmark {
+  font-size: 1.86rem;
 }
 
 .rw-logo-compact .rw-logo-image {
