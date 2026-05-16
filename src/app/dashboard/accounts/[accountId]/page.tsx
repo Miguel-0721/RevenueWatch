@@ -424,7 +424,7 @@ function getRevenueContext(alert?: AlertLike | null): RevenueContext | null {
     alertThresholdAmount:
       typeof parsed.alertThresholdAmount === "number"
         ? parsed.alertThresholdAmount
-        : Math.round(baselineAmount * 0.5),
+        : Math.round(baselineAmount * 0.7),
     baselineLabel:
       typeof parsed.baselineLabel === "string" ? parsed.baselineLabel : "recent performance",
     windowLabel:
@@ -2249,7 +2249,7 @@ export default async function AccountDetailPage({
                       context: JSON.stringify({
                         baselineAmount: demoAccount.usualRevenue,
                         currentAmount: demoAccount.currentRevenue,
-                        alertThresholdAmount: Math.round(demoAccount.usualRevenue * 0.5),
+                        alertThresholdAmount: Math.round(demoAccount.usualRevenue * 0.7),
                         baselineLabel: "recent performance",
                         window: "current monitoring window",
                         currency: demoAccount.currency ?? "EUR",
@@ -2264,7 +2264,7 @@ export default async function AccountDetailPage({
             baselineAmount: demoAccount.usualRevenue ?? null,
             thresholdValue:
               typeof demoAccount.usualRevenue === "number"
-                ? Math.round(demoAccount.usualRevenue * 0.5)
+                ? Math.round(demoAccount.usualRevenue * 0.7)
                 : null,
             currency: demoAccount.currency ?? "EUR",
             baselineLabel: "recent performance",

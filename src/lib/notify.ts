@@ -199,7 +199,7 @@ function buildKeyAlertValues(type: string, context?: string | null) {
     return [
       currentRevenue !== null ? `Current revenue: ${formatMoneyAmount(currentRevenue, currency)}` : null,
       usualRevenue !== null ? `Usual revenue: ${formatMoneyAmount(usualRevenue, currency)}` : null,
-      threshold !== null ? `Alert threshold: ${formatMoneyAmount(threshold, currency)}` : null,
+      threshold !== null ? `Review threshold: ${formatMoneyAmount(threshold, currency)}` : null,
     ].filter((line): line is string => Boolean(line));
   }
 
@@ -287,7 +287,7 @@ function buildMetricCards(type: string, severityLabel: string, context?: string 
         : null,
       threshold !== null
         ? {
-            label: "Alert threshold",
+            label: "Review threshold",
             value: formatMoneyAmount(threshold, currency),
             accent: false,
           }
@@ -306,7 +306,7 @@ function formatMetricLabel(label: string) {
   return label
     .replace("Current revenue", "Current<br/>revenue")
     .replace("Usual revenue", "Usual<br/>revenue")
-    .replace("Alert threshold", "Alert<br/>threshold")
+    .replace("Review threshold", "Review<br/>threshold")
     .replace("Current failed payments", "Current failed<br/>payments")
     .replace("Usual failed payments", "Usual failed<br/>payments");
 }

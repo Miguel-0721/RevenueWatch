@@ -12,6 +12,8 @@
     "seed:revenue-baseline": "node scripts/seedRevenueBaseline.js",
     "reset:local-payment-alert-test": "node scripts/resetLocalPaymentAlertTest.js",
     "reset:local-revenue-drop-test": "node scripts/resetLocalRevenueDropTest.js",
+    "test:stripe-backfill": "node scripts/testStripeBackfill.mjs",
+    "verify:stripe-backfill": "node scripts/verifyStripeBackfill.mjs",
     "test:revenue-drop-email": "node scripts/testRevenueDropEmail.mjs",
     "test:payment-failure-email": "node scripts/testPaymentFailureEmail.mjs"
   },

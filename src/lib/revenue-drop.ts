@@ -304,7 +304,7 @@ export async function evaluateRevenueDropForAccount({
   }
 
   const dropRatio = 1 - currentAmount / baselineAmount;
-  const severity: "warning" | "critical" = dropRatio >= 0.8 ? "critical" : "warning";
+  const severity: "warning" | "critical" = dropRatio >= 0.5 ? "critical" : "warning";
 
   if (dropRatio < config.dropThreshold) {
     return {

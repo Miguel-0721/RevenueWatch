@@ -1429,7 +1429,6 @@ export default function CurrentAlertsRail({
 
                     <div className={styles.cardFooter}>
                       <span className={styles.timeLabel}>{alert.detectedLabel}</span>
-                      <span className={styles.reviewText}>Review</span>
                     </div>
                   </article>
                 </button>

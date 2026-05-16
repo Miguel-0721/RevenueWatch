@@ -21,7 +21,7 @@ const ALERT_SENSITIVITY_CONFIG: Record<AlertSensitivity, AlertSensitivityConfig>
   conservative: {
     revenueWindowMinutes: 60,
     baselineHours: 6 * 7 * 24,
-    dropThreshold: 0.5,
+    dropThreshold: 0.3,
     minBaselineRevenue: 50000,
     minCurrentRevenue: 10000,
     minSamples: 5,
@@ -37,7 +37,7 @@ const ALERT_SENSITIVITY_CONFIG: Record<AlertSensitivity, AlertSensitivityConfig>
   balanced: {
     revenueWindowMinutes: 45,
     baselineHours: 4 * 7 * 24,
-    dropThreshold: 0.45,
+    dropThreshold: 0.3,
     minBaselineRevenue: 40000,
     minCurrentRevenue: 8000,
     minSamples: 5,
@@ -53,7 +53,7 @@ const ALERT_SENSITIVITY_CONFIG: Record<AlertSensitivity, AlertSensitivityConfig>
   sensitive: {
     revenueWindowMinutes: 30,
     baselineHours: 3 * 7 * 24,
-    dropThreshold: 0.4,
+    dropThreshold: 0.3,
     minBaselineRevenue: 30000,
     minCurrentRevenue: 5000,
     minSamples: 5,

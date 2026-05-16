@@ -252,7 +252,7 @@
 .cardFooter {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 14px;
   margin-top: auto;
   padding-top: 12px;
@@ -262,12 +262,6 @@
 .timeLabel {
   color: #717786;
   font-size: 0.82rem;
-}
-
-.reviewText {
-  color: #0058bc;
-  font-size: 0.84rem;
-  font-weight: 700;
 }
 
 .detailSection {
