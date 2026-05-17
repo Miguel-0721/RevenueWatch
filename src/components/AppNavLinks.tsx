@@ -11,15 +11,16 @@ const appNavItems = [
 export default function AppNavLinks() {
   const pathname = usePathname();
 
-  const activeMatch =
-    pathname?.startsWith("/dashboard/alerts") || pathname?.startsWith("/alerts")
-      ? "alerts"
-      : "dashboard";
+  const activeMatch = pathname?.startsWith("/dashboard/alerts")
+    ? "alerts"
+    : pathname?.startsWith("/dashboard")
+      ? "dashboard"
+      : null;
 
   return (
     <nav className="rw-app-nav" aria-label="Product">
       {appNavItems.map((item) => {
-        const isActive = item.match === activeMatch;
+        const isActive = activeMatch !== null && item.match === activeMatch;
 
         return (
           <Link

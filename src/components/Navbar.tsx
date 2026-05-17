@@ -26,6 +26,70 @@ function getDisplayName(name?: string | null, email?: string | null) {
   return email?.split("@")[0] || "Account";
 }
 
+function MarketingNavLinks() {
+  return (
+    <nav className="rw-nav-links" aria-label="Primary">
+      <Link href="/#how-it-works" className="rw-nav-link">
+        How it Works
+      </Link>
+      <Link href="/#pricing" className="rw-nav-link">
+        Pricing
+      </Link>
+      <Link href="/#support" className="rw-nav-link">
+        Support
+      </Link>
+    </nav>
+  );
+}
+
+function UserMenu({
+  displayName,
+  image,
+  name,
+  email,
+}: {
+  displayName: string;
+  image?: string | null;
+  name?: string | null;
+  email?: string | null;
+}) {
+  return (
+    <details className="rw-user-menu">
+      <summary className="rw-user-trigger">
+        {image ? (
+          <img src={image} alt={name || "User"} className="rw-avatar" />
+        ) : (
+          <div className="rw-avatar rw-avatar-fallback">
+            {(name?.[0] || email?.[0] || "U").toUpperCase()}
+          </div>
+        )}
+
+        <div className="rw-user-meta">
+          <span>{displayName}</span>
+        </div>
+
+        <span className="rw-menu-caret" aria-hidden="true" />
+      </summary>
+
+      <div className="rw-user-dropdown">
+        <Link href="/dashboard/billing" className="rw-user-dropdown-link">
+          Billing
+        </Link>
+        <form
+          action={async () => {
+            "use server";
+            await signOut({ redirectTo: "/login" });
+          }}
+        >
+          <button type="submit" className="rw-user-dropdown-button">
+            Sign out
+          </button>
+        </form>
+      </div>
+    </details>
+  );
+}
+
 export default async function Navbar({
   ctaLabel = "Get started",
   ctaHref = "/login",
@@ -35,7 +99,7 @@ export default async function Navbar({
   const session = await auth();
   const displayName = getDisplayName(session?.user?.name, session?.user?.email);
 
-  if (session?.user) {
+  if (mode === "app" && session?.user) {
     return (
       <header className={`rw-topbar${mode === "app" ? " rw-topbar-app" : ""}`}>
         <div className="rw-shell rw-topbar-inner">
@@ -44,43 +108,12 @@ export default async function Navbar({
           <AppNavLinks />
 
           <div className="rw-auth-area">
-            <details className="rw-user-menu">
-              <summary className="rw-user-trigger">
-                {session.user.image ? (
-                  <img
-                    src={session.user.image}
-                    alt={session.user.name || "User"}
-                    className="rw-avatar"
-                  />
-                ) : (
-                  <div className="rw-avatar rw-avatar-fallback">
-                    {(session.user.name?.[0] || session.user.email?.[0] || "U").toUpperCase()}
-                  </div>
-                )}
-
-                <div className="rw-user-meta">
-                  <span>{displayName}</span>
-                </div>
-
-                <span className="rw-menu-caret" aria-hidden="true" />
-              </summary>
-
-              <div className="rw-user-dropdown">
-                <Link href="/dashboard/billing" className="rw-user-dropdown-link">
-                  Billing
-                </Link>
-                <form
-                  action={async () => {
-                    "use server";
-                    await signOut({ redirectTo: "/login" });
-                  }}
-                >
-                  <button type="submit" className="rw-user-dropdown-button">
-                    Sign out
-                  </button>
-                </form>
-              </div>
-            </details>
+            <UserMenu
+              displayName={displayName}
+              image={session.user.image}
+              name={session.user.name}
+              email={session.user.email}
+            />
           </div>
         </div>
       </header>
@@ -92,19 +125,21 @@ export default async function Navbar({
       <div className="rw-shell rw-topbar-inner">
         <Brand />
 
-        <nav className="rw-nav-links" aria-label="Primary">
-          <Link href="/#how-it-works" className="rw-nav-link">
-            How it Works
-          </Link>
-          <Link href="/#pricing" className="rw-nav-link">
-            Pricing
-          </Link>
-          <Link href="/#support" className="rw-nav-link">
-            Support
-          </Link>
-        </nav>
+        <MarketingNavLinks />
 
-        {hideCta ? null : (
+        {session?.user ? (
+          <div className="rw-auth-area rw-auth-area-marketing">
+            <Link href="/dashboard" className="rw-connect-button">
+              Dashboard
+            </Link>
+            <UserMenu
+              displayName={displayName}
+              image={session.user.image}
+              name={session.user.name}
+              email={session.user.email}
+            />
+          </div>
+        ) : hideCta ? null : (
           <div className="rw-auth-area rw-auth-area-marketing">
             <Link href="/login" className="rw-text-action">
               Sign in

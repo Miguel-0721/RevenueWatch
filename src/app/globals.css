@@ -258,21 +258,16 @@ img {
   font-size: 0.8rem;
   font-weight: 600;
   letter-spacing: -0.01em;
-  padding-bottom: 3px;
-  border-bottom: 2px solid transparent;
-  transition:
-    color 0.18s ease,
-    border-color 0.18s ease;
+  transition: color 0.18s ease, opacity 0.18s ease;
 }
 
 .rw-app-nav-link:hover {
-  color: #334155;
+  color: #0058bc;
 }
 
 .rw-app-nav-link-active {
-  color: #0f172a;
+  color: #0058bc;
   font-weight: 700;
-  border-bottom-color: #0058bc;
 }
 
 .rw-back-link {
@@ -461,7 +456,7 @@ img {
 
 .legal-container {
   max-width: 840px;
-  padding-top: 132px;
+  padding-top: 88px;
   padding-bottom: 72px;
 }
 
@@ -593,7 +588,7 @@ img {
   }
 
   .legal-container {
-    padding-top: 56px;
+    padding-top: 40px;
     padding-bottom: 56px;
   }
 

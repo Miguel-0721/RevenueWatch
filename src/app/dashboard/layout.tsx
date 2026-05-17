@@ -61,6 +61,18 @@ export default async function DashboardLayout({
                   Sign out
                 </button>
               </form>
+
+              <div className={styles.sidebarFooterLinks} aria-label="Legal and help">
+                <Link href="/privacy" className={styles.sidebarFooterLink}>
+                  Privacy
+                </Link>
+                <Link href="/terms" className={styles.sidebarFooterLink}>
+                  Terms
+                </Link>
+                <Link href="/contact" className={styles.sidebarFooterLink}>
+                  Contact
+                </Link>
+              </div>
             </div>
           </aside>
         </div>
