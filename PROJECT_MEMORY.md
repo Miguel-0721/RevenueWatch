@@ -81,6 +81,10 @@ Recent pushed branding / asset work:
   - Fix Parveil logo assets and email branding
 - `6a3bff6`
   - Use full Parveil logo in alert emails
+- `733a0bc`
+  - Refine account monitoring states and copy
+- `51ac0d3`
+  - Enable Stripe Tax on subscription checkout
 
 Important logo/asset history:
 - Final logo assets were added to:
@@ -96,6 +100,29 @@ Important logo/asset history:
   - broken/old image rendering
   - cache behavior
   - and the fact that the new public assets were initially untracked locally before being added and pushed
+
+### Rebrand / Naming Change Summary
+
+This project started as `RevenueWatch` and was later rebranded to `Parveil`.
+
+Important rename history:
+- public-facing brand text was changed from `RevenueWatch` to `Parveil`
+- public domain moved from `revenuewatch.app` to `parveil.com`
+- support and alert sender addresses moved to `@parveil.com`
+- public legal/contact/footer/header copy was updated to `Parveil`
+- older internal file names such as:
+  - `src/components/RevenueWatchLogo.tsx`
+  were intentionally left in place for compatibility where safe, while rendered output now shows `Parveil`
+- `PROJECT_MEMORY.md`, repo history, and some historical notes may still mention `RevenueWatch` when describing older work
+
+Important wording nuance:
+- Parveil behavior is monitoring-only for connected Stripe accounts
+- but Stripe Connect OAuth scope is still `read_write`
+- because of that, public trust copy was adjusted to prefer:
+  - `Read-only monitoring`
+- and avoid misleading claims like:
+  - `Read-only access`
+  - `read-only OAuth access`
 
 Current account-management state:
 - There is now a dedicated local-only account status route:
@@ -113,6 +140,53 @@ Current account-management state:
 - Existing route kept for compatibility:
   - `src/app/api/stripe/disconnect/route.ts`
   - note: this older route is misleadingly named and only toggles active/paused
+
+### Connected-Account Monitoring Verification (May 17, 2026)
+
+The real connected-account monitoring path was manually verified end-to-end in local dev for:
+- `acct_1TG8TsF54umOrT28`
+
+Verified state progression:
+- backfill was manually retriggered through the protected route from the logged-in browser session
+- backfill finished safely with:
+  - `backfillStatus = completed`
+  - `processedPaymentIntents = 0`
+  - `successfulPaymentsImported = 0`
+  - `failedPaymentsImported = 0`
+  - `backfillIncomplete = false`
+- this means the route worked, but there were no recent qualifying PaymentIntents to import at that time
+
+Verified real webhook ingestion after that:
+- one successful connected-account PaymentIntent was ingested and created:
+  - real `StripeEvent` rows including `payment_intent.succeeded`
+  - one `RevenueMetric` row for `2500 EUR`
+- one failed connected-account PaymentIntent was ingested and created:
+  - real `StripeEvent` row for `payment_intent.payment_failed`
+  - no `RevenueMetric` row for the failed payment
+- a second successful connected-account PaymentIntent was ingested and created:
+  - a second `RevenueMetric` row for `3300 EUR`
+
+Verified DB outcome:
+- `RevenueMetric` count for the account: `2`
+- successful revenue total: `5800`
+- dashboard current revenue matched:
+  - `€58`
+- failed-payment activity was reflected from the saved failed webhook event
+- no false alert was created from this small test set
+
+Important verified behavior:
+- successful payments create:
+  - saved real `StripeEvent`
+  - `RevenueMetric`
+- failed payments create:
+  - saved real `StripeEvent`
+  - no `RevenueMetric`
+- a single failed payment does not create an alert by itself
+
+Important local webhook lesson:
+- for real connected-account webhook ingestion, Stripe CLI must forward Connect events to:
+  - `localhost:3000/api/stripe/webhook`
+- local webhook verification depends on the current `STRIPE_WEBHOOK_SECRET` matching the active Stripe CLI listener secret
 
 Current account-management UI:
 - `/dashboard/accounts`
@@ -3755,3 +3829,102 @@ Future work should preserve these principles unless the product direction explic
   - critical = 50% drop
 - dashboard data remains strictly user-scoped
 - account-detail and dashboard charts should not drift into separate meanings
+
+### Stripe Tax / Billing Checkout State (May 17, 2026)
+
+Stripe Tax was enabled for subscription Checkout in code and pushed in:
+- `51ac0d3`
+  - `Enable Stripe Tax on subscription checkout`
+
+Files changed in that push:
+- `src/app/api/billing/checkout/growth/route.ts`
+- `src/app/api/billing/checkout/pro/route.ts`
+
+Checkout Session additions now used for subscription Checkout:
+- `automatic_tax: { enabled: true }`
+- `tax_id_collection: { enabled: true }`
+- `billing_address_collection: "required"`
+- `customer_update: { address: "auto", name: "auto" }`
+
+Important Stripe Tax discovery:
+- localhost was NOT the cause of `€0.00` VAT in test Checkout
+- Stripe Tax sandbox/test settings are separate from live settings
+- the first zero-tax issue was caused by Stripe Tax test-mode setup / registrations, not the local URL
+
+Important inclusive-vs-exclusive pricing discovery:
+- once Stripe Tax started calculating in test Checkout, the first Growth Checkout showed:
+  - subtotal `€39.00`
+  - VAT `€6.77`
+  - total `€39.00`
+- that proved the price was being treated as VAT-inclusive
+
+Exact cause:
+- test Growth and Pro prices had:
+  - `tax_behavior = "unspecified"`
+- Stripe Tax default settings in test mode were:
+  - `tax_behavior = "inferred_by_currency"`
+- for `EUR`, that made the prices effectively tax-inclusive
+
+Observed test Stripe object state before replacement:
+- Growth price:
+  - `price_1TUX10JMH1yWLf4ywtx9xtl3`
+  - `tax_behavior = unspecified`
+- Pro price:
+  - `price_1TQMECJMH1yWLf4yWxG2o1XK`
+  - `tax_behavior = unspecified`
+- product tax codes were `null`
+- Stripe Tax default tax code was:
+  - `txcd_10000000`
+
+Safe resolution chosen:
+- do NOT mutate existing prices in place
+- create replacement monthly prices with:
+  - same amount
+  - same product
+  - `tax_behavior = exclusive`
+
+New TEST prices created through the Stripe API:
+- Growth product:
+  - `prod_UTTyls02RzEJ1a`
+- Pro product:
+  - `prod_UPAZXqYfa7rxtF`
+- Growth test replacement price:
+  - `price_1TXznGJMH1yWLf4yRWe4s7X1`
+  - nickname: `Growth 39 exclusive VAT`
+- Pro test replacement price:
+  - `price_1TXznGJMH1yWLf4yOK0Usa8f`
+  - nickname: `Pro 99 exclusive VAT`
+
+Local `.env` was updated for test/dev only to use those new TEST prices:
+- `STRIPE_GROWTH_PRICE_ID=price_1TXznGJMH1yWLf4yRWe4s7X1`
+- `STRIPE_PRO_PRICE_ID=price_1TXznGJMH1yWLf4yOK0Usa8f`
+
+New LIVE prices created through the Stripe API:
+- current live Growth product:
+  - `prod_UTVXPZgckC7QJ4`
+- current live Pro product:
+  - `prod_UTVXJMmlvxHiHj`
+- old live Growth price left untouched:
+  - `price_1TUYWRJMH1yWLf4ykjRoDSf6`
+- old live Pro price left untouched:
+  - `price_1TUYWlJMH1yWLf4yt0414zvc`
+- new live Growth replacement price:
+  - `price_1TXzxWJMH1yWLf4ylOhASmxc`
+  - nickname: `Growth 39 exclusive VAT`
+- new live Pro replacement price:
+  - `price_1TXzxWJMH1yWLf4ySZ3wOm0P`
+  - nickname: `Pro 99 exclusive VAT`
+
+Important operational rule:
+- do NOT put live price IDs into local `.env` unless explicitly needed for local live-key testing
+- live Vercel env updates should be done intentionally and separately
+
+Recommended intended Checkout outcome after exclusive prices:
+- Growth:
+  - subtotal `€39.00`
+  - VAT `€8.19`
+  - total `€47.19`
+- Pro:
+  - subtotal `€99.00`
+  - VAT `€20.79`
+  - total `€119.79`
