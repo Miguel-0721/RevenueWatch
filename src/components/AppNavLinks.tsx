@@ -5,14 +5,14 @@ import { usePathname } from "next/navigation";
 
 const appNavItems = [
   { label: "Dashboard", href: "/dashboard", match: "dashboard" },
-  { label: "Alerts", href: "/alerts", match: "alerts" },
+  { label: "Alerts", href: "/dashboard/alerts", match: "alerts" },
 ] as const;
 
 export default function AppNavLinks() {
   const pathname = usePathname();
 
   const activeMatch =
-    pathname?.startsWith("/alerts")
+    pathname?.startsWith("/dashboard/alerts") || pathname?.startsWith("/alerts")
       ? "alerts"
       : "dashboard";
 
