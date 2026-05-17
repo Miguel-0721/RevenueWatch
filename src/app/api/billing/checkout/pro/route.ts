@@ -99,6 +99,13 @@ export async function GET() {
   const checkoutSession = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: stripeCustomerId,
+    automatic_tax: { enabled: true },
+    tax_id_collection: { enabled: true },
+    billing_address_collection: "required",
+    customer_update: {
+      address: "auto",
+      name: "auto",
+    },
     line_items: [
       {
         price: priceId,
