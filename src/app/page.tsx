@@ -1,3 +1,4 @@
+import { auth } from "@/auth";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import MarketingFooter from "@/components/MarketingFooter";
@@ -5,6 +6,7 @@ import RevenueWatchLogo from "@/components/RevenueWatchLogo";
 import ScrollReveal from "@/components/ScrollReveal";
 import StitchIcon from "@/components/StitchIcon";
 import type { IconName } from "@/components/StitchIcon";
+import { redirect } from "next/navigation";
 import styles from "./page.module.css";
 
 const FAQ_ITEMS = [
@@ -408,7 +410,13 @@ function FailureMonitoringPreview() {
   );
 }
 
-export default function HomePage() {
+export default async function HomePage() {
+  const session = await auth();
+
+  if (session?.user?.id) {
+    redirect("/dashboard");
+  }
+
   return (
     <>
       <Navbar mode="marketing" />

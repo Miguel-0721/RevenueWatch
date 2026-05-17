@@ -29,7 +29,6 @@ const upgradePlans = [
     ],
     upgradeCta: "Upgrade to Growth",
     downgradeCta: "Downgrade to Growth",
-    featured: true,
   },
   {
     key: "PRO" as const,
@@ -285,13 +284,16 @@ export default async function DashboardBillingPage({ searchParams }: BillingPage
             const isInteractive =
               (!isCurrentPlan && canUpgradeToPlan) ||
               (isProToGrowthDowngrade && !downgradeScheduled);
+            const showRecommendedBadge =
+              user.plan === "FREE" && plan.key === "GROWTH";
+            const isFeaturedCard = showRecommendedBadge;
 
             return (
               <article
                 key={plan.key}
-                className={`${styles.upgradeCard}${plan.featured ? ` ${styles.upgradeCardFeatured}` : ""}${isInteractive ? ` ${styles.upgradeCardInteractive}` : ""}`}
+                className={`${styles.upgradeCard}${isFeaturedCard ? ` ${styles.upgradeCardFeatured}` : ""}${isInteractive ? ` ${styles.upgradeCardInteractive}` : ""}`}
               >
-                {plan.featured ? (
+                {showRecommendedBadge ? (
                   <span className={styles.recommendedBadge}>
                     Recommended for you
                   </span>
@@ -299,7 +301,7 @@ export default async function DashboardBillingPage({ searchParams }: BillingPage
 
                 <div
                   className={styles.upgradeTopRule}
-                  aria-hidden={!plan.featured}
+                  aria-hidden={!isFeaturedCard}
                 />
 
                 <div className={styles.upgradeBody}>
