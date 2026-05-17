@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { AutoBackfillTrigger } from "./AutoBackfillTrigger";
+import { AccountStatusActions } from "./AccountStatusActions";
 import { getActiveDemoAlerts, hasDemoAccount } from "@/lib/demoData";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
@@ -68,6 +69,10 @@ function statusRank(
 
 function accountDisplayName(name: string | null) {
   return name?.trim() || "Stripe account";
+}
+
+function isManagedStatus(status: string): status is "active" | "paused" | "disconnected" {
+  return status === "active" || status === "paused" || status === "disconnected";
 }
 
 export default async function DashboardAccountsPage({
@@ -177,11 +182,12 @@ export default async function DashboardAccountsPage({
 
     return accountDisplayName(left.name).localeCompare(accountDisplayName(right.name));
   });
+  const visibleAccounts = sortedAccounts.filter((account) => account.status !== "disconnected");
 
   return (
     <section className={styles.shell}>
       <AutoBackfillTrigger
-        stripeAccountIds={sortedAccounts
+        stripeAccountIds={visibleAccounts
           .filter(
             (account) =>
               account.status === "active" &&
@@ -202,7 +208,7 @@ export default async function DashboardAccountsPage({
 
         <div className={`${styles.sectionHeader} ${styles.stickySectionHeader}`}>
           <h2>Accounts</h2>
-          <span className={styles.sectionMeta}>{accounts.length} total</span>
+          <span className={styles.sectionMeta}>{visibleAccounts.length} total</span>
         </div>
       </div>
 
@@ -213,47 +219,52 @@ export default async function DashboardAccountsPage({
               Stripe connection cancelled. No account was connected.
             </div>
           ) : null}
-          <p className={styles.helperText}>Accounts needing review are shown first.</p>
-          {accounts.length === 0 ? (
+          <p className={styles.helperText}>
+            Active and paused accounts are shown here. Accounts needing review are shown first.
+          </p>
+          {visibleAccounts.length === 0 ? (
             <div className={styles.emptyState}>
-              No connected Stripe accounts yet.
+              No active or paused Stripe accounts to manage right now.
             </div>
           ) : (
             <div className={styles.list}>
-              {sortedAccounts.map((account) => {
+              {visibleAccounts.map((account) => {
                 const active = account.status === "active";
+                const disconnected = account.status === "disconnected";
                 const topAlert = active
                   ? topAlertByAccount.get(account.stripeAccountId) ?? null
                   : null;
-                const statusVariant = !active
-                  ? "paused"
-                  : topAlert?.severity === "critical"
-                    ? "attention"
-                    : topAlert?.severity === "warning"
-                      ? "review"
-                      : "active";
+                const highlightVariant = disconnected
+                  ? "disconnected"
+                  : !active
+                    ? "paused"
+                    : topAlert?.severity === "critical"
+                      ? "attention"
+                      : topAlert?.severity === "warning"
+                        ? "review"
+                        : "active";
                 const statusLabel =
-                  statusVariant === "paused"
-                    ? "Monitoring paused"
-                    : statusVariant === "attention"
-                      ? "Attention needed"
-                      : statusVariant === "review"
-                        ? "Review needed"
-                        : "Monitoring active";
+                  account.status === "disconnected"
+                    ? "Disconnected"
+                    : account.status === "paused"
+                      ? "Paused"
+                      : account.backfillStatus === "pending" || account.backfillStatus === "running"
+                        ? "Importing history"
+                        : "Monitoring";
                 const cardVariantClass =
-                  statusVariant === "attention"
+                  highlightVariant === "attention"
                     ? styles.cardAttention
-                    : statusVariant === "review"
+                    : highlightVariant === "review"
                       ? styles.cardReview
-                      : statusVariant === "paused"
+                      : highlightVariant === "paused" || highlightVariant === "disconnected"
                         ? styles.cardPaused
                         : "";
                 const statusClass =
-                  statusVariant === "attention"
+                  highlightVariant === "attention"
                     ? styles.statusAttention
-                    : statusVariant === "review"
+                    : highlightVariant === "review"
                       ? styles.statusReview
-                      : statusVariant === "paused"
+                      : highlightVariant === "paused" || highlightVariant === "disconnected"
                         ? styles.statusPaused
                         : styles.statusActive;
 
@@ -262,6 +273,11 @@ export default async function DashboardAccountsPage({
                     key={account.id}
                     className={`${styles.card}${cardVariantClass ? ` ${cardVariantClass}` : ""}`}
                   >
+                    <Link
+                      href={`/dashboard/accounts/${encodeURIComponent(account.stripeAccountId)}`}
+                      className={styles.cardLink}
+                      aria-label={`Open details for ${accountDisplayName(account.name)}`}
+                    >
                     <div className={styles.cardMain}>
                       <div className={styles.cardTitleRow}>
                         <div className={styles.cardTitle}>
@@ -290,6 +306,7 @@ export default async function DashboardAccountsPage({
                         <div className={styles.cardSignal}>{alertLabel(topAlert.type)}</div>
                       ) : null}
                     </div>
+                    </Link>
 
                     <div className={styles.cardActions}>
                       <Link
@@ -298,6 +315,12 @@ export default async function DashboardAccountsPage({
                       >
                         View details
                       </Link>
+                      {isManagedStatus(account.status) ? (
+                        <AccountStatusActions
+                          stripeAccountId={account.stripeAccountId}
+                          status={account.status}
+                        />
+                      ) : null}
                     </div>
                   </article>
                 );

@@ -87,7 +87,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </h1>
             <p>Sign in with your work account to open your dashboard and review alerts.</p>
             <div className={styles.trustLine}>
-              <span>Read-only access.</span>
+              <span>Read-only monitoring.</span>
               <span>No money movement.</span>
               <span>Secure OAuth.</span>
             </div>

@@ -40,6 +40,8 @@ export default function RenameAccountControl({
         onClick={() => setIsEditing((value) => !value)}
         aria-expanded={isEditing}
         aria-controls="rename-account-form"
+        aria-label="Edit account name"
+        title="Edit account name"
       >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path
@@ -47,7 +49,6 @@ export default function RenameAccountControl({
             d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25Zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58ZM20.71 7.04a1.004 1.004 0 0 0 0-1.42L18.37 3.29a1.004 1.004 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.83Z"
           />
         </svg>
-        Edit
       </button>
 
       {isEditing ? (

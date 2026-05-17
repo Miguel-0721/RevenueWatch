@@ -6,6 +6,7 @@ import { getAlertSensitivityConfig } from "@/lib/alert-sensitivity";
 import { formatMoneyAmount, normalizeCurrencyCode } from "@/lib/currency";
 import { getDemoAccountById, getDemoAlertHistory, getDemoSeverity } from "@/lib/demoData";
 import { prisma } from "@/lib/prisma";
+import { AccountStatusActions } from "../AccountStatusActions";
 import RenameAccountControl from "./RenameAccountControl";
 import styles from "./page.module.css";
 
@@ -339,7 +340,7 @@ function alertLabel(type: string) {
 function getSeverityLabel(severity?: string) {
   if (severity === "critical") return "High severity";
   if (severity === "warning") return "Review needed";
-  return "Monitoring active";
+  return "Monitoring";
 }
 
 function getSeverityPresentation(severity?: string) {
@@ -1186,10 +1187,11 @@ function FailureChart({
           </>
         ) : null}
 
-        <div className={styles.failureBars} aria-label="Failed payments over the current period">
+          <div className={styles.failureBars} aria-label="Failed payments over the current period">
           {barLayouts.map(({ point, leftPercent, widthPercent }) => {
             const isActive = point.index === model.activeIndex;
-            const height = Math.max(8, (point.failures / maxValue) * 100);
+            const height =
+              point.failures <= 0 ? 0 : Math.max(8, (point.failures / maxValue) * 100);
             const isAboveThreshold = point.failures >= model.threshold;
             const barClassName =
               isActive && isAboveThreshold
@@ -1451,8 +1453,14 @@ function HealthyMonitoringPanel({
 
 function MonitoringPlaceholderChart({
   labels,
+  title = "Building baseline",
+  body = "Parveil is collecting activity for this account. Revenue history will appear here after enough similar periods are available.",
+  ariaLabel = "Monitoring chart placeholder while Parveil builds history",
 }: {
   labels: string[];
+  title?: string;
+  body?: string;
+  ariaLabel?: string;
 }) {
   const width = 1000;
   const height = 300;
@@ -1471,18 +1479,15 @@ function MonitoringPlaceholderChart({
     <>
       <div className={styles.chartWrap}>
         <div className={styles.monitoringChartEmptyState}>
-          <strong>Building baseline</strong>
-          <p>
-            Parveil is collecting activity for this account. Revenue history will
-            appear here after enough similar periods are available.
-          </p>
+          <strong>{title}</strong>
+          <p>{body}</p>
         </div>
         <svg
           viewBox={`0 0 ${width} ${height}`}
           preserveAspectRatio="none"
           className={styles.chartSvg}
           role="img"
-          aria-label="Monitoring chart placeholder while Parveil builds history"
+          aria-label={ariaLabel}
         >
           {yGuideFractions.map((fraction, index) => {
             const y = plot.bottom - (plot.bottom - plot.top) * fraction;
@@ -1525,10 +1530,13 @@ function MonitoringPlaceholderChart({
 
 function HealthyRevenueMonitor({
   state,
+  isImportingHistory,
 }: {
   state: HealthyRevenueMonitoringState;
+  isImportingHistory: boolean;
 }) {
   const monitoring = getMonitoringPresentation();
+  const cardStatusLabel = isImportingHistory ? "Importing" : monitoring.label;
 
   return (
     <section className={`${styles.chartCard} ${styles.healthyChartCard}`}>
@@ -1550,25 +1558,39 @@ function HealthyRevenueMonitor({
                   boxShadow: `0 0 0 6px ${monitoring.accentShadow}`,
                 }}
               />
-              {monitoring.label}
+              {cardStatusLabel}
             </span>
           </div>
 
-          {state.model ? (
+          {isImportingHistory ? (
+            <MonitoringPlaceholderChart
+              labels={state.placeholderLabels}
+              title="Importing history"
+              body="Revenue history will appear here after recent Stripe activity finishes importing."
+              ariaLabel="Monitoring chart placeholder while Parveil imports recent Stripe activity"
+            />
+          ) : state.model ? (
             <RevenueChartFigure
               model={state.model}
               severity={monitoring}
               thresholdDisplayMode="review-only"
             />
           ) : (
-            <MonitoringPlaceholderChart labels={state.placeholderLabels} />
+            <MonitoringPlaceholderChart
+              labels={state.placeholderLabels}
+              title="Building baseline"
+              body="Revenue history will appear here after enough similar periods are available."
+              ariaLabel="Monitoring chart placeholder while Parveil builds history"
+            />
           )}
         </div>
 
         <HealthyMonitoringPanel
           title="Revenue monitoring"
           description={
-            state.hasEnoughHistory
+            isImportingHistory
+              ? "Parveil is importing recent Stripe activity. Revenue monitoring becomes more reliable as history finishes loading."
+              : state.hasEnoughHistory
               ? "Parveil compares this account against similar recent time periods and confirms revenue is safely above the alert threshold."
               : "Parveil is collecting activity for this account. Revenue-drop monitoring becomes more reliable after enough similar periods are available."
           }
@@ -1593,7 +1615,7 @@ function HealthyRevenueMonitor({
             },
             {
               label: "Status",
-              value: "Normal",
+              value: isImportingHistory ? "Importing history" : "Normal",
             },
           ]}
           contextLabel={state.hasEnoughHistory ? "Comparison basis" : undefined}
@@ -1611,10 +1633,13 @@ function HealthyRevenueMonitor({
 
 function HealthyPaymentMonitor({
   state,
+  isImportingHistory,
 }: {
   state: HealthyPaymentMonitoringState;
+  isImportingHistory: boolean;
 }) {
   const monitoring = getMonitoringPresentation();
+  const cardStatusLabel = isImportingHistory ? "Importing" : monitoring.label;
 
   return (
     <section className={`${styles.chartCard} ${styles.healthyChartCard}`}>
@@ -1636,26 +1661,37 @@ function HealthyPaymentMonitor({
                   boxShadow: `0 0 0 6px ${monitoring.accentShadow}`,
                 }}
               />
-              {monitoring.label}
+              {cardStatusLabel}
             </span>
           </div>
 
           <div className={styles.failureMiniChart}>
-            {!state.hasEnoughHistory ? (
+            {isImportingHistory ? (
+              <MonitoringPlaceholderChart
+                labels={state.model.points.map((point) => point.label)}
+                title="Importing history"
+                body="Failed-payment history will appear here after recent Stripe activity finishes importing."
+                ariaLabel="Monitoring chart placeholder while Parveil imports recent failed-payment history"
+              />
+            ) : !state.hasEnoughHistory ? (
               <div className={styles.monitoringChartNote}>{`Collecting monitoring history`}</div>
             ) : null}
-            <FailureChart
-              model={state.model}
-              severity={monitoring}
-              thresholdDisplayMode="review-only"
-            />
+            {!isImportingHistory ? (
+              <FailureChart
+                model={state.model}
+                severity={monitoring}
+                thresholdDisplayMode="review-only"
+              />
+            ) : null}
           </div>
         </div>
 
         <HealthyMonitoringPanel
           title="Payment failure monitoring"
           description={
-            state.hasEnoughHistory
+            isImportingHistory
+              ? "Parveil is importing recent Stripe activity. Recent failed-payment activity may still update while history finishes loading."
+              : state.hasEnoughHistory
               ? "Parveil compares recent failed payments to similar recent windows and confirms they remain below the alert threshold."
               : "Parveil is collecting activity for this account. Comparison history will become more useful after enough similar windows are available."
           }
@@ -1677,7 +1713,7 @@ function HealthyPaymentMonitor({
             },
             {
               label: "Status",
-              value: "Normal",
+              value: isImportingHistory ? "Importing history" : "Normal",
             },
           ]}
           contextLabel={state.hasEnoughHistory ? "Comparison basis" : undefined}
@@ -1696,14 +1732,22 @@ function HealthyPaymentMonitor({
 function HealthyMonitorCard({
   revenueState,
   paymentState,
+  isImportingHistory,
 }: {
   revenueState: HealthyRevenueMonitoringState;
   paymentState: HealthyPaymentMonitoringState;
+  isImportingHistory: boolean;
 }) {
   return (
     <div className={styles.healthyMonitorStack}>
-      <HealthyRevenueMonitor state={revenueState} />
-      <HealthyPaymentMonitor state={paymentState} />
+      <HealthyRevenueMonitor
+        state={revenueState}
+        isImportingHistory={isImportingHistory}
+      />
+      <HealthyPaymentMonitor
+        state={paymentState}
+        isImportingHistory={isImportingHistory}
+      />
     </div>
   );
 }
@@ -2052,15 +2096,23 @@ function AccountMonitor({
   paymentContext,
   healthyRevenueState,
   healthyPaymentState,
+  isImportingHistory,
 }: {
   model: RevenueChartModel;
   topAlert: AlertLike | null;
   paymentContext: PaymentFailureContext | null;
   healthyRevenueState: HealthyRevenueMonitoringState;
   healthyPaymentState: HealthyPaymentMonitoringState;
+  isImportingHistory: boolean;
 }) {
   if (!topAlert) {
-    return <HealthyMonitorCard revenueState={healthyRevenueState} paymentState={healthyPaymentState} />;
+    return (
+      <HealthyMonitorCard
+        revenueState={healthyRevenueState}
+        paymentState={healthyPaymentState}
+        isImportingHistory={isImportingHistory}
+      />
+    );
   }
 
   const severity = getSeverityPresentation(topAlert.severity);
@@ -2226,9 +2278,6 @@ export default async function AccountDetailPage({
   );
   const accountName = account?.name ?? demoAccount?.name ?? accountId;
   const detailSeverity = topAlert ? getSeverityPresentation(topAlert.severity) : null;
-  const headerStatus = detailSeverity
-    ? { label: detailSeverity.label, className: detailSeverity.statusClass }
-    : { label: "Monitoring active", className: styles.statusHealthy };
   const healthyRevenueState =
     !topAlert && account
       ? await getHealthyRevenueMonitoringState({
@@ -2312,6 +2361,19 @@ export default async function AccountDetailPage({
             hasEnoughHistory: false,
           }
         : null;
+  const isImportingHistory =
+    account?.backfillStatus === "pending" || account?.backfillStatus === "running";
+  const headerStatus = detailSeverity
+    ? { label: detailSeverity.label, className: detailSeverity.statusClass }
+    : account?.status === "paused"
+      ? { label: "Paused", className: styles.statusWarning }
+      : account?.status === "disconnected"
+        ? { label: "Disconnected", className: styles.statusCritical }
+        : isImportingHistory
+          ? { label: "Importing history", className: styles.statusHealthy }
+          : healthyRevenueState && !healthyRevenueState.hasEnoughHistory
+            ? { label: "Building baseline", className: styles.statusHealthy }
+            : { label: "Monitoring", className: styles.statusHealthy };
 
   return (
     <main className={styles.page}>
@@ -2335,9 +2397,21 @@ export default async function AccountDetailPage({
             </p>
           </div>
 
-          <div className={styles.actions}>
-            <Link href="/dashboard" className={styles.secondaryAction}>
-              Back to dashboard
+            <div className={styles.actions}>
+            {account &&
+            (account.status === "active" ||
+              account.status === "paused" ||
+              account.status === "disconnected") ? (
+              <AccountStatusActions
+                stripeAccountId={account.stripeAccountId}
+                status={account.status as "active" | "paused" | "disconnected"}
+                align="left"
+                label="Manage"
+                variant="header"
+              />
+            ) : null}
+            <Link href="/dashboard/accounts" className={styles.secondaryAction}>
+              Back to accounts
             </Link>
           </div>
         </header>
@@ -2346,6 +2420,7 @@ export default async function AccountDetailPage({
           model={chartModel}
           topAlert={topAlert}
           paymentContext={paymentContext}
+          isImportingHistory={isImportingHistory}
           healthyRevenueState={
             healthyRevenueState ?? {
               model: null,

@@ -434,7 +434,7 @@ export default function HomePage() {
               </p>
 
               <div className={styles.heroTrustLine}>
-                <span>Read-only access.</span>
+                <span>Read-only monitoring.</span>
                 <span>No money movement.</span>
                 <span>Monitoring only.</span>
               </div>
@@ -625,9 +625,9 @@ export default function HomePage() {
                 <div className={styles.darkStep}>1</div>
                 <h3>Connect with Stripe.</h3>
                 <p>
-                  Connect your Stripe account in about 30 seconds with secure,
-                  read-only OAuth access. Parveil never moves money or
-                  changes settings in your Stripe account.
+                  Connect your Stripe account in about 30 seconds with secure
+                  Stripe OAuth. Parveil only reads Stripe activity for monitoring
+                  and does not move money or change your Stripe account settings.
                 </p>
               </div>
 
@@ -641,7 +641,7 @@ export default function HomePage() {
 
                 <div>
                   <strong>Stripe connected</strong>
-                  <p>Read-only monitoring active</p>
+                  <p>Monitoring active</p>
                 </div>
               </div>
             </ScrollReveal>
@@ -731,8 +731,8 @@ export default function HomePage() {
           <ScrollReveal className={styles.centerHeading}>
             <h2>Secure, calm monitoring.</h2>
             <p>
-              Connect with Stripe securely, keep access read-only, and receive
-              clear alerts when something needs attention.
+              Connect with Stripe securely, let Parveil monitor Stripe activity,
+              and receive clear alerts when something needs attention.
             </p>
           </ScrollReveal>
 
@@ -742,11 +742,12 @@ export default function HomePage() {
                 <div className={styles.trustBentoIconWrap}>
                   <StitchIcon name="visibility" className={styles.trustIcon} />
                 </div>
-                <h3>Read-only access</h3>
+                <h3>Read-only monitoring</h3>
                 <p>
-                  Parveil connects through secure Stripe OAuth and never
-                  changes billing, payouts, or account settings. It only reads
-                  the data needed for monitoring.
+                  Parveil connects through secure Stripe OAuth and only reads
+                  the Stripe activity needed for monitoring. It does not create
+                  charges, issue refunds, move money, or change your Stripe account
+                  settings.
                 </p>
               </div>
               <div className={styles.trustShield} aria-hidden="true">
@@ -831,8 +832,9 @@ export default function HomePage() {
           </div>
 
           <ScrollReveal as="p" className={styles.pricingFootnote} delayMs={120}>
-            All plans use read-only Stripe access. Parveil never moves money
-            or changes Stripe account settings.
+            All plans use Stripe monitoring only. Parveil only reads Stripe
+            activity for monitoring and does not move money or change your
+            Stripe account settings.
           </ScrollReveal>
         </div>
       </section>
@@ -867,7 +869,7 @@ export default function HomePage() {
           <ScrollReveal className={styles.assuranceBar}>
             <div>
               <StitchIcon name="shield_lock" filled className={styles.assuranceIcon} />
-              <span>Read-Only Stripe Access</span>
+              <span>Read-Only Monitoring</span>
             </div>
             <div>
               <StitchIcon name="verified_user" filled className={styles.assuranceIcon} />

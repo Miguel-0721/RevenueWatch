@@ -59,6 +59,172 @@ Current major direction:
 - Marketing site should now focus on refinement, conversion clarity, and consistency.
 - Dashboard redesign is the next major product surface to tackle.
 
+### Updated Current State (May 17, 2026)
+
+This section supersedes older status notes where they conflict.
+
+Current branding / production state:
+- Product name is now `Parveil`.
+- Previous product name was `RevenueWatch`.
+- Live production domain is now:
+  - `https://parveil.com`
+- `www.parveil.com` redirects to `parveil.com`.
+- Google OAuth, Stripe Connect callback, Stripe webhook endpoint, and Stripe Checkout return/cancel URLs were updated to `parveil.com`.
+- Resend domain `parveil.com` is verified.
+- Current production sender branding uses:
+  - `Parveil <alerts@parveil.com>`
+
+Recent pushed branding / asset work:
+- `335aec0`
+  - Rebrand RevenueWatch to Parveil
+- `1bd4f45`
+  - Fix Parveil logo assets and email branding
+- `6a3bff6`
+  - Use full Parveil logo in alert emails
+
+Important logo/asset history:
+- Final logo assets were added to:
+  - `public/parveil-logo.png`
+  - `public/parveil-icon.png`
+- The full logo PNG had heavy transparent padding, which made the visible logo look tiny in the UI even when the element size was increased.
+- UI logo rendering had to be fixed by cropping/offsetting the padded PNG at render time rather than only increasing CSS size.
+- Email clients did not handle that crop-style approach reliably, so email branding was changed to use a tightly cropped dedicated asset:
+  - `public/parveil-logo-email.png`
+- Alert emails now use the full Parveil logo image from:
+  - `https://parveil.com/parveil-logo-email.png?v=1`
+- Earlier Gmail issues were caused by:
+  - broken/old image rendering
+  - cache behavior
+  - and the fact that the new public assets were initially untracked locally before being added and pushed
+
+Current account-management state:
+- There is now a dedicated local-only account status route:
+  - `src/app/api/stripe/account-status/route.ts`
+- Supported local status transitions:
+  - `active -> paused`
+  - `paused -> active`
+  - `active -> disconnected`
+  - `paused -> disconnected`
+- These actions:
+  - do not call Stripe
+  - do not revoke OAuth
+  - do not delete history
+  - only update local `StripeAccount.status`
+- Existing route kept for compatibility:
+  - `src/app/api/stripe/disconnect/route.ts`
+  - note: this older route is misleadingly named and only toggles active/paused
+
+Current account-management UI:
+- `/dashboard/accounts`
+  - shows `View details`
+  - shows a compact `Manage` dropdown per account row
+  - left content / account name area is clickable into account detail
+  - disconnected accounts remain hidden from the normal list
+- `/dashboard/accounts/[accountId]`
+  - also shows the same `Manage` dropdown in the header
+  - `Back to accounts` links to `/dashboard/accounts`
+  - rename control is icon-only pencil
+
+Current account status badge copy:
+- active, healthy:
+  - `Monitoring`
+- paused:
+  - `Paused`
+- disconnected:
+  - `Disconnected`
+- accounts list and account detail were aligned to the short versions above
+
+Current 90-day import / baseline UI behavior:
+- Accounts list:
+  - active + `backfillStatus === pending|running`
+    - badge: `Importing history`
+    - helper: `Importing recent Stripe activity. Parveil is building baseline history for this account.`
+  - active + `backfillStatus === failed`
+    - badge: `Monitoring`
+    - helper: `Recent activity import failed. Monitoring continues from new Stripe activity.`
+  - after completed backfill, the accounts list intentionally does **not** run heavy revenue-baseline readiness logic; it stays simple.
+- Account detail page:
+  - top badge priority:
+    - active alert severity wins first
+    - then `Paused`
+    - then `Disconnected`
+    - then `Importing history` if `backfillStatus === pending|running`
+    - then `Building baseline` if import is done but healthy revenue baseline is still insufficient
+    - then `Monitoring`
+
+Current monitoring-card import behavior on account detail:
+- Revenue monitoring:
+  - during import:
+    - card mini label: `IMPORTING`
+    - chart shows in-chart empty state:
+      - title: `Importing history`
+      - body: `Revenue history will appear here after recent Stripe activity finishes importing.`
+    - side-panel status metric:
+      - `Importing history`
+  - after import if revenue baseline still not ready:
+    - chart empty state:
+      - title: `Building baseline`
+      - body: `Revenue history will appear here after enough similar periods are available.`
+- Payment failure monitoring:
+  - during import:
+    - card mini label: `IMPORTING`
+    - chart also shows in-chart empty state:
+      - title: `Importing history`
+      - body: `Failed-payment history will appear here after recent Stripe activity finishes importing.`
+    - side-panel status metric:
+      - `Importing history`
+  - after import:
+    - returns to normal chart behavior
+
+Important monitoring-chart fix:
+- Payment failure charts previously made `0` look like real activity because:
+  - TSX used `Math.max(8, ...)` for bar height
+  - CSS used `min-height: 6px`
+- This was fixed so zero failed-payment values no longer render as meaningful visible bars.
+- Rule going forward:
+  - do not make `0` look like `1`
+  - do not invent fake failure activity
+
+Important interpretation note:
+- It is expected that:
+  - revenue monitoring can still be `Building baseline`
+  - while payment failure monitoring can already show useful bars / `Normal`
+- Reason:
+  - revenue baseline readiness is stricter and needs enough matching historical successful-payment periods
+  - payment failure monitoring can become useful sooner from available `StripeEvent` history
+
+Read-only wording / OAuth accuracy note:
+- Very important nuance:
+  - connected-account monitoring behavior is effectively monitoring-only / read-only in practice
+  - but Stripe Connect OAuth currently requests:
+    - `scope=read_write`
+    - in `src/app/api/stripe/connect/route.ts`
+- Because of that, public copy should avoid implying that Stripe only granted read-only OAuth permissions.
+- Safe wording:
+  - `Read-only monitoring`
+  - `Monitoring only`
+  - `Parveil only reads Stripe activity for monitoring.`
+  - `Parveil does not create charges, issue refunds, move money, or change your Stripe account settings.`
+- Risky wording to avoid:
+  - `read-only access`
+  - `read-only OAuth access`
+  - `read-only Stripe access`
+  - `no risk`
+
+Latest copy cleanup made for OAuth wording accuracy:
+- Homepage and login page copy was softened from `read-only access` language to `read-only monitoring` / `monitoring only`.
+- Public wording now aims to describe actual behavior without claiming Stripe only granted a read-only permission scope.
+- Privacy / Terms / Contact copy that described the product as a read-only monitoring tool was left in place because it describes behavior, not the OAuth grant wording itself.
+
+Current local unpushed state at time of this memory refresh:
+- There are local, uncommitted UI/copy refinements after the last pushes.
+- This includes:
+  - account management UI polish
+  - import/baseline label cleanup
+  - healthy monitoring card import-state behavior
+  - OAuth wording cleanup on homepage/login
+- Do not assume the worktree is clean without checking `git status`.
+
 ---
 
 ## Product Summary
