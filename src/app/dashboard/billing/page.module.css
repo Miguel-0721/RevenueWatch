@@ -361,6 +361,13 @@
   margin-top: 18px;
 }
 
+.taxNote {
+  margin: 18px 4px 0;
+  color: #717786;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .upgradeButtonDisabled {
   background: #eef0f2;
   color: #717786;

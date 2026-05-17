@@ -834,7 +834,7 @@ export default function HomePage() {
           <ScrollReveal as="p" className={styles.pricingFootnote} delayMs={120}>
             All plans use Stripe monitoring only. Parveil only reads Stripe
             activity for monitoring and does not move money or change your
-            Stripe account settings.
+            Stripe account settings. Prices exclude VAT and applicable taxes.
           </ScrollReveal>
         </div>
       </section>

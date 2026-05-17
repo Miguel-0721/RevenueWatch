@@ -37,14 +37,14 @@ export async function GET() {
   const stripeCustomerId = user[field] ?? user.stripeCustomerId;
 
   if (!stripeCustomerId) {
-    return NextResponse.redirect(new URL("/billing?billing=no_profile", appUrl));
+    return NextResponse.redirect(new URL("/dashboard/billing?billing=no_profile", appUrl));
   }
 
   try {
     const customer = await stripe.customers.retrieve(stripeCustomerId);
 
     if ("deleted" in customer && customer.deleted) {
-      return NextResponse.redirect(new URL("/billing?billing=no_profile", appUrl));
+      return NextResponse.redirect(new URL("/dashboard/billing?billing=no_profile", appUrl));
     }
 
     const portalSession = await stripe.billingPortal.sessions.create({
@@ -55,9 +55,9 @@ export async function GET() {
     return NextResponse.redirect(portalSession.url);
   } catch (error) {
     if (isMissingCustomerError(error)) {
-      return NextResponse.redirect(new URL("/billing?billing=no_profile", appUrl));
+      return NextResponse.redirect(new URL("/dashboard/billing?billing=no_profile", appUrl));
     }
 
-    return NextResponse.redirect(new URL("/billing?billing=customer_error", appUrl));
+    return NextResponse.redirect(new URL("/dashboard/billing?billing=customer_error", appUrl));
   }
 }

@@ -11,7 +11,7 @@ import Stripe from "stripe";
 const GROWTH_LIMIT = 10;
 
 function redirectToBilling(appUrl: string, search: string) {
-  return NextResponse.redirect(new URL(`/billing${search}`, appUrl), {
+  return NextResponse.redirect(new URL(`/dashboard/billing${search}`, appUrl), {
     status: 303,
   });
 }

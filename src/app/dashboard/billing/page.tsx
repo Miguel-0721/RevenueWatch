@@ -29,6 +29,7 @@ const upgradePlans = [
     ],
     upgradeCta: "Upgrade to Growth",
     downgradeCta: "Downgrade to Growth",
+    featured: true,
   },
   {
     key: "PRO" as const,
@@ -40,7 +41,6 @@ const upgradePlans = [
       "Upgrade to monitor more Stripe accounts.",
     ],
     upgradeCta: "Upgrade to Pro",
-    featured: true,
   },
 ];
 
@@ -266,7 +266,7 @@ export default async function DashboardBillingPage({ searchParams }: BillingPage
             </p>
             <Link
               href="/api/billing/portal"
-              className={`${styles.upgradeButton} ${styles.portalButton}`}
+              className={`${styles.upgradeButton} ${styles.upgradeButtonSecondary} ${styles.portalButton}`}
             >
               Open billing portal
             </Link>
@@ -359,7 +359,7 @@ export default async function DashboardBillingPage({ searchParams }: BillingPage
                   ) : canUpgradeToPlan ? (
                     <Link
                       href={plan.upgradeHref}
-                      className={`${styles.upgradeButton} ${styles.upgradeButtonPrimary}`}
+                      className={`${styles.upgradeButton} ${plan.key === "GROWTH" ? styles.upgradeButtonPrimary : styles.upgradeButtonSecondary}`}
                     >
                       {plan.upgradeCta}
                     </Link>
@@ -371,6 +371,8 @@ export default async function DashboardBillingPage({ searchParams }: BillingPage
             );
           })}
         </div>
+
+        <p className={styles.taxNote}>Prices exclude VAT and applicable taxes.</p>
       </section>
 
       <p className={styles.trustLine}>

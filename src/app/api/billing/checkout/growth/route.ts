@@ -38,7 +38,7 @@ export async function GET() {
   }
 
   if (!user.email) {
-    return NextResponse.redirect(new URL("/billing?reason=missing_email", appUrl));
+    return NextResponse.redirect(new URL("/dashboard/billing?reason=missing_email", appUrl));
   }
 
   let stripeCustomerId: string;
@@ -46,7 +46,7 @@ export async function GET() {
   try {
     stripeCustomerId = await resolveCheckoutCustomerId(user);
   } catch {
-    return NextResponse.redirect(new URL("/billing?billing=customer_error", appUrl));
+    return NextResponse.redirect(new URL("/dashboard/billing?billing=customer_error", appUrl));
   }
 
   if (await customerHasManagedSubscription(stripeCustomerId)) {
@@ -70,7 +70,7 @@ export async function GET() {
       },
     ],
     success_url: `${appUrl}/dashboard?billing=success`,
-    cancel_url: `${appUrl}/billing?billing=cancelled`,
+    cancel_url: `${appUrl}/dashboard/billing?billing=cancelled`,
     metadata: {
       userId: user.id,
       plan: "growth",

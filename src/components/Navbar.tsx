@@ -66,7 +66,7 @@ export default async function Navbar({
               </summary>
 
               <div className="rw-user-dropdown">
-                <Link href="/billing" className="rw-user-dropdown-link">
+                <Link href="/dashboard/billing" className="rw-user-dropdown-link">
                   Billing
                 </Link>
                 <form
