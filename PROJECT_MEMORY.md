@@ -85,6 +85,16 @@ Recent pushed branding / asset work:
   - Refine account monitoring states and copy
 - `51ac0d3`
   - Enable Stripe Tax on subscription checkout
+- `9be032a`
+  - Unify billing routes and pricing UI
+- `e677368`
+  - Redirect alerts to dashboard experience
+- `f699b87`
+  - Refine billing recommendation and root app redirect
+- `c1bf644`
+  - Polish public navbar and sidebar footer
+- `9d34b91`
+  - Polish public nav and favicon assets
 
 Important logo/asset history:
 - Final logo assets were added to:
@@ -123,6 +133,166 @@ Important wording nuance:
 - and avoid misleading claims like:
   - `Read-only access`
   - `read-only OAuth access`
+
+### Canonical Authenticated App Routing / Navigation State (May 18, 2026)
+
+Authenticated product experience should now be treated as dashboard-only.
+
+Canonical authenticated routes:
+- `/dashboard`
+- `/dashboard/alerts`
+- `/dashboard/accounts`
+- `/dashboard/billing`
+
+Old standalone authenticated routes were intentionally cleaned up:
+- `/alerts`
+  - redirects to `/dashboard/alerts`
+- `/billing`
+  - redirects to `/dashboard/billing`
+
+Root route behavior:
+- logged-out users:
+  - `/` shows the public marketing homepage
+- logged-in users:
+  - `/` redirects to `/dashboard`
+
+Important rule:
+- do not revive the older centered top-nav authenticated app experience
+- dashboard/app navigation belongs in the dashboard sidebar shell, not in the public/legal top navbar
+
+Current dashboard sidebar/footer additions:
+- subtle footer links were added in the sidebar user area:
+  - `Privacy`
+  - `Terms`
+  - `Contact`
+- these are intentionally footer-style links, not main app navigation items
+
+### Billing Page / Pricing UI State (May 18, 2026)
+
+Canonical billing page:
+- `/dashboard/billing`
+
+Recommendation badge logic on the billing page:
+- current plan `FREE`
+  - `Growth` shows `Recommended for you`
+- current plan `GROWTH`
+  - no recommended badge
+- current plan `PRO`
+  - no recommended badge anywhere
+
+Important rule:
+- never show `Recommended for you` on a lower-tier plan than the user’s current plan
+- specifically, never show `Growth` as recommended when the current plan is `Pro`
+
+Current billing-page button hierarchy:
+- `Upgrade to Growth`
+  - primary blue button
+- `Upgrade to Pro`
+  - secondary / outline button
+- `Open billing portal`
+  - secondary / outline button
+
+Current pricing tax copy:
+- billing page includes:
+  - `Prices exclude VAT and applicable taxes.`
+- homepage pricing footnote was also updated to reflect VAT/tax exclusion
+
+### Public / Legal / Login Navbar State (May 18, 2026)
+
+Current public/legal pages using the public navbar pattern:
+- `/`
+- `/login`
+- `/privacy`
+- `/terms`
+- `/contact`
+
+Logged-out public navbar:
+- center links:
+  - `How it Works` -> `/#how-it-works`
+  - `Pricing` -> `/#pricing`
+  - `Contact` -> `/contact`
+- right side:
+  - `Sign in` -> `/login`
+  - `Get started` -> `/login`
+
+Logged-in navbar on public/legal pages:
+- left:
+  - Parveil logo
+- center:
+  - no nav links
+- right:
+  - `Dashboard` button -> `/dashboard`
+  - user menu
+
+Important route safety rule:
+- logged-in users must NOT see homepage anchor links like:
+  - `/#how-it-works`
+  - `/#pricing`
+- reason:
+  - logged-in `/` redirects to `/dashboard`
+  - homepage anchor links would otherwise land users in the wrong place
+
+Login-page-specific navbar behavior:
+- `/login` intentionally hides the top-right `Sign in` and `Get started` actions
+- the only sign-in action on the page should be the main `Continue with Google` button in the login card
+- navbar layout on `/login` still keeps a stable 3-column structure via a hidden right-side placeholder so the centered public links do not visually jump compared with the homepage
+
+Public/legal page spacing + nav styling:
+- `/privacy`, `/terms`, and `/contact` top whitespace was reduced so titles start higher on the page
+- the old heavy active underline behavior in the top app nav was removed for public/legal surfaces
+- public/legal nav links now use calmer hover/active treatment
+
+### Homepage Pricing Anchor / Section Polish (May 18, 2026)
+
+Homepage pricing jump-link behavior was tightened up.
+
+Current anchor behavior:
+- `#pricing` uses a custom `scroll-margin-top` so the section lands higher than before
+
+Current spacing polish in the Pricing section:
+- reduced top padding in the section
+- reduced the gap between the pricing subtitle and the pricing cards
+- slightly tightened the heading-to-subtitle stack within the pricing section
+
+Important goal:
+- after clicking `Pricing`, users should comfortably see:
+  - pricing heading
+  - pricing subtitle
+  - pricing cards
+  - card CTA buttons
+
+This was a presentation-only fix:
+- no pricing values changed
+- no billing logic changed
+- no Stripe price IDs changed
+
+### Favicon / App Icon State (May 18, 2026)
+
+Parveil now uses dedicated App Router icon assets instead of the default framework tab icon.
+
+Current icon files used by the app:
+- `src/app/favicon.ico`
+- `src/app/icon.png`
+- `src/app/apple-icon.png`
+- `src/app/manifest.ts`
+
+Current metadata setup:
+- `src/app/layout.tsx` explicitly points metadata icons to:
+  - `/icon.png`
+  - `/apple-icon.png`
+
+Current favicon source of truth:
+- `public/parveil-favicon.png`
+
+Important favicon lesson:
+- favicon/source assets must be tightly cropped around the shield mark
+- too much transparent or white padding makes the favicon look tiny/blurry in browser tabs
+- favicon-specific assets should use the Parveil shield mark only, not the full wordmark
+
+Current intended favicon behavior:
+- browser tab icon shows the Parveil shield clearly
+- Apple/mobile icon uses the same simplified icon family
+- Google search favicon updates may still lag due to normal recrawl delay
 
 Current account-management state:
 - There is now a dedicated local-only account status route:
