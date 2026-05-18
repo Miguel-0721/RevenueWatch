@@ -78,7 +78,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
   return (
     <div className={styles.page}>
-      <Navbar mode="marketing" ctaHref="/#pricing" />
+      <Navbar mode="marketing" hideCta />
       <main className={styles.main}>
         <section className={styles.heroShell}>
           <div className={styles.copy}>

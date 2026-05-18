@@ -4,9 +4,12 @@
 }
 
 #how-it-works,
-#pricing,
 #support {
   scroll-margin-top: 110px;
+}
+
+#pricing {
+  scroll-margin-top: 28px;
 }
 
 .shell {
@@ -1341,9 +1344,13 @@
 }
 
 .pricingSection {
-  padding: 68px 0;
+  padding: 40px 0 56px;
   background: var(--surface);
   border-top: 1px solid rgba(193, 198, 215, 0.1);
+}
+
+.pricingSection .centerHeading h2 {
+  margin-bottom: 10px;
 }
 
 .pricingSection .centerHeading p {
@@ -1355,7 +1362,7 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 26px;
   max-width: 62rem;
-  margin: 44px auto 0;
+  margin: 20px auto 0;
 }
 
 .pricingCard {

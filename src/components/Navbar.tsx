@@ -26,7 +26,11 @@ function getDisplayName(name?: string | null, email?: string | null) {
   return email?.split("@")[0] || "Account";
 }
 
-function MarketingNavLinks() {
+function MarketingNavLinks({ loggedIn = false }: { loggedIn?: boolean }) {
+  if (loggedIn) {
+    return null;
+  }
+
   return (
     <nav className="rw-nav-links" aria-label="Primary">
       <Link href="/#how-it-works" className="rw-nav-link">
@@ -35,8 +39,8 @@ function MarketingNavLinks() {
       <Link href="/#pricing" className="rw-nav-link">
         Pricing
       </Link>
-      <Link href="/#support" className="rw-nav-link">
-        Support
+      <Link href="/contact" className="rw-nav-link">
+        Contact
       </Link>
     </nav>
   );
@@ -125,7 +129,7 @@ export default async function Navbar({
       <div className="rw-shell rw-topbar-inner">
         <Brand />
 
-        <MarketingNavLinks />
+        <MarketingNavLinks loggedIn={Boolean(session?.user)} />
 
         {session?.user ? (
           <div className="rw-auth-area rw-auth-area-marketing">
@@ -139,7 +143,12 @@ export default async function Navbar({
               email={session.user.email}
             />
           </div>
-        ) : hideCta ? null : (
+        ) : hideCta ? (
+          <div
+            className="rw-auth-area rw-auth-area-marketing rw-auth-area-placeholder"
+            aria-hidden="true"
+          />
+        ) : (
           <div className="rw-auth-area rw-auth-area-marketing">
             <Link href="/login" className="rw-text-action">
               Sign in

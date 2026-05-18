@@ -236,6 +236,12 @@ img {
   flex-shrink: 0;
 }
 
+.rw-auth-area-placeholder {
+  min-width: 182px;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .rw-app-nav {
   display: flex;
   align-items: center;
