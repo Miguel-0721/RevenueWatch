@@ -10,6 +10,51 @@ function formatStatus(value: string) {
   return value.replace(/_/g, " ");
 }
 
+function buildSearchHref(baseUrl: string, query: string) {
+  return `${baseUrl}${encodeURIComponent(query)}`;
+}
+
+function getMissingProfileCopy(source: string) {
+  if (source === "product_hunt") {
+    return "Not found from the Product Hunt API. The public Product Hunt page may still show a social link.";
+  }
+
+  return "Profile not available";
+}
+
+function getProfileDisplay(profileUrl: string | null) {
+  if (!profileUrl) return null;
+
+  try {
+    const parsed = new URL(profileUrl);
+    const host = parsed.hostname.toLowerCase();
+
+    if (host === "x.com" || host === "www.x.com" || host === "twitter.com" || host === "www.twitter.com") {
+      return {
+        label: "X profile",
+        action: "Open X profile",
+      };
+    }
+
+    if (host === "producthunt.com" || host === "www.producthunt.com") {
+      return {
+        label: "Product Hunt profile",
+        action: "Open Product Hunt profile",
+      };
+    }
+  } catch {
+    return {
+      label: "Profile",
+      action: "Open profile",
+    };
+  }
+
+  return {
+    label: "Profile",
+    action: "Open profile",
+  };
+}
+
 export default async function LeadDetailPage({
   params,
 }: {
@@ -24,6 +69,15 @@ export default async function LeadDetailPage({
   if (!lead) {
     notFound();
   }
+
+  const productLabel = lead.productName || lead.name;
+  const xSearchHref = buildSearchHref("https://x.com/search?q=", `${productLabel} founder`);
+  const googleSearchHref = buildSearchHref(
+    "https://www.google.com/search?q=",
+    `${productLabel} Product Hunt founder`
+  );
+  const missingProfileCopy = getMissingProfileCopy(lead.source);
+  const profileDisplay = getProfileDisplay(lead.profileUrl);
 
   return (
     <section className={styles.shell}>
@@ -56,16 +110,51 @@ export default async function LeadDetailPage({
           <dl className={styles.detailList}>
             <div>
               <dt>Handle</dt>
-              <dd>{lead.handle || "Unknown"}</dd>
+              <dd>{lead.handle || <span className={styles.inlineMuted}>{missingProfileCopy}</span>}</dd>
             </div>
             <div>
               <dt>Website</dt>
-              <dd>{lead.website ? <a href={lead.website} target="_blank" rel="noreferrer">Open website</a> : "None"}</dd>
+              <dd>
+                {lead.website ? (
+                  <a href={lead.website} target="_blank" rel="noreferrer">
+                    Open website
+                  </a>
+                ) : (
+                  <span className={styles.inlineMuted}>Not available</span>
+                )}
+              </dd>
             </div>
-            <div>
-              <dt>Profile</dt>
-              <dd>{lead.profileUrl ? <a href={lead.profileUrl} target="_blank" rel="noreferrer">Open profile</a> : "None"}</dd>
-            </div>
+            {profileDisplay?.label === "Product Hunt profile" ? (
+              <div>
+                <dt>Product Hunt profile</dt>
+                <dd>
+                  <a href={lead.profileUrl!} target="_blank" rel="noreferrer">
+                    Open Product Hunt profile
+                  </a>
+                </dd>
+              </div>
+            ) : (
+              <div>
+                <dt>X profile</dt>
+                <dd>
+                  {profileDisplay ? (
+                    <a href={lead.profileUrl!} target="_blank" rel="noreferrer">
+                      {profileDisplay.action}
+                    </a>
+                  ) : (
+                    <div className={styles.linkCluster}>
+                      <span className={styles.inlineMuted}>{missingProfileCopy}</span>
+                      <a href={xSearchHref} target="_blank" rel="noreferrer">
+                        Search X
+                      </a>
+                      <a href={googleSearchHref} target="_blank" rel="noreferrer">
+                        Search Google
+                      </a>
+                    </div>
+                  )}
+                </dd>
+              </div>
+            )}
             <div>
               <dt>Source</dt>
               <dd>{lead.sourceUrl ? <a href={lead.sourceUrl} target="_blank" rel="noreferrer">Open source</a> : formatStatus(lead.source)}</dd>

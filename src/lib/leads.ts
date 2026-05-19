@@ -123,14 +123,90 @@ function normalizeUrl(value?: string | null) {
   return `https://${trimmed}`;
 }
 
+function isProductHuntRedacted(value?: string | null) {
+  return !value || value.trim().toUpperCase() === "[REDACTED]";
+}
+
 function normalizeHandle(handle?: string | null) {
   if (!handle) return null;
   const cleaned = handle.trim().replace(/^@+/, "");
-  return cleaned || null;
+  if (!cleaned || cleaned.toUpperCase() === "[REDACTED]") return null;
+  return cleaned;
 }
 
 function compactText(value?: string | null) {
   return value?.trim() || "";
+}
+
+function sanitizeLeadIdentity(value?: string | null) {
+  const trimmed = value?.trim() || "";
+  if (!trimmed || trimmed.toUpperCase() === "[REDACTED]") {
+    return null;
+  }
+  return trimmed;
+}
+
+function isXProfileUrl(url?: string | null) {
+  if (!url) return false;
+
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    return host === "x.com" || host === "www.x.com" || host === "twitter.com" || host === "www.twitter.com";
+  } catch {
+    return false;
+  }
+}
+
+function extractHandleFromXUrl(url?: string | null) {
+  if (!url || !isXProfileUrl(url)) return null;
+
+  try {
+    const parsed = new URL(url);
+    const [firstSegment] = parsed.pathname.split("/").filter(Boolean);
+    if (!firstSegment) return null;
+
+    const reservedSegments = new Set([
+      "home",
+      "explore",
+      "search",
+      "intent",
+      "share",
+      "i",
+      "settings",
+      "messages",
+      "notifications",
+    ]);
+
+    if (reservedSegments.has(firstSegment.toLowerCase())) {
+      return null;
+    }
+
+    return normalizeHandle(firstSegment);
+  } catch {
+    return null;
+  }
+}
+
+function extractProductHuntXUrl(productLinks: any) {
+  const links = Array.isArray(productLinks) ? productLinks : [];
+
+  for (const link of links) {
+    const rawUrl = normalizeUrl(
+      typeof link?.url === "string"
+        ? link.url
+        : typeof link?.website === "string"
+          ? link.website
+          : null
+    );
+    const type = typeof link?.type === "string" ? link.type.toLowerCase() : "";
+
+    if (!rawUrl) continue;
+    if (isXProfileUrl(rawUrl)) return rawUrl;
+    if (type.includes("twitter") || type === "x") return rawUrl;
+  }
+
+  return null;
 }
 
 function includesAny(haystack: string, needles: string[]) {
@@ -331,6 +407,18 @@ function collectTopics(node: any) {
     .join(", ");
 }
 
+function formatProductHuntGraphQLErrors(errors: any[]) {
+  const messages = errors
+    .map((entry) => {
+      const message = entry?.message ?? "Unknown GraphQL error";
+      const path = Array.isArray(entry?.path) ? ` (path: ${entry.path.join(".")})` : "";
+      return `${message}${path}`;
+    })
+    .filter(Boolean);
+
+  return messages.join(" | ") || "Product Hunt scan failed.";
+}
+
 export async function discoverProductHuntLeads(): Promise<DiscoveryResult> {
   if (!process.env.PRODUCT_HUNT_API_TOKEN) {
     return {
@@ -353,6 +441,10 @@ export async function discoverProductHuntLeads(): Promise<DiscoveryResult> {
             url
             website
             createdAt
+            productLinks {
+              type
+              url
+            }
             topics {
               edges {
                 node {
@@ -361,13 +453,10 @@ export async function discoverProductHuntLeads(): Promise<DiscoveryResult> {
               }
             }
             makers {
-              edges {
-                node {
-                  name
-                  username
-                  websiteUrl
-                }
-              }
+              name
+              username
+              websiteUrl
+              twitterUsername
             }
           }
         }
@@ -400,7 +489,7 @@ export async function discoverProductHuntLeads(): Promise<DiscoveryResult> {
     if (payload.errors?.length) {
       return {
         ok: false,
-        error: payload.errors[0]?.message ?? "Product Hunt scan failed.",
+        error: formatProductHuntGraphQLErrors(payload.errors),
         candidates: [],
       };
     }
@@ -409,12 +498,28 @@ export async function discoverProductHuntLeads(): Promise<DiscoveryResult> {
     const candidates = await Promise.all(
       edges.map(async (edge: any) => {
         const node = edge?.node;
-        const maker = node?.makers?.edges?.[0]?.node;
+        const maker = Array.isArray(node?.makers) ? node.makers[0] : null;
+        const productName = sanitizeLeadIdentity(node?.name) ?? "Unknown lead";
+        const makerName = sanitizeLeadIdentity(maker?.name);
+        const makerTwitterUsername = sanitizeLeadIdentity(maker?.twitterUsername);
+        const productLevelXUrl = extractProductHuntXUrl(node?.productLinks);
+        const productLevelXHandle = extractHandleFromXUrl(productLevelXUrl);
+        const makerXHandle = normalizeHandle(makerTwitterUsername);
+        const fallbackMakerProfileUrl =
+          !isProductHuntRedacted(maker?.username) && typeof maker?.username === "string"
+            ? `https://www.producthunt.com/@${maker.username.trim().replace(/^@+/, "")}`
+            : null;
+        const preferredXProfileUrl =
+          productLevelXUrl || (makerXHandle ? `https://x.com/${makerXHandle}` : null);
         const prepared = await prepareLeadCandidate({
-          name: maker?.name || node?.name || "Unknown lead",
-          handle: maker?.username ? `@${maker.username}` : null,
-          profileUrl: maker?.username ? `https://www.producthunt.com/@${maker.username}` : maker?.websiteUrl,
-          productName: node?.name ?? null,
+          name: makerName || productName,
+          handle: productLevelXHandle
+            ? `@${productLevelXHandle}`
+            : makerXHandle
+              ? `@${makerXHandle}`
+              : null,
+          profileUrl: preferredXProfileUrl || fallbackMakerProfileUrl,
+          productName,
           website: node?.website ?? null,
           source: "product_hunt",
           sourceUrl: node?.url ?? null,
