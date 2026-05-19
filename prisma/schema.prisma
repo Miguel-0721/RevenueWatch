@@ -130,3 +130,33 @@ model RevenueMetric {
   @@index([periodStart])
   @@index([dayOfWeek, hourOfDay])
 }
+
+model Lead {
+  id              String   @id @default(cuid())
+  name            String
+  handle          String?
+  profileUrl      String?
+  productName     String?
+  website         String?
+  source          String
+  sourceUrl       String?
+  location        String?
+  bio             String?
+  postText        String?  @db.Text
+  postUrl         String?
+  pricingStatus   String   @default("unknown")
+  likelyStripe    String   @default("unknown")
+  painSignals     String[]
+  score           Int      @default(0)
+  scoreReasons    String[]
+  status          String   @default("new")
+  notes           String?  @db.Text
+  suggestedReply  String?  @db.Text
+  lastContactedAt DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([source])
+  @@index([status])
+  @@index([score])
+}

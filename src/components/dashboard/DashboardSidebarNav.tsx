@@ -10,7 +10,7 @@ type NavItem = {
   icon: React.ReactNode;
 };
 
-const navItems: NavItem[] = [
+const baseNavItems: NavItem[] = [
   {
     href: "/dashboard",
     label: "Dashboard",
@@ -69,6 +69,23 @@ const navItems: NavItem[] = [
   },
 ];
 
+const leadsNavItem: NavItem = {
+  href: "/dashboard/leads",
+  label: "Leads",
+  icon: (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.sidebarNavIcon}>
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M7 7.25a2.75 2.75 0 1 1 5.5 0 2.75 2.75 0 0 1-5.5 0Zm7.75 3.25a2.25 2.25 0 1 0 0-4.5 2.25 2.25 0 0 0 0 4.5ZM4.5 18.25v-.75c0-2.07 2.9-3.25 5.25-3.25S15 15.43 15 17.5v.75m1 0v-.5c0-1.47 1.84-2.36 3.25-2.36.5 0 .98.07 1.42.2"
+      />
+    </svg>
+  ),
+};
+
 function isActivePath(pathname: string, href: string) {
   if (href === "/dashboard") {
     return pathname === "/dashboard";
@@ -77,8 +94,13 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export default function DashboardSidebarNav() {
+export default function DashboardSidebarNav({
+  showLeads = false,
+}: {
+  showLeads?: boolean;
+}) {
   const pathname = usePathname();
+  const navItems = showLeads ? [...baseNavItems, leadsNavItem] : baseNavItems;
 
   return (
     <nav className={styles.sidebarNav} aria-label="Dashboard sections">

@@ -3,6 +3,7 @@ import RevenueWatchLogo from "@/components/RevenueWatchLogo";
 import DashboardSidebarNav from "@/components/dashboard/DashboardSidebarNav";
 import DashboardViewportLock from "@/components/dashboard/DashboardViewportLock";
 import styles from "@/components/dashboard/DashboardShell.module.css";
+import { isAdminEmail } from "@/lib/admin";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -24,6 +25,7 @@ export default async function DashboardLayout({
   const sessionDisplayName = getUserDisplayName(session.user.name, session.user.email);
   const sessionInitial =
     (session.user.name?.[0] || session.user.email?.[0] || "U").toUpperCase();
+  const showLeadsNav = isAdminEmail(session.user.email);
 
   return (
     <main className={styles.dashboardPage}>
@@ -40,7 +42,7 @@ export default async function DashboardLayout({
               </Link>
             </div>
 
-            <DashboardSidebarNav />
+            <DashboardSidebarNav showLeads={showLeadsNav} />
 
             <div className={styles.sidebarUserArea}>
               <div className={styles.sidebarUserIdentity}>
