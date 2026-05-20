@@ -4,19 +4,8 @@ import { getLeadsAdminSession } from "@/lib/leads-auth";
 import { listLeads } from "@/lib/lead-store";
 import type { LeadRecord } from "@/lib/leads";
 import { LeadManualAddForm } from "./LeadManualAddForm";
-import { LeadRowActions } from "./LeadRowActions";
+import { LeadTableManager } from "./LeadTableManager";
 import styles from "./leads.module.css";
-
-function scoreLabel(score: number) {
-  if (score >= 8) return "Very strong";
-  if (score >= 6) return "Strong";
-  if (score >= 4) return "Possible fit";
-  return "Low fit";
-}
-
-function formatSource(source: string) {
-  return source.replace(/_/g, " ");
-}
 
 function formatStatus(status: string) {
   return status.replace(/_/g, " ");
@@ -70,6 +59,9 @@ export default async function LeadsPage({
         <div className={styles.headerActions}>
           <Link href="/dashboard/leads/discover" className={styles.primaryLink}>
             Discover leads
+          </Link>
+          <Link href="/dashboard/leads/post-drafts" className={styles.secondaryButton}>
+            Post drafts
           </Link>
         </div>
       </header>
@@ -186,56 +178,7 @@ export default async function LeadsPage({
             No leads match the current filters. Run discovery or add a lead manually.
           </div>
         ) : (
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Lead</th>
-                  <th>Source</th>
-                  <th>Signals</th>
-                  <th>Score</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leads.map((lead) => (
-                  <tr key={lead.id}>
-                    <td>
-                      <div className={styles.leadCell}>
-                        <Link href={`/dashboard/leads/${lead.id}`} className={styles.leadLink}>
-                          {lead.name}
-                        </Link>
-                        <span>{lead.productName || lead.handle || lead.website || "No product yet"}</span>
-                      </div>
-                    </td>
-                    <td className={styles.mutedCell}>{formatSource(lead.source)}</td>
-                    <td>
-                      <div className={styles.signalList}>
-                        {(lead.painSignals || []).slice(0, 3).map((signal) => (
-                          <span key={signal} className={styles.signalChip}>
-                            {signal.replace(/_/g, " ")}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td>
-                      <div className={styles.scoreCell}>
-                        <strong>{lead.score}/10</strong>
-                        <span>{scoreLabel(lead.score)}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <span className={styles.statusBadge}>{formatStatus(lead.status)}</span>
-                    </td>
-                    <td>
-                      <LeadRowActions lead={lead} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <LeadTableManager leads={leads} />
         )}
       </section>
     </section>

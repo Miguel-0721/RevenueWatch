@@ -315,6 +315,31 @@
   margin-bottom: 18px;
 }
 
+.bulkActionBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.bulkActionMeta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  color: #4f5b6c;
+}
+
+.bulkActionMeta strong {
+  font-size: 1rem;
+}
+
+.bulkActionMeta span {
+  color: #717786;
+  font-size: 0.83rem;
+}
+
 .tableWrap {
   overflow-x: auto;
 }
@@ -338,6 +363,16 @@
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.checkboxColumn {
+  width: 44px;
+}
+
+.checkboxColumn input {
+  width: 16px;
+  height: 16px;
+  accent-color: #0058bc;
 }
 
 .leadCell,
@@ -434,6 +469,56 @@
 .detailTextBlock h3 {
   font-size: 0.96rem;
   line-height: 1.3;
+}
+
+.hiddenFileInput {
+  display: none;
+}
+
+.screenshotDropzone {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border: 1px dashed rgba(161, 190, 253, 0.72);
+  border-radius: 16px;
+  background: #f7faff;
+  cursor: pointer;
+  transition: border-color 180ms ease, background-color 180ms ease, transform 180ms ease;
+}
+
+.screenshotDropzone:hover,
+.screenshotDropzone:focus-visible {
+  border-color: rgba(0, 88, 188, 0.72);
+  background: #eef6ff;
+  transform: translateY(-1px);
+}
+
+.screenshotDropzone strong {
+  color: #1b2738;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.screenshotDropzone span {
+  color: #5d6675;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.screenshotPreviewCard {
+  padding: 10px;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid rgba(193, 198, 215, 0.3);
+}
+
+.screenshotPreview {
+  display: block;
+  width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+  border-radius: 12px;
+  background: #f7f9fc;
 }
 
 @media (max-width: 1100px) {

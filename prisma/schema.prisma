@@ -160,3 +160,19 @@ model Lead {
   @@index([status])
   @@index([score])
 }
+
+model PostDraft {
+  id              String   @id @default(cuid())
+  title           String
+  postType        String
+  postText        String?  @db.Text
+  screenshotUrl   String?
+  screenshotNotes String?  @db.Text
+  status          String   @default("draft")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([postType])
+  @@index([status])
+  @@index([updatedAt])
+}

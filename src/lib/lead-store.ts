@@ -65,32 +65,68 @@ export async function findLeadById(id: string) {
 }
 
 export async function findDuplicateLead(candidate: LeadCandidate) {
-  const values = [
-    candidate.profileUrl,
-    candidate.postUrl,
-    candidate.sourceUrl,
-    candidate.website,
-  ].filter(Boolean) as string[];
+  if (candidate.sourceUrl) {
+    const sourceRows = await prisma.$queryRaw<LeadRecord[]>(Prisma.sql`
+      SELECT *
+      FROM "Lead"
+      WHERE "sourceUrl" = ${candidate.sourceUrl}
+      ORDER BY "updatedAt" DESC
+      LIMIT 1
+    `);
 
-  if (values.length === 0) {
-    return null;
+    if (sourceRows[0]) {
+      return sourceRows[0];
+    }
   }
 
-  const uniqueValues = [...new Set(values)];
+  const secondaryValues = [candidate.profileUrl, candidate.postUrl, candidate.website]
+    .filter(Boolean) as string[];
+  const uniqueSecondaryValues = [...new Set(secondaryValues)];
 
-  const rows = await prisma.$queryRaw<LeadRecord[]>(Prisma.sql`
-    SELECT *
-    FROM "Lead"
-    WHERE
-      "profileUrl" IN (${Prisma.join(uniqueValues)}) OR
-      "postUrl" IN (${Prisma.join(uniqueValues)}) OR
-      "sourceUrl" IN (${Prisma.join(uniqueValues)}) OR
-      "website" IN (${Prisma.join(uniqueValues)})
-    ORDER BY "updatedAt" DESC
-    LIMIT 1
-  `);
+  if (uniqueSecondaryValues.length > 0) {
+    const fallbackRows = await prisma.$queryRaw<LeadRecord[]>(Prisma.sql`
+      SELECT *
+      FROM "Lead"
+      WHERE
+        "profileUrl" IN (${Prisma.join(uniqueSecondaryValues)}) OR
+        "postUrl" IN (${Prisma.join(uniqueSecondaryValues)}) OR
+        "website" IN (${Prisma.join(uniqueSecondaryValues)})
+      ORDER BY "updatedAt" DESC
+      LIMIT 1
+    `);
 
-  return rows[0] ?? null;
+    if (fallbackRows[0]) {
+      return fallbackRows[0];
+    }
+  }
+
+  if (candidate.website && candidate.productName) {
+    const productRows = await prisma.$queryRaw<LeadRecord[]>(Prisma.sql`
+      SELECT *
+      FROM "Lead"
+      WHERE "website" = ${candidate.website} AND "productName" = ${candidate.productName}
+      ORDER BY "updatedAt" DESC
+      LIMIT 1
+    `);
+
+    if (productRows[0]) {
+      return productRows[0];
+    }
+  }
+
+  if (candidate.productName) {
+    const nameRows = await prisma.$queryRaw<LeadRecord[]>(Prisma.sql`
+      SELECT *
+      FROM "Lead"
+      WHERE "productName" = ${candidate.productName}
+      ORDER BY "updatedAt" DESC
+      LIMIT 1
+    `);
+
+    return nameRows[0] ?? null;
+  }
+
+  return null;
 }
 
 export async function createLead(candidate: LeadCandidate) {
@@ -185,4 +221,60 @@ export async function updateLead(id: string, data: Partial<LeadCandidate>) {
   `);
 
   return rows[0] ?? null;
+}
+
+export async function deleteLeadsByIds(ids: string[]) {
+  const uniqueIds = [...new Set(ids.filter(Boolean))];
+
+  if (uniqueIds.length === 0) {
+    return 0;
+  }
+
+  const deletedRows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    DELETE FROM "Lead"
+    WHERE "id" IN (${Prisma.join(uniqueIds)})
+    RETURNING "id"
+  `);
+
+  return deletedRows.length;
+}
+
+export async function clearSkippedLeads() {
+  const deletedRows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    DELETE FROM "Lead"
+    WHERE "status" = 'skipped'
+    RETURNING "id"
+  `);
+
+  return deletedRows.length;
+}
+
+export async function clearAllLeads() {
+  const deletedRows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    DELETE FROM "Lead"
+    RETURNING "id"
+  `);
+
+  return deletedRows.length;
+}
+
+export async function listDiscoveredProductHuntLeads() {
+  return prisma.$queryRaw<LeadRecord[]>(Prisma.sql`
+    SELECT *
+    FROM "Lead"
+    WHERE "source" = 'product_hunt' AND "status" = 'new'
+    ORDER BY "score" DESC, "updatedAt" DESC
+  `);
+}
+
+export async function clearDiscoveredProductHuntLeads() {
+  const deletedRows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    DELETE FROM "Lead"
+    WHERE
+      "source" = 'product_hunt' AND
+      "status" = 'new'
+    RETURNING "id"
+  `);
+
+  return deletedRows.length;
 }

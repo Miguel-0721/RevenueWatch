@@ -107,13 +107,18 @@ type DiscoveryResult =
   | {
       ok: true;
       candidates: LeadCandidate[];
+      message?: string;
     }
   | {
       ok: false;
       missingEnv?: string[];
       error: string;
       candidates: LeadCandidate[];
+      message?: string;
     };
+
+const PRODUCT_HUNT_PAGE_SIZE = 20;
+const PRODUCT_HUNT_MAX_CANDIDATES = 100;
 
 function normalizeUrl(value?: string | null) {
   if (!value) return null;
@@ -407,6 +412,53 @@ function collectTopics(node: any) {
     .join(", ");
 }
 
+function hasPricingOrSaasKeywords(candidate: LeadCandidate) {
+  if (candidate.pricingStatus === "yes") {
+    return true;
+  }
+
+  const text = [candidate.productName, candidate.bio, candidate.postText]
+    .map((part) => compactText(part))
+    .join(" ")
+    .toLowerCase();
+
+  return includesAny(text, [
+    "pricing",
+    "subscription",
+    "subscriptions",
+    "billing",
+    "payments",
+    "saas",
+    "mrr",
+    "revenue",
+  ]);
+}
+
+function rankLeadCandidates(candidates: LeadCandidate[]) {
+  return [...candidates]
+    .map((candidate, index) => ({ candidate, index }))
+    .sort((left, right) => {
+      const scoreDiff = (right.candidate.score ?? 0) - (left.candidate.score ?? 0);
+      if (scoreDiff !== 0) return scoreDiff;
+
+      const websiteDiff =
+        Number(Boolean(right.candidate.website)) - Number(Boolean(left.candidate.website));
+      if (websiteDiff !== 0) return websiteDiff;
+
+      const profileDiff =
+        Number(Boolean(right.candidate.profileUrl)) - Number(Boolean(left.candidate.profileUrl));
+      if (profileDiff !== 0) return profileDiff;
+
+      const keywordDiff =
+        Number(hasPricingOrSaasKeywords(right.candidate)) -
+        Number(hasPricingOrSaasKeywords(left.candidate));
+      if (keywordDiff !== 0) return keywordDiff;
+
+      return left.index - right.index;
+    })
+    .map((entry) => entry.candidate);
+}
+
 function formatProductHuntGraphQLErrors(errors: any[]) {
   const messages = errors
     .map((entry) => {
@@ -417,6 +469,118 @@ function formatProductHuntGraphQLErrors(errors: any[]) {
     .filter(Boolean);
 
   return messages.join(" | ") || "Product Hunt scan failed.";
+}
+
+async function discoverProductHuntLeadsPaginated(query: string): Promise<DiscoveryResult> {
+  const collectedCandidates: LeadCandidate[] = [];
+  let afterCursor: string | null = null;
+  let hasNextPage = true;
+  let fallbackMessage: string | undefined;
+
+  while (hasNextPage && collectedCandidates.length < PRODUCT_HUNT_MAX_CANDIDATES) {
+    const response: Response = await fetch("https://api.producthunt.com/v2/api/graphql", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.PRODUCT_HUNT_API_TOKEN}`,
+      },
+      body: JSON.stringify({
+        query,
+        variables: {
+          first: PRODUCT_HUNT_PAGE_SIZE,
+          after: afterCursor,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      if (response.status === 429 && collectedCandidates.length > 0) {
+        fallbackMessage = `Product Hunt rate-limited the deeper scan. Showing ${collectedCandidates.length} candidates ranked by fit.`;
+        break;
+      }
+
+      return {
+        ok: false,
+        error:
+          response.status === 429
+            ? "Product Hunt rate-limited the scan before any candidates were returned."
+            : `Product Hunt scan failed with ${response.status}.`,
+        candidates: [],
+      };
+    }
+
+    const payload: any = await response.json();
+    if (payload.errors?.length) {
+      return {
+        ok: false,
+        error: formatProductHuntGraphQLErrors(payload.errors),
+        candidates: [],
+      };
+    }
+
+    const edges = payload.data?.posts?.edges ?? [];
+    if (edges.length === 0) {
+      break;
+    }
+
+    const pageCandidates = await Promise.all(
+      edges.map(async (edge: any) => {
+        const node = edge?.node;
+        const maker = Array.isArray(node?.makers) ? node.makers[0] : null;
+        const productName = sanitizeLeadIdentity(node?.name) ?? "Unknown lead";
+        const makerName = sanitizeLeadIdentity(maker?.name);
+        const makerTwitterUsername = sanitizeLeadIdentity(maker?.twitterUsername);
+        const productLevelXUrl = extractProductHuntXUrl(node?.productLinks);
+        const productLevelXHandle = extractHandleFromXUrl(productLevelXUrl);
+        const makerXHandle = normalizeHandle(makerTwitterUsername);
+        const fallbackMakerProfileUrl =
+          !isProductHuntRedacted(maker?.username) && typeof maker?.username === "string"
+            ? `https://www.producthunt.com/@${maker.username.trim().replace(/^@+/, "")}`
+            : null;
+        const preferredXProfileUrl =
+          productLevelXUrl || (makerXHandle ? `https://x.com/${makerXHandle}` : null);
+
+        return prepareLeadCandidate({
+          name: makerName || productName,
+          handle: productLevelXHandle
+            ? `@${productLevelXHandle}`
+            : makerXHandle
+              ? `@${makerXHandle}`
+              : null,
+          profileUrl: preferredXProfileUrl || fallbackMakerProfileUrl,
+          productName,
+          website: node?.website ?? null,
+          source: "product_hunt",
+          sourceUrl: node?.url ?? null,
+          bio: [node?.tagline, node?.description, collectTopics(node)].filter(Boolean).join(" · "),
+          postText: node?.tagline ?? node?.description ?? null,
+        });
+      })
+    );
+
+    collectedCandidates.push(...pageCandidates);
+
+    const pageInfo:
+      | {
+          hasNextPage?: boolean;
+          endCursor?: string | null;
+        }
+      | undefined = payload.data?.posts?.pageInfo;
+    hasNextPage = Boolean(pageInfo?.hasNextPage);
+    afterCursor = pageInfo?.endCursor ?? null;
+
+    if (!afterCursor) {
+      break;
+    }
+  }
+
+  const candidates = rankLeadCandidates(collectedCandidates).slice(0, PRODUCT_HUNT_MAX_CANDIDATES);
+
+  return {
+    ok: true,
+    message: fallbackMessage || `Showing ${candidates.length} Product Hunt candidates ranked by fit.`,
+    candidates,
+  };
 }
 
 export async function discoverProductHuntLeads(): Promise<DiscoveryResult> {
@@ -430,8 +594,12 @@ export async function discoverProductHuntLeads(): Promise<DiscoveryResult> {
   }
 
   const query = `
-    query DiscoverPosts($first: Int!) {
-      posts(first: $first) {
+    query DiscoverPosts($first: Int!, $after: String) {
+      posts(first: $first, after: $after) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
         edges {
           node {
             id
@@ -463,6 +631,8 @@ export async function discoverProductHuntLeads(): Promise<DiscoveryResult> {
       }
     }
   `;
+
+  return discoverProductHuntLeadsPaginated(query);
 
   try {
     const response = await fetch("https://api.producthunt.com/v2/api/graphql", {
@@ -532,7 +702,7 @@ export async function discoverProductHuntLeads(): Promise<DiscoveryResult> {
     );
 
     return { ok: true, candidates };
-  } catch (error) {
+  } catch (error: any) {
     return {
       ok: false,
       error: error instanceof Error ? error.message : "Product Hunt scan failed.",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import type { LeadCandidate } from "@/lib/leads";
 import styles from "./leads.module.css";
 
@@ -11,15 +11,17 @@ type ScanState = {
   candidates: LeadCandidate[];
 };
 
-const initialState: ScanState = {
-  loadingMode: null,
-  message: null,
-  candidates: [],
-};
+function buildInitialState(initialCandidates: LeadCandidate[]): ScanState {
+  return {
+    loadingMode: null,
+    message: null,
+    candidates: initialCandidates,
+  };
+}
 
-export function DiscoverLeadsPanel() {
+export function DiscoverLeadsPanel({ initialCandidates }: { initialCandidates: LeadCandidate[] }) {
   const router = useRouter();
-  const [state, setState] = useState<ScanState>(initialState);
+  const [state, setState] = useState<ScanState>(() => buildInitialState(initialCandidates));
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
   async function runScan(mode: "product-hunt" | "x" | "both") {
@@ -72,14 +74,63 @@ export function DiscoverLeadsPanel() {
       }),
     });
 
+    setState((current) => ({
+      ...current,
+      candidates: current.candidates.filter((entry) => {
+        const entryKey =
+          entry.postUrl || entry.sourceUrl || entry.profileUrl || entry.website || entry.name;
+        return entryKey !== key;
+      }),
+      message:
+        status === "saved"
+          ? "Lead marked as saved."
+          : "Lead marked as skipped.",
+    }));
     setSavingKey(null);
     router.refresh();
   }
 
-  const sortedCandidates = useMemo(
-    () => [...state.candidates].sort((left, right) => (right.score ?? 0) - (left.score ?? 0)),
-    [state.candidates]
-  );
+  async function clearDiscoveredCandidates() {
+    const confirmed = window.confirm(
+      "This will permanently delete unreviewed Product Hunt leads with status new. It will not affect saved, skipped, contacted, or Stripe monitoring data. Continue?"
+    );
+    if (!confirmed) return;
+
+    setState((current) => ({ ...current, loadingMode: "product-hunt", message: null }));
+
+    try {
+      const response = await fetch("/api/internal/leads/cleanup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ mode: "product-hunt-new" }),
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || payload?.ok === false) {
+        throw new Error(payload?.error ?? "Could not clear discovered candidates.");
+      }
+
+      setState({
+        loadingMode: null,
+        message: `Cleared ${payload.deletedCount} unreviewed Product Hunt candidate${payload.deletedCount === 1 ? "" : "s"}.`,
+        candidates: [],
+      });
+      router.refresh();
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        loadingMode: null,
+        message: error instanceof Error ? error.message : "Could not clear discovered candidates.",
+      }));
+    }
+  }
+
+  const loadingDiscoveryCopy =
+    state.loadingMode === "product-hunt" || state.loadingMode === "both"
+      ? "Running a deeper ranked scan. Product Hunt may take a bit longer when pulling up to 100 candidates."
+      : null;
 
   return (
     <div className={styles.discoverStack}>
@@ -121,23 +172,34 @@ export function DiscoverLeadsPanel() {
           leads, scores them, and suggests copy for you to use manually.
         </p>
 
+        {loadingDiscoveryCopy ? <div className={styles.noticeMuted}>{loadingDiscoveryCopy}</div> : null}
         {state.message ? <div className={styles.notice}>{state.message}</div> : null}
       </section>
 
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
           <h2>Discovered candidates</h2>
-          <span className={styles.panelMeta}>{sortedCandidates.length} results</span>
+          <div className={styles.headerActions}>
+            <span className={styles.panelMeta}>{state.candidates.length} results</span>
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              disabled={state.loadingMode !== null || state.candidates.length === 0}
+              onClick={clearDiscoveredCandidates}
+            >
+              Clear discovered candidates
+            </button>
+          </div>
         </div>
 
-        {sortedCandidates.length === 0 ? (
+        {state.candidates.length === 0 ? (
           <div className={styles.emptyState}>
             No candidates yet. Run a Product Hunt scan, an X scan, or both. If credentials are
             missing, the API will return a clear message instead of scanning.
           </div>
         ) : (
           <div className={styles.discoveryGrid}>
-            {sortedCandidates.map((candidate) => {
+            {state.candidates.map((candidate) => {
               const key =
                 candidate.postUrl ||
                 candidate.sourceUrl ||
