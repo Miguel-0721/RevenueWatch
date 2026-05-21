@@ -18,6 +18,8 @@ const SUPPORTED_SCENARIOS = new Set<SubscriptionHealthTestScenario>([
   "mixed-mrr",
   "trend-subscription-drop",
   "trend-cancellation-spike",
+  "trend-past-due-increase",
+  "trend-unpaid-subscription",
   "empty",
 ]);
 
@@ -50,7 +52,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error:
-          "scenario must be one of basic-active, multiple-active, yearly-active, quantity-active, mixed-health, mixed-mrr, trend-subscription-drop, trend-cancellation-spike, empty",
+          "scenario must be one of basic-active, multiple-active, yearly-active, quantity-active, mixed-health, mixed-mrr, trend-subscription-drop, trend-cancellation-spike, trend-past-due-increase, trend-unpaid-subscription, empty",
       },
       { status: 400 }
     );

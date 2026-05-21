@@ -13,6 +13,9 @@ const DEV_SEED_PREFIX = "dev_seed";
 type QueryClient = {
   $queryRaw<T = unknown>(query: Prisma.Sql): Promise<T>;
   $executeRaw(query: Prisma.Sql): Promise<number>;
+  alert: {
+    upsert: typeof prisma.alert.upsert;
+  };
 };
 
 type UpsertSubscriptionInput = {
@@ -66,6 +69,8 @@ export type SubscriptionHealthTestScenario =
   | "mixed-mrr"
   | "trend-subscription-drop"
   | "trend-cancellation-spike"
+  | "trend-past-due-increase"
+  | "trend-unpaid-subscription"
   | "empty";
 
 type SubscriptionHealthSnapshotRecord = SubscriptionHealthCounts & {
@@ -209,6 +214,26 @@ function buildCancellationSpikeAlertKey({
   return `cancellation_spike:${stripeAccountId}:${currentSnapshotKey}`;
 }
 
+function buildPastDueIncreaseAlertKey({
+  stripeAccountId,
+  currentSnapshotKey,
+}: {
+  stripeAccountId: string;
+  currentSnapshotKey: string;
+}) {
+  return `past_due_increase:${stripeAccountId}:${currentSnapshotKey}`;
+}
+
+function buildUnpaidSubscriptionAlertKey({
+  stripeAccountId,
+  currentSnapshotKey,
+}: {
+  stripeAccountId: string;
+  currentSnapshotKey: string;
+}) {
+  return `unpaid_subscription:${stripeAccountId}:${currentSnapshotKey}`;
+}
+
 function buildDevSeedId(kind: string, stripeAccountId: string, suffix: string) {
   return `${DEV_SEED_PREFIX}:${kind}:${stripeAccountId}:${suffix}`;
 }
@@ -218,10 +243,12 @@ function buildDevSeedSnapshotKey(stripeAccountId: string) {
 }
 
 async function createSubscriptionDropAlert({
+  client,
   stripeAccountId,
   previousSnapshot,
   currentSnapshot,
 }: {
+  client: QueryClient;
   stripeAccountId: string;
   previousSnapshot: SubscriptionHealthSnapshotRecord;
   currentSnapshot: SubscriptionHealthSnapshotRecord;
@@ -233,7 +260,7 @@ async function createSubscriptionDropAlert({
   );
   const message = `Active subscriptions dropped from ${previousSnapshot.activeSubscriptions} to ${currentSnapshot.activeSubscriptions}.`;
 
-  await prisma.alert.upsert({
+  await client.alert.upsert({
     where: {
       stripeEventId: buildSubscriptionDropAlertKey({
         stripeAccountId,
@@ -270,10 +297,12 @@ async function createSubscriptionDropAlert({
 }
 
 async function createCancellationSpikeAlert({
+  client,
   stripeAccountId,
   previousSnapshot,
   currentSnapshot,
 }: {
+  client: QueryClient;
   stripeAccountId: string;
   previousSnapshot: SubscriptionHealthSnapshotRecord | null;
   currentSnapshot: SubscriptionHealthSnapshotRecord;
@@ -290,7 +319,7 @@ async function createCancellationSpikeAlert({
       ? `Cancellations increased from ${baselineCancellations} to ${currentSnapshot.cancellations}.`
       : `Cancellations are higher than usual: ${currentSnapshot.cancellations} cancellations in the recent window.`;
 
-  await prisma.alert.upsert({
+  await client.alert.upsert({
     where: {
       stripeEventId: buildCancellationSpikeAlertKey({
         stripeAccountId,
@@ -327,7 +356,104 @@ async function createCancellationSpikeAlert({
   });
 }
 
+async function createPastDueIncreaseAlert({
+  client,
+  stripeAccountId,
+  previousSnapshot,
+  currentSnapshot,
+}: {
+  client: QueryClient;
+  stripeAccountId: string;
+  previousSnapshot: SubscriptionHealthSnapshotRecord | null;
+  currentSnapshot: SubscriptionHealthSnapshotRecord;
+}) {
+  const previousPastDueSubscriptions =
+    previousSnapshot?.pastDueSubscriptions ?? 0;
+  const currentPastDueSubscriptions = currentSnapshot.pastDueSubscriptions;
+  const increaseCount =
+    currentPastDueSubscriptions - previousPastDueSubscriptions;
+  const message = `Past-due subscriptions increased from ${previousPastDueSubscriptions} to ${currentPastDueSubscriptions}.`;
+
+  await client.alert.upsert({
+    where: {
+      stripeEventId: buildPastDueIncreaseAlertKey({
+        stripeAccountId,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+      }),
+    },
+    update: {},
+    create: {
+      type: "past_due_increase",
+      severity: "warning",
+      status: "active",
+      stripeAccountId,
+      stripeEventId: buildPastDueIncreaseAlertKey({
+        stripeAccountId,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+      }),
+      message,
+      context: JSON.stringify({
+        previousPastDueSubscriptions,
+        currentPastDueSubscriptions,
+        increaseCount,
+        previousSnapshotKey: previousSnapshot?.snapshotKey ?? null,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+        source: currentSnapshot.source,
+        displayMessage: message,
+      }),
+      windowStart: currentSnapshot.windowStart,
+      windowEnd: currentSnapshot.windowEnd,
+    },
+  });
+}
+
+async function createUnpaidSubscriptionAlert({
+  client,
+  stripeAccountId,
+  currentSnapshot,
+}: {
+  client: QueryClient;
+  stripeAccountId: string;
+  currentSnapshot: SubscriptionHealthSnapshotRecord;
+}) {
+  const unpaidSubscriptions = currentSnapshot.unpaidSubscriptions;
+  const message =
+    unpaidSubscriptions === 1
+      ? "1 subscription is marked unpaid."
+      : `${unpaidSubscriptions} subscriptions are marked unpaid.`;
+
+  await client.alert.upsert({
+    where: {
+      stripeEventId: buildUnpaidSubscriptionAlertKey({
+        stripeAccountId,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+      }),
+    },
+    update: {},
+    create: {
+      type: "unpaid_subscription",
+      severity: "warning",
+      status: "active",
+      stripeAccountId,
+      stripeEventId: buildUnpaidSubscriptionAlertKey({
+        stripeAccountId,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+      }),
+      message,
+      context: JSON.stringify({
+        unpaidSubscriptions,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+        source: currentSnapshot.source,
+        displayMessage: message,
+      }),
+      windowStart: currentSnapshot.windowStart,
+      windowEnd: currentSnapshot.windowEnd,
+    },
+  });
+}
+
 async function createSubscriptionCanceledAlert({
+  client = prisma,
   stripeAccountId,
   stripeSubscriptionId,
   stripeCustomerId,
@@ -337,6 +463,7 @@ async function createSubscriptionCanceledAlert({
   canceledAt,
   source,
 }: {
+  client?: QueryClient;
   stripeAccountId: string;
   stripeSubscriptionId: string;
   stripeCustomerId?: string | null;
@@ -356,7 +483,7 @@ async function createSubscriptionCanceledAlert({
     normalizedCurrency
   )}.`;
 
-  await prisma.alert.upsert({
+  await client.alert.upsert({
     where: { stripeEventId: alertKey },
     update: {},
     create: {
@@ -383,6 +510,7 @@ async function createSubscriptionCanceledAlert({
 }
 
 export async function upsertFailedRenewalAlert({
+  client = prisma,
   stripeAccountId,
   stripeInvoiceId,
   stripeSubscriptionId,
@@ -394,6 +522,7 @@ export async function upsertFailedRenewalAlert({
   occurredAt,
   source,
 }: {
+  client?: QueryClient;
   stripeAccountId: string;
   stripeInvoiceId?: string | null;
   stripeSubscriptionId?: string | null;
@@ -417,7 +546,7 @@ export async function upsertFailedRenewalAlert({
     normalizedCurrency
   )}.`;
 
-  await prisma.alert.upsert({
+  await client.alert.upsert({
     where: {
       stripeEventId: buildFailedRenewalAlertKey({
         stripeInvoiceId,
@@ -896,6 +1025,38 @@ function shouldCreateCancellationSpikeAlert({
   return currentCancellations >= 5;
 }
 
+function shouldCreatePastDueIncreaseAlert({
+  previousSnapshot,
+  currentSnapshot,
+}: {
+  previousSnapshot: SubscriptionHealthSnapshotRecord | null;
+  currentSnapshot: SubscriptionHealthSnapshotRecord;
+}) {
+  const previousPastDueSubscriptions =
+    previousSnapshot?.pastDueSubscriptions ?? 0;
+  const currentPastDueSubscriptions = currentSnapshot.pastDueSubscriptions;
+
+  if (currentPastDueSubscriptions < 1) return false;
+  if (previousPastDueSubscriptions === 0) {
+    return currentPastDueSubscriptions >= 1;
+  }
+
+  const increaseCount =
+    currentPastDueSubscriptions - previousPastDueSubscriptions;
+  return (
+    increaseCount >= 2 ||
+    currentPastDueSubscriptions >= previousPastDueSubscriptions * 2
+  );
+}
+
+function shouldCreateUnpaidSubscriptionAlert({
+  currentSnapshot,
+}: {
+  currentSnapshot: SubscriptionHealthSnapshotRecord;
+}) {
+  return currentSnapshot.unpaidSubscriptions >= 1;
+}
+
 async function evaluateSubscriptionHealthTrendAlerts({
   client,
   stripeAccountId,
@@ -928,6 +1089,7 @@ async function evaluateSubscriptionHealthTrendAlerts({
     previousSnapshot
   ) {
     await createSubscriptionDropAlert({
+      client,
       stripeAccountId,
       previousSnapshot,
       currentSnapshot,
@@ -941,8 +1103,31 @@ async function evaluateSubscriptionHealthTrendAlerts({
     })
   ) {
     await createCancellationSpikeAlert({
+      client,
       stripeAccountId,
       previousSnapshot,
+      currentSnapshot,
+    });
+  }
+
+  if (
+    shouldCreatePastDueIncreaseAlert({
+      previousSnapshot,
+      currentSnapshot,
+    })
+  ) {
+    await createPastDueIncreaseAlert({
+      client,
+      stripeAccountId,
+      previousSnapshot,
+      currentSnapshot,
+    });
+  }
+
+  if (shouldCreateUnpaidSubscriptionAlert({ currentSnapshot })) {
+    await createUnpaidSubscriptionAlert({
+      client,
+      stripeAccountId,
       currentSnapshot,
     });
   }
@@ -1127,6 +1312,7 @@ export async function handleConnectedAccountSubscriptionHealthEvent({
 
       if (event.type === "customer.subscription.deleted") {
         await createSubscriptionCanceledAlert({
+          client: tx,
           stripeAccountId,
           stripeSubscriptionId: subscription.id,
           stripeCustomerId: getCustomerId(subscription.customer),
@@ -1198,6 +1384,7 @@ export async function handleConnectedAccountSubscriptionHealthEvent({
 
       if (event.type === "invoice.payment_failed" && subscriptionId) {
         await upsertFailedRenewalAlert({
+          client: tx,
           stripeAccountId,
           stripeInvoiceId: invoice.id,
           stripeSubscriptionId: subscriptionId,
@@ -1257,6 +1444,7 @@ export async function backfillStripeAccountSubscriptions({
 
     if (subscription.status === "canceled") {
       await createSubscriptionCanceledAlert({
+        client: prisma,
         stripeAccountId,
         stripeSubscriptionId: subscription.id,
         stripeCustomerId: getCustomerId(subscription.customer),
@@ -1300,6 +1488,18 @@ export async function clearDevSeedSubscriptionHealthTestState({
   stripeAccountId: string;
 }) {
   await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw(Prisma.sql`
+      DELETE FROM "Alert"
+      WHERE "stripeAccountId" = ${stripeAccountId}
+        AND (
+          "stripeEventId" LIKE ${`subscription_drop:${stripeAccountId}:${DEV_SEED_PREFIX}:%`}
+          OR "stripeEventId" LIKE ${`cancellation_spike:${stripeAccountId}:${DEV_SEED_PREFIX}:%`}
+          OR "stripeEventId" LIKE ${`past_due_increase:${stripeAccountId}:${DEV_SEED_PREFIX}:%`}
+          OR "stripeEventId" LIKE ${`unpaid_subscription:${stripeAccountId}:${DEV_SEED_PREFIX}:%`}
+          OR "stripeEventId" LIKE 'failed_renewal:dev_failed_renewal_invoice:%'
+        )
+    `);
+
     await tx.$executeRaw(Prisma.sql`
       DELETE FROM "SubscriptionHealthEvent"
       WHERE "stripeAccountId" = ${stripeAccountId}
@@ -1611,6 +1811,59 @@ export async function seedSubscriptionHealthTestState({
         windowStart: baselineWindowStart,
         windowEnd: baselineWindowEnd,
       },
+    });
+  }
+
+  if (scenario === "trend-past-due-increase") {
+    pushSubscription({
+      suffix: "past-due-1",
+      status: "past_due",
+      interval: "month",
+      intervalCount: 1,
+      unitAmount: 3900,
+    });
+    pushSubscription({
+      suffix: "past-due-2",
+      status: "past_due",
+      interval: "month",
+      intervalCount: 1,
+      unitAmount: 3900,
+    });
+
+    baselineSnapshots.push({
+      snapshotKey: `${DEV_SEED_PREFIX}:baseline-past-due-increase:${stripeAccountId}`,
+      source: "dev",
+      counts: {
+        activeSubscriptions: 10,
+        trialingSubscriptions: 0,
+        pastDueSubscriptions: 0,
+        unpaidSubscriptions: 0,
+        canceledSubscriptions: 0,
+        newSubscriptions: 0,
+        cancellations: 0,
+        failedRenewalPayments: 0,
+        estimatedMonthlyRevenue: 39000,
+        netSubscriptionMovement: 0,
+        windowStart: baselineWindowStart,
+        windowEnd: baselineWindowEnd,
+      },
+    });
+  }
+
+  if (scenario === "trend-unpaid-subscription") {
+    pushSubscription({
+      suffix: "unpaid-1",
+      status: "unpaid",
+      interval: "month",
+      intervalCount: 1,
+      unitAmount: 3900,
+    });
+    pushSubscription({
+      suffix: "unpaid-2",
+      status: "unpaid",
+      interval: "month",
+      intervalCount: 1,
+      unitAmount: 3900,
     });
   }
 

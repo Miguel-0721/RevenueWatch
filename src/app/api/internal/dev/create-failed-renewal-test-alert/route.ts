@@ -94,6 +94,7 @@ export async function POST(req: Request) {
   });
 
   await upsertFailedRenewalAlert({
+    client: prisma,
     stripeAccountId,
     stripeInvoiceId,
     stripeSubscriptionId,

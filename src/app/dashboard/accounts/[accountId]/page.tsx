@@ -343,6 +343,8 @@ function alertLabel(type: string) {
   if (type === "failed_renewal") return "Failed renewal";
   if (type === "subscription_drop") return "Subscription drop";
   if (type === "cancellation_spike") return "Cancellation spike";
+  if (type === "past_due_increase") return "Past-due increase";
+  if (type === "unpaid_subscription") return "Unpaid subscription";
   return type.replace(/_/g, " ");
 }
 
