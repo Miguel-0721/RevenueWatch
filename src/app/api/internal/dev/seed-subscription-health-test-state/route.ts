@@ -12,7 +12,10 @@ import {
 const SUPPORTED_SCENARIOS = new Set<SubscriptionHealthTestScenario>([
   "basic-active",
   "multiple-active",
+  "yearly-active",
+  "quantity-active",
   "mixed-health",
+  "mixed-mrr",
   "empty",
 ]);
 
@@ -43,7 +46,10 @@ export async function POST(req: Request) {
 
   if (!scenario || !SUPPORTED_SCENARIOS.has(scenario)) {
     return NextResponse.json(
-      { error: "scenario must be one of basic-active, multiple-active, mixed-health, empty" },
+      {
+        error:
+          "scenario must be one of basic-active, multiple-active, yearly-active, quantity-active, mixed-health, mixed-mrr, empty",
+      },
       { status: 400 }
     );
   }

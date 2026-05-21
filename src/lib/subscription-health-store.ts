@@ -60,7 +60,10 @@ export type SubscriptionHealthSummary = SubscriptionHealthSnapshotCounts & {
 export type SubscriptionHealthTestScenario =
   | "basic-active"
   | "multiple-active"
+  | "yearly-active"
+  | "quantity-active"
   | "mixed-health"
+  | "mixed-mrr"
   | "empty";
 
 function toDateFromUnix(value?: number | null) {
@@ -81,33 +84,66 @@ function getSubscriptionQuantity(subscription: Stripe.Subscription) {
   return subscription.items.data[0]?.quantity ?? 1;
 }
 
-function estimateMonthlyRevenueFromSubscription(subscription: Stripe.Subscription) {
-  const price = getSubscriptionPrice(subscription);
-  const unitAmount = price?.unit_amount ?? 0;
-  const quantity = getSubscriptionQuantity(subscription);
-  const interval = price?.recurring?.interval ?? null;
-  const intervalCount = price?.recurring?.interval_count ?? 1;
-  const totalAmount = unitAmount * quantity;
+function normalizeRecurringAmountToMonthly({
+  unitAmount,
+  quantity,
+  interval,
+  intervalCount,
+}: {
+  unitAmount?: number | null;
+  quantity?: number | null;
+  interval?: Stripe.Price.Recurring.Interval | null;
+  intervalCount?: number | null;
+}) {
+  const normalizedUnitAmount =
+    typeof unitAmount === "number" && Number.isFinite(unitAmount)
+      ? Math.max(0, Math.round(unitAmount))
+      : 0;
+  const normalizedQuantity =
+    typeof quantity === "number" && Number.isFinite(quantity)
+      ? Math.max(1, Math.round(quantity))
+      : 1;
+  const normalizedIntervalCount =
+    typeof intervalCount === "number" && Number.isFinite(intervalCount)
+      ? Math.max(1, Math.round(intervalCount))
+      : 1;
+  const totalAmount = normalizedUnitAmount * normalizedQuantity;
 
-  if (!interval || totalAmount <= 0) return 0;
+  if (!interval || totalAmount <= 0) {
+    return 0;
+  }
 
   if (interval === "month") {
-    return Math.round(totalAmount / Math.max(intervalCount, 1));
+    return Math.round(totalAmount / normalizedIntervalCount);
   }
 
   if (interval === "year") {
-    return Math.round(totalAmount / Math.max(intervalCount * 12, 1));
+    return Math.round(totalAmount / (normalizedIntervalCount * 12));
   }
 
   if (interval === "week") {
-    return Math.round((totalAmount * 52) / Math.max(intervalCount * 12, 1));
+    return Math.round((totalAmount * 52) / (normalizedIntervalCount * 12));
   }
 
   if (interval === "day") {
-    return Math.round((totalAmount * 30) / Math.max(intervalCount, 1));
+    return Math.round((totalAmount * 30) / normalizedIntervalCount);
   }
 
-  return totalAmount;
+  return 0;
+}
+
+function calculateEstimatedMonthlyRevenue(subscription: Stripe.Subscription) {
+  return subscription.items.data.reduce((total, item) => {
+    return (
+      total +
+      normalizeRecurringAmountToMonthly({
+        unitAmount: item.price.unit_amount,
+        quantity: item.quantity ?? 1,
+        interval: item.price.recurring?.interval ?? null,
+        intervalCount: item.price.recurring?.interval_count ?? 1,
+      })
+    );
+  }, 0);
 }
 
 function getSubscriptionCancellationDate(
@@ -302,7 +338,7 @@ export async function upsertSubscriptionHealthSubscription(
   const interval = price?.recurring?.interval ?? null;
   const intervalCount = price?.recurring?.interval_count ?? null;
   const unitAmount = price?.unit_amount ?? null;
-  const estimatedMonthlyRevenue = estimateMonthlyRevenueFromSubscription(subscription);
+  const estimatedMonthlyRevenue = calculateEstimatedMonthlyRevenue(subscription);
   const currentPeriodStart =
     toDateFromUnix((subscription as Stripe.Subscription & { current_period_start?: number }).current_period_start ?? null);
   const currentPeriodEnd =
@@ -734,7 +770,7 @@ export async function handleConnectedAccountSubscriptionHealthEvent({
         type: event.type,
         subscriptionStatus: subscription.status,
         currency: subscription.currency ?? getSubscriptionPrice(subscription)?.currency ?? null,
-        estimatedMonthlyRevenue: estimateMonthlyRevenueFromSubscription(subscription),
+        estimatedMonthlyRevenue: calculateEstimatedMonthlyRevenue(subscription),
         occurredAt,
       });
       await syncSubscriptionHealthSnapshot({
@@ -751,7 +787,7 @@ export async function handleConnectedAccountSubscriptionHealthEvent({
           stripeSubscriptionId: subscription.id,
           stripeCustomerId: getCustomerId(subscription.customer),
           status: subscription.status,
-          estimatedMonthlyRevenue: estimateMonthlyRevenueFromSubscription(subscription),
+          estimatedMonthlyRevenue: calculateEstimatedMonthlyRevenue(subscription),
           currency: subscription.currency ?? getSubscriptionPrice(subscription)?.currency ?? null,
           canceledAt: getSubscriptionCancellationDate(subscription, occurredAt),
           source: "webhook",
@@ -785,7 +821,7 @@ export async function handleConnectedAccountSubscriptionHealthEvent({
         });
 
         if (liveSubscription) {
-          estimatedMonthlyRevenue = estimateMonthlyRevenueFromSubscription(liveSubscription);
+          estimatedMonthlyRevenue = calculateEstimatedMonthlyRevenue(liveSubscription);
           await upsertSubscriptionHealthSubscription(tx, {
             stripeAccountId,
             subscription: liveSubscription,
@@ -881,7 +917,7 @@ export async function backfillStripeAccountSubscriptions({
         stripeSubscriptionId: subscription.id,
         stripeCustomerId: getCustomerId(subscription.customer),
         status: subscription.status,
-        estimatedMonthlyRevenue: estimateMonthlyRevenueFromSubscription(subscription),
+        estimatedMonthlyRevenue: calculateEstimatedMonthlyRevenue(subscription),
         currency: subscription.currency ?? getSubscriptionPrice(subscription)?.currency ?? null,
         canceledAt: getSubscriptionCancellationDate(
           subscription,
@@ -967,6 +1003,9 @@ export async function seedSubscriptionHealthTestState({
     stripeSubscriptionId: string;
     stripeCustomerId: string;
     status: string;
+    interval: string;
+    intervalCount: number;
+    quantity: number;
     unitAmount: number;
     estimatedMonthlyRevenue: number;
     canceledAt: Date | null;
@@ -987,12 +1026,23 @@ export async function seedSubscriptionHealthTestState({
   const pushSubscription = ({
     suffix,
     status,
+    interval = "month",
+    intervalCount = 1,
+    quantity = 1,
     unitAmount = 3900,
-    estimatedMonthlyRevenue = unitAmount,
+    estimatedMonthlyRevenue = normalizeRecurringAmountToMonthly({
+      unitAmount,
+      quantity,
+      interval: interval as Stripe.Price.Recurring.Interval,
+      intervalCount,
+    }),
     canceledAt = null,
   }: {
     suffix: string;
     status: string;
+    interval?: string;
+    intervalCount?: number;
+    quantity?: number;
     unitAmount?: number;
     estimatedMonthlyRevenue?: number;
     canceledAt?: Date | null;
@@ -1001,6 +1051,9 @@ export async function seedSubscriptionHealthTestState({
       stripeSubscriptionId: buildDevSeedId("subscription", stripeAccountId, suffix),
       stripeCustomerId: buildDevSeedId("customer", stripeAccountId, suffix),
       status,
+      interval,
+      intervalCount,
+      quantity,
       unitAmount,
       estimatedMonthlyRevenue,
       canceledAt,
@@ -1017,6 +1070,27 @@ export async function seedSubscriptionHealthTestState({
     pushSubscription({ suffix: "active-3", status: "active" });
   }
 
+  if (scenario === "yearly-active") {
+    pushSubscription({
+      suffix: "yearly-active-1",
+      status: "active",
+      interval: "year",
+      intervalCount: 1,
+      unitAmount: 12000,
+    });
+  }
+
+  if (scenario === "quantity-active") {
+    pushSubscription({
+      suffix: "quantity-active-1",
+      status: "active",
+      interval: "month",
+      intervalCount: 1,
+      quantity: 3,
+      unitAmount: 3900,
+    });
+  }
+
   if (scenario === "mixed-health") {
     pushSubscription({ suffix: "active-1", status: "active" });
     pushSubscription({ suffix: "active-2", status: "active" });
@@ -1026,6 +1100,72 @@ export async function seedSubscriptionHealthTestState({
     pushSubscription({ suffix: "unpaid-1", status: "unpaid" });
     pushSubscription({ suffix: "canceled-1", status: "canceled", canceledAt: lastWeek });
     pushSubscription({ suffix: "canceled-2", status: "canceled", canceledAt: lastWeek });
+
+    eventRows.push({
+      stripeEventId: buildDevSeedId("event", stripeAccountId, "failed-renewal-1"),
+      stripeSubscriptionId: buildDevSeedId("subscription", stripeAccountId, "past-due-1"),
+      stripeCustomerId: buildDevSeedId("customer", stripeAccountId, "past-due-1"),
+      type: "invoice.payment_failed",
+      billingReason: "subscription_cycle",
+      amountDue: 3900,
+      amountPaid: 0,
+      estimatedMonthlyRevenue: 3900,
+      occurredAt: now,
+    });
+  }
+
+  if (scenario === "mixed-mrr") {
+    pushSubscription({
+      suffix: "monthly-active-1",
+      status: "active",
+      interval: "month",
+      intervalCount: 1,
+      unitAmount: 3900,
+    });
+    pushSubscription({
+      suffix: "yearly-active-1",
+      status: "active",
+      interval: "year",
+      intervalCount: 1,
+      unitAmount: 12000,
+    });
+    pushSubscription({
+      suffix: "quantity-active-1",
+      status: "active",
+      interval: "month",
+      intervalCount: 1,
+      quantity: 3,
+      unitAmount: 3900,
+    });
+    pushSubscription({
+      suffix: "trialing-1",
+      status: "trialing",
+      interval: "month",
+      intervalCount: 1,
+      unitAmount: 3900,
+    });
+    pushSubscription({
+      suffix: "past-due-1",
+      status: "past_due",
+      interval: "month",
+      intervalCount: 3,
+      unitAmount: 11700,
+    });
+    pushSubscription({
+      suffix: "unpaid-1",
+      status: "unpaid",
+      interval: "month",
+      intervalCount: 1,
+      unitAmount: 3900,
+    });
+    pushSubscription({
+      suffix: "canceled-1",
+      status: "canceled",
+      interval: "year",
+      intervalCount: 1,
+      unitAmount: 24000,
+      canceledAt: lastWeek,
+    });
 
     eventRows.push({
       stripeEventId: buildDevSeedId("event", stripeAccountId, "failed-renewal-1"),
@@ -1076,9 +1216,9 @@ export async function seedSubscriptionHealthTestState({
           ${row.status},
           ${buildDevSeedId("price", stripeAccountId, row.stripeSubscriptionId)},
           ${"EUR"},
-          ${"month"},
-          ${1},
-          ${1},
+          ${row.interval},
+          ${row.intervalCount},
+          ${row.quantity},
           ${row.unitAmount},
           ${row.estimatedMonthlyRevenue},
           ${false},
