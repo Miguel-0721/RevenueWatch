@@ -6,7 +6,12 @@ import { getAlertSensitivityConfig } from "@/lib/alert-sensitivity";
 import { formatMoneyAmount, normalizeCurrencyCode } from "@/lib/currency";
 import { getDemoAccountById, getDemoAlertHistory, getDemoSeverity } from "@/lib/demoData";
 import { prisma } from "@/lib/prisma";
+import {
+  getLatestSubscriptionHealthSummary,
+  type SubscriptionHealthSummary,
+} from "@/lib/subscription-health-store";
 import { AccountStatusActions } from "../AccountStatusActions";
+import { markAlertReviewedAction } from "./actions";
 import RenameAccountControl from "./RenameAccountControl";
 import styles from "./page.module.css";
 
@@ -334,6 +339,8 @@ function buildRevenueSeriesFromSnapshot({
 function alertLabel(type: string) {
   if (type === "revenue_drop") return "Revenue drop detected";
   if (type === "payment_failed") return "Payment failure spike";
+  if (type === "subscription_canceled") return "Subscription canceled";
+  if (type === "failed_renewal") return "Failed renewal";
   return type.replace(/_/g, " ");
 }
 
@@ -1544,10 +1551,10 @@ function HealthyRevenueMonitor({
         <div className={styles.chartMain}>
           <div className={styles.chartHeader}>
             <div>
-              <h2>Revenue monitoring</h2>
+              <h2>Revenue health</h2>
               <p>
-                Track recent revenue against the normal threshold Parveil uses for this
-                account.
+                Track recent revenue changes as a supporting signal for subscription
+                health.
               </p>
               <div className={styles.chartMeta}>Current monitoring window</div>
             </div>
@@ -1586,13 +1593,13 @@ function HealthyRevenueMonitor({
         </div>
 
         <HealthyMonitoringPanel
-          title="Revenue monitoring"
+          title="Revenue health"
           description={
             isImportingHistory
-              ? "Parveil is importing recent Stripe activity. Revenue monitoring becomes more reliable as history finishes loading."
+              ? "Parveil is importing recent Stripe activity. Revenue health becomes more reliable as history finishes loading."
               : state.hasEnoughHistory
-              ? "Parveil compares this account against similar recent time periods and confirms revenue is safely above the alert threshold."
-              : "Parveil is collecting activity for this account. Revenue-drop monitoring becomes more reliable after enough similar periods are available."
+              ? "Parveil compares this account against similar recent time periods and confirms revenue remains a healthy supporting signal."
+              : "Parveil is collecting activity for this account. Revenue health becomes more useful after enough similar periods are available."
           }
           metrics={[
             {
@@ -1649,8 +1656,8 @@ function HealthyPaymentMonitor({
             <div>
               <h2>Payment failure monitoring</h2>
               <p>
-                Review recent failed payments against the alert threshold Parveil checks for
-                this account.
+                Review failed payments and failed renewals that may affect subscription
+                health.
               </p>
               <div className={styles.chartMeta}>Current monitoring window</div>
             </div>
@@ -1690,10 +1697,10 @@ function HealthyPaymentMonitor({
           title="Payment failure monitoring"
           description={
             isImportingHistory
-              ? "Parveil is importing recent Stripe activity. Recent failed-payment activity may still update while history finishes loading."
+              ? "Parveil is importing recent Stripe activity. Failed-payment and renewal history may still update while history finishes loading."
               : state.hasEnoughHistory
-              ? "Parveil compares recent failed payments to similar recent windows and confirms they remain below the alert threshold."
-              : "Parveil is collecting activity for this account. Comparison history will become more useful after enough similar windows are available."
+              ? "Parveil compares recent failed payments to similar recent windows and confirms they remain a stable supporting signal."
+              : "Parveil is collecting activity for this account. Failed-payment monitoring becomes more useful after enough similar windows are available."
           }
           metrics={[
             {
@@ -1771,8 +1778,8 @@ function PaymentFailureMonitor({
         <div className={styles.chartMain}>
           <div className={styles.chartHeader}>
             <div>
-              <h2>Failed payments during this period</h2>
-              <p>Each bar shows how many failed payments happened during that time period.</p>
+              <h2>Payment failure monitoring</h2>
+              <p>Review failed payments and failed renewals that may affect subscription health.</p>
               <div className={styles.chartMeta}>Current period</div>
             </div>
             <span className={styles.liveBadge} style={{ color: severity.accentColor }}>
@@ -2056,8 +2063,8 @@ function RevenueAlertMonitor({
         <div className={styles.chartMain}>
           <div className={styles.chartHeader}>
             <div>
-              <h2>Revenue during this period</h2>
-              <p>Each point shows how much revenue came in during that time period.</p>
+              <h2>Revenue health</h2>
+              <p>Track recent revenue changes as a supporting signal for subscription health.</p>
               <div className={styles.chartMeta}>Current period</div>
             </div>
             <span className={styles.liveBadge} style={{ color: severity.accentColor }}>
@@ -2152,6 +2159,15 @@ function ActiveAlertRow({ alert }: { alert: AlertLike }) {
         <span>
           {getSeverityLabel(alert.severity)} · {detectedAt ? `Detected ${detectedAt}` : alert.detectedLabel ? `Detected ${alert.detectedLabel}` : `Triggered ${fmtDate(alert.createdAt)}`}
           </span>
+        {alert.id && alert.stripeAccountId ? (
+          <form action={markAlertReviewedAction} className={styles.alertRowActions}>
+            <input type="hidden" name="alertId" value={alert.id} />
+            <input type="hidden" name="stripeAccountId" value={alert.stripeAccountId} />
+            <button type="submit" className={styles.reviewAction}>
+              Mark as reviewed
+            </button>
+          </form>
+        ) : null}
       </div>
     </article>
   );
@@ -2168,6 +2184,65 @@ function HistoryRow({ alert }: { alert: AlertLike }) {
         <span className={styles.historyDetected}>Detected {detectedAt}</span>
       </div>
     </article>
+  );
+}
+
+function SubscriptionHealthSection({
+  summary,
+}: {
+  summary: SubscriptionHealthSummary | null;
+}) {
+  const metrics = summary
+    ? [
+        { label: "Active subscriptions", value: formatCount(summary.activeSubscriptions) },
+        { label: "Trialing", value: formatCount(summary.trialingSubscriptions) },
+        { label: "Past due", value: formatCount(summary.pastDueSubscriptions) },
+        { label: "Unpaid", value: formatCount(summary.unpaidSubscriptions) },
+        { label: "Canceled", value: formatCount(summary.canceledSubscriptions) },
+        { label: "Failed renewals", value: formatCount(summary.failedRenewalPayments) },
+        {
+          label: "Estimated MRR",
+          value: formatMoneyAmount(summary.estimatedMonthlyRevenue, summary.currency),
+        },
+        {
+          label: "Net subscription movement",
+          value:
+            summary.netSubscriptionMovement > 0
+              ? `+${formatCount(summary.netSubscriptionMovement)}`
+              : formatCount(summary.netSubscriptionMovement),
+        },
+      ]
+    : [];
+
+  return (
+    <section className={styles.subscriptionHealthCard}>
+          <div className={styles.subscriptionHealthHeader}>
+        <div>
+          <h2>Subscription health</h2>
+          <p>Monitor subscription health before revenue problems grow.</p>
+          <p className={styles.subscriptionHealthHelper}>
+            Track active subscriptions, cancellations, failed renewals, past-due
+            subscriptions, and estimated MRR.
+          </p>
+        </div>
+      </div>
+
+      {summary ? (
+        <div className={styles.subscriptionHealthGrid}>
+          {metrics.map((metric) => (
+            <article key={metric.label} className={styles.subscriptionMetricCard}>
+              <span>{metric.label}</span>
+              <strong>{metric.value}</strong>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className={styles.subscriptionEmptyState}>
+          Subscription health data is not available yet. It will appear after the next
+          subscription sync.
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -2202,6 +2277,13 @@ export default async function AccountDetailPage({
   if (!account && !demoAccount) {
     notFound();
   }
+
+  const subscriptionHealthSummary =
+    account && !demoAccount
+      ? await getLatestSubscriptionHealthSummary({
+          stripeAccountId: account.stripeAccountId,
+        })
+      : null;
 
   const now = new Date();
   const demoSeverity = demoAccount ? getDemoSeverity(demoAccount) : null;
@@ -2371,9 +2453,7 @@ export default async function AccountDetailPage({
         ? { label: "Disconnected", className: styles.statusCritical }
         : isImportingHistory
           ? { label: "Importing history", className: styles.statusHealthy }
-          : healthyRevenueState && !healthyRevenueState.hasEnoughHistory
-            ? { label: "Building baseline", className: styles.statusHealthy }
-            : { label: "Monitoring", className: styles.statusHealthy };
+          : { label: "Normal", className: styles.statusHealthy };
 
   return (
     <main className={styles.page}>
@@ -2393,7 +2473,8 @@ export default async function AccountDetailPage({
               <span className={headerStatus.className}>{headerStatus.label}</span>
             </div>
             <p className={styles.headerSubtitle}>
-              Review this account&apos;s current monitoring status and alert activity.
+              Review subscription health, account alerts, and supporting revenue and payment
+              signals for this Stripe account.
             </p>
           </div>
 
@@ -2416,55 +2497,7 @@ export default async function AccountDetailPage({
           </div>
         </header>
 
-        <AccountMonitor
-          model={chartModel}
-          topAlert={topAlert}
-          paymentContext={paymentContext}
-          isImportingHistory={isImportingHistory}
-          healthyRevenueState={
-            healthyRevenueState ?? {
-              model: null,
-              currentAmount: 0,
-              baselineAmount: null,
-              thresholdValue: null,
-              currency: "EUR",
-              baselineLabel: "similar recent time periods",
-              windowLabel: "current monitoring window",
-              hasEnoughHistory: false,
-              placeholderLabels: buildRecentHourLabels(now, 5),
-            }
-          }
-          healthyPaymentState={
-            healthyPaymentState ?? {
-              model: buildFailureChartModel(
-                {
-                  type: "payment_failed",
-                  createdAt: now,
-                  context: JSON.stringify({
-                    failureSeries: [],
-                    failureThreshold: getAlertSensitivityConfig().failureFallbackMinCurrent,
-                    normalFailures: null,
-                    baseline: null,
-                    window: "current monitoring window",
-                  }),
-                },
-                {
-                  failures: 0,
-                  normalFailures: null,
-                  threshold: getAlertSensitivityConfig().failureFallbackMinCurrent,
-                  criticalThreshold: null,
-                  windowLabel: "current monitoring window",
-                }
-              ),
-              failures: 0,
-              normalFailures: null,
-              threshold: getAlertSensitivityConfig().failureFallbackMinCurrent,
-              criticalThreshold: null,
-              windowLabel: "current monitoring window",
-              hasEnoughHistory: false,
-            }
-          }
-        />
+        <SubscriptionHealthSection summary={subscriptionHealthSummary} />
 
         <section className={styles.lowerGrid}>
           <div>
@@ -2494,6 +2527,68 @@ export default async function AccountDetailPage({
               )}
             </div>
           </div>
+        </section>
+
+        <section className={styles.monitorSection}>
+          <div className={styles.sectionHeading}>
+            <div>
+              <h2>Supporting monitoring signals</h2>
+              <p className={styles.monitorSectionIntro}>
+                Review revenue health and payment failure monitoring alongside
+                subscription health.
+              </p>
+            </div>
+          </div>
+
+          <AccountMonitor
+            model={chartModel}
+            topAlert={topAlert}
+            paymentContext={paymentContext}
+            isImportingHistory={isImportingHistory}
+            healthyRevenueState={
+              healthyRevenueState ?? {
+                model: null,
+                currentAmount: 0,
+                baselineAmount: null,
+                thresholdValue: null,
+                currency: "EUR",
+                baselineLabel: "similar recent time periods",
+                windowLabel: "current monitoring window",
+                hasEnoughHistory: false,
+                placeholderLabels: buildRecentHourLabels(now, 5),
+              }
+            }
+            healthyPaymentState={
+              healthyPaymentState ?? {
+                model: buildFailureChartModel(
+                  {
+                    type: "payment_failed",
+                    createdAt: now,
+                    context: JSON.stringify({
+                      failureSeries: [],
+                      failureThreshold: getAlertSensitivityConfig().failureFallbackMinCurrent,
+                      normalFailures: null,
+                      baseline: null,
+                      window: "current monitoring window",
+                    }),
+                  },
+                  {
+                    failures: 0,
+                    normalFailures: null,
+                    threshold: getAlertSensitivityConfig().failureFallbackMinCurrent,
+                    criticalThreshold: null,
+                    windowLabel: "current monitoring window",
+                  }
+                ),
+                failures: 0,
+                normalFailures: null,
+                threshold: getAlertSensitivityConfig().failureFallbackMinCurrent,
+                criticalThreshold: null,
+                windowLabel: "current monitoring window",
+                hasEnoughHistory: false,
+              }
+            }
+          />
         </section>
       </div>
     </main>

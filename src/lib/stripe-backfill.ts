@@ -3,6 +3,7 @@ import { getAlertSensitivityConfig } from "@/lib/alert-sensitivity";
 import { normalizeCurrencyCode } from "@/lib/currency";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
+import { backfillStripeAccountSubscriptions } from "@/lib/subscription-health-store";
 
 const BACKFILL_DAYS = 90;
 const BACKFILL_PAGE_SIZE = 100;
@@ -77,7 +78,11 @@ export async function backfillStripeAccountHistory({
   let insertedFailureEvents = 0;
   let skippedDuplicates = 0;
   let processedPaymentIntents = 0;
+  let processedSubscriptions = 0;
   let backfillIncomplete = false;
+  let importedSubscriptions = 0;
+  let updatedSubscriptions = 0;
+  let subscriptionSnapshotCounts = null;
 
   const paymentIntents = stripe.paymentIntents.list(
     {
@@ -186,10 +191,23 @@ export async function backfillStripeAccountHistory({
     }
   }
 
+  const subscriptionBackfill = await backfillStripeAccountSubscriptions({
+    stripeAccountId,
+  });
+  processedSubscriptions = subscriptionBackfill.processedSubscriptions;
+  importedSubscriptions = subscriptionBackfill.importedSubscriptions;
+  updatedSubscriptions = subscriptionBackfill.updatedSubscriptions;
+  subscriptionSnapshotCounts = subscriptionBackfill.snapshotCounts;
+  backfillIncomplete = backfillIncomplete || subscriptionBackfill.backfillIncomplete;
+
   return {
     processedPaymentIntents,
+    processedSubscriptions,
     insertedRevenueMetrics,
     insertedFailureEvents,
+    importedSubscriptions,
+    updatedSubscriptions,
+    subscriptionSnapshotCounts,
     skippedDuplicates,
     backfillIncomplete,
   };

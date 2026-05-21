@@ -48,6 +48,8 @@ function formatRelativeTime(date: Date | null | undefined) {
 function alertLabel(type: string) {
   if (type === "revenue_drop") return "Revenue Drop Detected";
   if (type === "payment_failed") return "Payment Failure Spike";
+  if (type === "subscription_canceled") return "Subscription canceled";
+  if (type === "failed_renewal") return "Failed renewal";
   return type.replace(/_/g, " ");
 }
 
@@ -199,7 +201,7 @@ export default async function DashboardAccountsPage({
         <header className={styles.header}>
           <div>
             <h1>Connected accounts</h1>
-            <p>Review the Stripe accounts Parveil is monitoring and open a detailed account view when something needs attention.</p>
+            <p>Review subscription health, cancellations, failed renewals, and supporting Stripe monitoring for each connected account.</p>
           </div>
           <Link href="/api/stripe/connect" className={styles.addAccountLink}>
             Add account
@@ -220,7 +222,7 @@ export default async function DashboardAccountsPage({
             </div>
           ) : null}
           <p className={styles.helperText}>
-            Active and paused accounts are shown here. Accounts needing review are shown first.
+            Active and paused accounts are shown here. Accounts needing subscription-health review are shown first.
           </p>
           {visibleAccounts.length === 0 ? (
             <div className={styles.emptyState}>
@@ -250,7 +252,7 @@ export default async function DashboardAccountsPage({
                       ? "Paused"
                       : account.backfillStatus === "pending" || account.backfillStatus === "running"
                         ? "Importing history"
-                        : "Monitoring";
+                        : "Normal";
                 const cardVariantClass =
                   highlightVariant === "attention"
                     ? styles.cardAttention

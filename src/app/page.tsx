@@ -431,20 +431,19 @@ export default async function HomePage() {
               </span>
 
               <h1>
-                Catch <span>payment failures</span> and <span>revenue drops</span>{" "}
-                before your clients do.
+                Monitor <span>subscription health</span> before <span>revenue problems</span>{" "}
+                grow.
               </h1>
 
               <p>
-                Parveil monitors your Stripe accounts in the background and
-                alerts you when payment failures or unusual revenue drops need
-                attention, before they become client-facing problems.
+                Parveil tracks cancellations, failed renewals, past-due subscriptions,
+                and revenue changes, starting with Stripe.
               </p>
 
               <div className={styles.heroTrustLine}>
-                <span>Read-only monitoring.</span>
-                <span>No money movement.</span>
                 <span>Monitoring only.</span>
+                <span>No money movement.</span>
+                <span>Built for Stripe.</span>
               </div>
 
               <div className={styles.heroActions}>

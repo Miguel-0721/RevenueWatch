@@ -3,8 +3,14 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 export type RenameAccountState = {
+  error?: string;
+  success?: boolean;
+};
+
+export type MarkAlertReviewedState = {
   error?: string;
   success?: boolean;
 };
@@ -56,4 +62,56 @@ export async function renameAccountAction(
   revalidatePath("/alerts");
 
   return { success: true };
+}
+
+export async function markAlertReviewedAction(formData: FormData) {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
+
+  const alertId = formData.get("alertId");
+  const stripeAccountId = formData.get("stripeAccountId");
+
+  if (typeof alertId !== "string" || !alertId.trim()) {
+    redirect("/dashboard/accounts");
+  }
+
+  if (typeof stripeAccountId !== "string" || !stripeAccountId.trim()) {
+    redirect("/dashboard/accounts");
+  }
+
+  const account = await prisma.stripeAccount.findFirst({
+    where: {
+      stripeAccountId,
+      userId: session.user.id,
+    },
+    select: {
+      stripeAccountId: true,
+    },
+  });
+
+  if (!account) {
+    redirect("/dashboard/accounts");
+  }
+
+  await prisma.alert.updateMany({
+    where: {
+      id: alertId,
+      stripeAccountId,
+      status: "active",
+    },
+    data: {
+      status: "resolved",
+    },
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/dashboard/accounts");
+  revalidatePath(`/dashboard/accounts/${stripeAccountId}`);
+  revalidatePath("/dashboard/alerts");
+  revalidatePath("/alerts");
+
+  redirect(`/dashboard/accounts/${stripeAccountId}`);
 }

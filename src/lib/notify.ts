@@ -44,6 +44,7 @@ function formatCount(value: number) {
 function formatAlertType(type: string) {
   if (type === "revenue_drop") return "Revenue drop detected";
   if (type === "payment_failed") return "Payment failure spike";
+  if (type === "subscription_canceled") return "Subscription canceled";
   return type.replace(/_/g, " ");
 }
 

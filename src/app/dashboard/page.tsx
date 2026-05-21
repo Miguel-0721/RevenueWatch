@@ -44,6 +44,8 @@ type DisplayHistoryItem = {
 function alertLabel(type: string) {
   if (type === "revenue_drop") return "Revenue Drop Detected";
   if (type === "payment_failed") return "Payment Failure Spike";
+  if (type === "subscription_canceled") return "Subscription canceled";
+  if (type === "failed_renewal") return "Failed renewal";
   return type.replace(/_/g, " ");
 }
 
@@ -161,7 +163,7 @@ function formatHistoryTime(date: Date) {
 
 function buildStatusCopy(activeAlertsCount: number, accountCount: number) {
   if (accountCount === 0) {
-    return "Connect a Stripe account to start monitoring revenue and failed payments.";
+    return "Connect a Stripe account to start monitoring subscription health, failed renewals, cancellations, past-due subscriptions, and revenue changes.";
   }
 
   if (activeAlertsCount > 0) {
@@ -169,12 +171,12 @@ function buildStatusCopy(activeAlertsCount: number, accountCount: number) {
       accountCount === 1 ? "" : "s"
     }. ${activeAlertsCount} active alert${
       activeAlertsCount === 1 ? "" : "s"
-    } currently require review across revenue and payment-failure monitoring.`;
+    } currently require review across subscription health and supporting Stripe monitoring.`;
   }
 
   return `Monitoring ${accountCount} Stripe account${
     accountCount === 1 ? "" : "s"
-  }. No issues detected in the last 24 hours.`;
+  } for subscription health. No active issues need review right now.`;
 }
 
 function demoSeverityToDisplaySeverity(severity: string): "critical" | "warning" {
@@ -508,7 +510,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         </header>
 
       <div className={styles.workspaceContent}>
-        <h1 className={styles.workspaceTitle}>Stripe monitoring overview</h1>
+        <h1 className={styles.workspaceTitle}>Subscription health overview</h1>
         <p className={styles.workspaceIntro}>{statusCopy}</p>
 
         <CurrentAlertsRail
@@ -597,7 +599,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               <div>
                 <h2 className={styles.sectionTitle}>View all connected accounts</h2>
                 <p className={styles.accountsOverviewText}>
-                  Review account status, active monitoring, and account-specific alert details.
+                  Review subscription health, active monitoring, and account-specific alert details.
                 </p>
               </div>
             </div>
