@@ -31,8 +31,8 @@ type HistoryRecord = {
 };
 
 function alertLabel(type: string) {
-  if (type === "revenue_drop") return "Revenue Drop Detected";
-  if (type === "payment_failed") return "Payment Failure Spike";
+  if (type === "revenue_drop") return "Revenue drop";
+  if (type === "payment_failed") return "Payment failures";
   if (type === "subscription_canceled") return "Subscription canceled";
   if (type === "failed_renewal") return "Failed renewal";
   return type.replace(/_/g, " ");

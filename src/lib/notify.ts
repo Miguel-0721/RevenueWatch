@@ -42,19 +42,20 @@ function formatCount(value: number) {
 }
 
 function formatAlertType(type: string) {
-  if (type === "revenue_drop") return "Revenue drop detected";
-  if (type === "payment_failed") return "Payment failure spike";
+  if (type === "revenue_drop") return "Revenue drop";
+  if (type === "payment_failed") return "Payment failures";
   if (type === "subscription_canceled") return "Subscription canceled";
+  if (type === "failed_renewal") return "Failed renewal";
   return type.replace(/_/g, " ");
 }
 
 function formatAlertSubject(type: string) {
   if (type === "revenue_drop") {
-    return "Parveil alert: Revenue drop detected";
+    return "Parveil alert: Revenue drop";
   }
 
   if (type === "payment_failed") {
-    return "Parveil alert: Payment failure spike detected";
+    return "Parveil alert: Payment failures";
   }
 
   return `Parveil alert: ${formatAlertType(type)}`;

@@ -266,7 +266,7 @@ function RevenueMonitoringPreview({ hero = false }: { hero?: boolean }) {
           <p className={styles.monitorPreviewEyebrow}>Connected account</p>
           <h4>Northstar Commerce</h4>
         </div>
-        <span className={styles.monitorPreviewAlertPill}>Revenue drop detected</span>
+        <span className={styles.monitorPreviewAlertPill}>Revenue drop</span>
         </div>
 
         <div className={styles.monitorPreviewBody}>
@@ -361,7 +361,7 @@ function FailureMonitoringPreview() {
           <p className={styles.monitorPreviewEyebrow}>Connected account</p>
           <h4>BluePeak Studio</h4>
         </div>
-        <span className={styles.monitorPreviewAlertPillWarning}>Payment failure spike</span>
+        <span className={styles.monitorPreviewAlertPillWarning}>Payment failures</span>
       </div>
 
       <div className={styles.monitorPreviewBody}>
@@ -689,7 +689,7 @@ export default async function HomePage() {
                 <div className={styles.noticeTop}>
                   <div className={styles.noticeTitle}>
                     <span>Parveil alert</span>
-                    <strong>Revenue drop detected</strong>
+                    <strong>Revenue drop</strong>
                   </div>
 
                   <span className={styles.noticePill}>High Severity</span>

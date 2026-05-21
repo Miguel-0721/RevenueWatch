@@ -8,6 +8,7 @@ import { stripe } from "@/lib/stripe";
 const SNAPSHOT_WINDOW_DAYS = 30;
 const SUBSCRIPTION_BACKFILL_PAGE_SIZE = 100;
 const SUBSCRIPTION_BACKFILL_MAX_SUBSCRIPTIONS = 2000;
+const DEV_SEED_PREFIX = "dev_seed";
 
 type QueryClient = {
   $queryRaw<T = unknown>(query: Prisma.Sql): Promise<T>;
@@ -55,6 +56,12 @@ export type SubscriptionHealthSnapshotCounts = SubscriptionHealthCounts;
 export type SubscriptionHealthSummary = SubscriptionHealthSnapshotCounts & {
   currency: string;
 };
+
+export type SubscriptionHealthTestScenario =
+  | "basic-active"
+  | "multiple-active"
+  | "mixed-health"
+  | "empty";
 
 function toDateFromUnix(value?: number | null) {
   if (!value) return null;
@@ -132,10 +139,18 @@ function buildFailedRenewalAlertKey({
   stripeSubscriptionId?: string | null;
 }) {
   if (stripeInvoiceId) {
-    return `failed_renewal:${stripeInvoiceId}`;
+  return `failed_renewal:${stripeInvoiceId}`;
   }
 
   return `failed_renewal:${stripeSubscriptionId ?? "unknown_subscription"}`;
+}
+
+function buildDevSeedId(kind: string, stripeAccountId: string, suffix: string) {
+  return `${DEV_SEED_PREFIX}:${kind}:${stripeAccountId}:${suffix}`;
+}
+
+function buildDevSeedSnapshotKey(stripeAccountId: string) {
+  return `${DEV_SEED_PREFIX}:snapshot:${stripeAccountId}`;
 }
 
 async function createSubscriptionCanceledAlert({
@@ -464,7 +479,7 @@ export async function computeSubscriptionHealthCounts(
     SELECT COALESCE(SUM("estimatedMonthlyRevenue"), 0) AS total
     FROM "SubscriptionHealthSubscription"
     WHERE "stripeAccountId" = ${stripeAccountId}
-      AND "status" IN ('active', 'trialing', 'past_due', 'unpaid')
+      AND "status" = 'active'
   `);
   const totalValue = revenueRows[0]?.total ?? 0;
   const estimatedMonthlyRevenue =
@@ -897,4 +912,212 @@ export async function backfillStripeAccountSubscriptions({
     snapshotCounts,
     backfillIncomplete,
   };
+}
+
+export async function clearDevSeedSubscriptionHealthTestState({
+  stripeAccountId,
+}: {
+  stripeAccountId: string;
+}) {
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw(Prisma.sql`
+      DELETE FROM "SubscriptionHealthEvent"
+      WHERE "stripeAccountId" = ${stripeAccountId}
+        AND (
+          "stripeEventId" LIKE ${`${DEV_SEED_PREFIX}:%`}
+          OR "stripeSubscriptionId" LIKE ${`${DEV_SEED_PREFIX}:%`}
+          OR "stripeCustomerId" LIKE ${`${DEV_SEED_PREFIX}:%`}
+        )
+    `);
+
+    await tx.$executeRaw(Prisma.sql`
+      DELETE FROM "SubscriptionHealthSubscription"
+      WHERE "stripeAccountId" = ${stripeAccountId}
+        AND (
+          "stripeSubscriptionId" LIKE ${`${DEV_SEED_PREFIX}:%`}
+          OR "stripeCustomerId" LIKE ${`${DEV_SEED_PREFIX}:%`}
+          OR "priceId" LIKE ${`${DEV_SEED_PREFIX}:%`}
+        )
+    `);
+
+    await tx.$executeRaw(Prisma.sql`
+      DELETE FROM "SubscriptionHealthSnapshot"
+      WHERE "stripeAccountId" = ${stripeAccountId}
+        AND "snapshotKey" LIKE ${`${DEV_SEED_PREFIX}:%`}
+    `);
+  });
+}
+
+export async function seedSubscriptionHealthTestState({
+  stripeAccountId,
+  scenario,
+}: {
+  stripeAccountId: string;
+  scenario: Exclude<SubscriptionHealthTestScenario, "empty">;
+}) {
+  const now = new Date();
+  const nextMonth = new Date(now);
+  nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
+  const lastWeek = new Date(now);
+  lastWeek.setUTCDate(lastWeek.getUTCDate() - 7);
+
+  await clearDevSeedSubscriptionHealthTestState({ stripeAccountId });
+
+  const subscriptionRows: Array<{
+    stripeSubscriptionId: string;
+    stripeCustomerId: string;
+    status: string;
+    unitAmount: number;
+    estimatedMonthlyRevenue: number;
+    canceledAt: Date | null;
+  }> = [];
+
+  const eventRows: Array<{
+    stripeEventId: string;
+    stripeSubscriptionId: string | null;
+    stripeCustomerId: string | null;
+    type: string;
+    billingReason: string | null;
+    amountDue: number | null;
+    amountPaid: number | null;
+    estimatedMonthlyRevenue: number;
+    occurredAt: Date;
+  }> = [];
+
+  const pushSubscription = ({
+    suffix,
+    status,
+    unitAmount = 3900,
+    estimatedMonthlyRevenue = unitAmount,
+    canceledAt = null,
+  }: {
+    suffix: string;
+    status: string;
+    unitAmount?: number;
+    estimatedMonthlyRevenue?: number;
+    canceledAt?: Date | null;
+  }) => {
+    subscriptionRows.push({
+      stripeSubscriptionId: buildDevSeedId("subscription", stripeAccountId, suffix),
+      stripeCustomerId: buildDevSeedId("customer", stripeAccountId, suffix),
+      status,
+      unitAmount,
+      estimatedMonthlyRevenue,
+      canceledAt,
+    });
+  };
+
+  if (scenario === "basic-active") {
+    pushSubscription({ suffix: "active-1", status: "active" });
+  }
+
+  if (scenario === "multiple-active") {
+    pushSubscription({ suffix: "active-1", status: "active" });
+    pushSubscription({ suffix: "active-2", status: "active" });
+    pushSubscription({ suffix: "active-3", status: "active" });
+  }
+
+  if (scenario === "mixed-health") {
+    pushSubscription({ suffix: "active-1", status: "active" });
+    pushSubscription({ suffix: "active-2", status: "active" });
+    pushSubscription({ suffix: "active-3", status: "active" });
+    pushSubscription({ suffix: "trialing-1", status: "trialing" });
+    pushSubscription({ suffix: "past-due-1", status: "past_due" });
+    pushSubscription({ suffix: "unpaid-1", status: "unpaid" });
+    pushSubscription({ suffix: "canceled-1", status: "canceled", canceledAt: lastWeek });
+    pushSubscription({ suffix: "canceled-2", status: "canceled", canceledAt: lastWeek });
+
+    eventRows.push({
+      stripeEventId: buildDevSeedId("event", stripeAccountId, "failed-renewal-1"),
+      stripeSubscriptionId: buildDevSeedId("subscription", stripeAccountId, "past-due-1"),
+      stripeCustomerId: buildDevSeedId("customer", stripeAccountId, "past-due-1"),
+      type: "invoice.payment_failed",
+      billingReason: "subscription_cycle",
+      amountDue: 3900,
+      amountPaid: 0,
+      estimatedMonthlyRevenue: 3900,
+      occurredAt: now,
+    });
+  }
+
+  await prisma.$transaction(async (tx) => {
+    for (const row of subscriptionRows) {
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "SubscriptionHealthSubscription" (
+          "id",
+          "stripeSubscriptionId",
+          "stripeAccountId",
+          "stripeCustomerId",
+          "status",
+          "priceId",
+          "currency",
+          "interval",
+          "intervalCount",
+          "quantity",
+          "unitAmount",
+          "estimatedMonthlyRevenue",
+          "cancelAtPeriodEnd",
+          "currentPeriodStart",
+          "currentPeriodEnd",
+          "trialStart",
+          "trialEnd",
+          "canceledAt",
+          "endedAt",
+          "lastEventCreatedAt",
+          "lastSyncedAt",
+          "createdAt",
+          "updatedAt"
+        )
+        VALUES (
+          ${randomUUID()},
+          ${row.stripeSubscriptionId},
+          ${stripeAccountId},
+          ${row.stripeCustomerId},
+          ${row.status},
+          ${buildDevSeedId("price", stripeAccountId, row.stripeSubscriptionId)},
+          ${"EUR"},
+          ${"month"},
+          ${1},
+          ${1},
+          ${row.unitAmount},
+          ${row.estimatedMonthlyRevenue},
+          ${false},
+          ${now},
+          ${nextMonth},
+          ${row.status === "trialing" ? now : null},
+          ${row.status === "trialing" ? nextMonth : null},
+          ${row.canceledAt},
+          ${row.canceledAt},
+          ${now},
+          ${now},
+          ${now},
+          ${now}
+        )
+      `);
+    }
+
+    for (const event of eventRows) {
+      await recordSubscriptionHealthEvent(tx, {
+        stripeEventId: event.stripeEventId,
+        stripeAccountId,
+        stripeSubscriptionId: event.stripeSubscriptionId,
+        stripeCustomerId: event.stripeCustomerId,
+        type: event.type,
+        billingReason: event.billingReason,
+        currency: "eur",
+        amountDue: event.amountDue,
+        amountPaid: event.amountPaid,
+        estimatedMonthlyRevenue: event.estimatedMonthlyRevenue,
+        occurredAt: event.occurredAt,
+      });
+    }
+  });
+
+  return syncSubscriptionHealthSnapshot({
+    client: prisma,
+    stripeAccountId,
+    snapshotKey: buildDevSeedSnapshotKey(stripeAccountId),
+    source: "dev",
+    windowEnd: now,
+  });
 }
