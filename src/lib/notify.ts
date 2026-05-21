@@ -46,6 +46,8 @@ function formatAlertType(type: string) {
   if (type === "payment_failed") return "Payment failures";
   if (type === "subscription_canceled") return "Subscription canceled";
   if (type === "failed_renewal") return "Failed renewal";
+  if (type === "subscription_drop") return "Subscription drop";
+  if (type === "cancellation_spike") return "Cancellation spike";
   return type.replace(/_/g, " ");
 }
 

@@ -64,7 +64,15 @@ export type SubscriptionHealthTestScenario =
   | "quantity-active"
   | "mixed-health"
   | "mixed-mrr"
+  | "trend-subscription-drop"
+  | "trend-cancellation-spike"
   | "empty";
+
+type SubscriptionHealthSnapshotRecord = SubscriptionHealthCounts & {
+  id: string;
+  snapshotKey: string;
+  source: string;
+};
 
 function toDateFromUnix(value?: number | null) {
   if (!value) return null;
@@ -181,12 +189,142 @@ function buildFailedRenewalAlertKey({
   return `failed_renewal:${stripeSubscriptionId ?? "unknown_subscription"}`;
 }
 
+function buildSubscriptionDropAlertKey({
+  stripeAccountId,
+  currentSnapshotKey,
+}: {
+  stripeAccountId: string;
+  currentSnapshotKey: string;
+}) {
+  return `subscription_drop:${stripeAccountId}:${currentSnapshotKey}`;
+}
+
+function buildCancellationSpikeAlertKey({
+  stripeAccountId,
+  currentSnapshotKey,
+}: {
+  stripeAccountId: string;
+  currentSnapshotKey: string;
+}) {
+  return `cancellation_spike:${stripeAccountId}:${currentSnapshotKey}`;
+}
+
 function buildDevSeedId(kind: string, stripeAccountId: string, suffix: string) {
   return `${DEV_SEED_PREFIX}:${kind}:${stripeAccountId}:${suffix}`;
 }
 
 function buildDevSeedSnapshotKey(stripeAccountId: string) {
   return `${DEV_SEED_PREFIX}:snapshot:${stripeAccountId}`;
+}
+
+async function createSubscriptionDropAlert({
+  stripeAccountId,
+  previousSnapshot,
+  currentSnapshot,
+}: {
+  stripeAccountId: string;
+  previousSnapshot: SubscriptionHealthSnapshotRecord;
+  currentSnapshot: SubscriptionHealthSnapshotRecord;
+}) {
+  const dropCount =
+    previousSnapshot.activeSubscriptions - currentSnapshot.activeSubscriptions;
+  const dropPercent = Math.round(
+    (dropCount / previousSnapshot.activeSubscriptions) * 100
+  );
+  const message = `Active subscriptions dropped from ${previousSnapshot.activeSubscriptions} to ${currentSnapshot.activeSubscriptions}.`;
+
+  await prisma.alert.upsert({
+    where: {
+      stripeEventId: buildSubscriptionDropAlertKey({
+        stripeAccountId,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+      }),
+    },
+    update: {},
+    create: {
+      type: "subscription_drop",
+      severity: "warning",
+      status: "active",
+      stripeAccountId,
+      stripeEventId: buildSubscriptionDropAlertKey({
+        stripeAccountId,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+      }),
+      message,
+      context: JSON.stringify({
+        previousActiveSubscriptions: previousSnapshot.activeSubscriptions,
+        currentActiveSubscriptions: currentSnapshot.activeSubscriptions,
+        dropCount,
+        dropPercent,
+        previousSnapshotId: previousSnapshot.id,
+        previousSnapshotKey: previousSnapshot.snapshotKey,
+        currentSnapshotId: currentSnapshot.id,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+        source: currentSnapshot.source,
+        displayMessage: message,
+      }),
+      windowStart: currentSnapshot.windowStart,
+      windowEnd: currentSnapshot.windowEnd,
+    },
+  });
+}
+
+async function createCancellationSpikeAlert({
+  stripeAccountId,
+  previousSnapshot,
+  currentSnapshot,
+}: {
+  stripeAccountId: string;
+  previousSnapshot: SubscriptionHealthSnapshotRecord | null;
+  currentSnapshot: SubscriptionHealthSnapshotRecord;
+}) {
+  const baselineCancellations = previousSnapshot?.cancellations ?? 0;
+  const multiplier =
+    baselineCancellations > 0
+      ? Number(
+          (currentSnapshot.cancellations / baselineCancellations).toFixed(2)
+        )
+      : null;
+  const message =
+    baselineCancellations > 0
+      ? `Cancellations increased from ${baselineCancellations} to ${currentSnapshot.cancellations}.`
+      : `Cancellations are higher than usual: ${currentSnapshot.cancellations} cancellations in the recent window.`;
+
+  await prisma.alert.upsert({
+    where: {
+      stripeEventId: buildCancellationSpikeAlertKey({
+        stripeAccountId,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+      }),
+    },
+    update: {},
+    create: {
+      type: "cancellation_spike",
+      severity: "warning",
+      status: "active",
+      stripeAccountId,
+      stripeEventId: buildCancellationSpikeAlertKey({
+        stripeAccountId,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+      }),
+      message,
+      context: JSON.stringify({
+        currentCancellations: currentSnapshot.cancellations,
+        baselineCancellations,
+        multiplier,
+        windowStart: currentSnapshot.windowStart.toISOString(),
+        windowEnd: currentSnapshot.windowEnd.toISOString(),
+        previousSnapshotId: previousSnapshot?.id ?? null,
+        previousSnapshotKey: previousSnapshot?.snapshotKey ?? null,
+        currentSnapshotId: currentSnapshot.id,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+        source: currentSnapshot.source,
+        displayMessage: message,
+      }),
+      windowStart: currentSnapshot.windowStart,
+      windowEnd: currentSnapshot.windowEnd,
+    },
+  });
 }
 
 async function createSubscriptionCanceledAlert({
@@ -609,6 +747,207 @@ export async function upsertSubscriptionHealthSnapshot({
   `);
 }
 
+async function getSubscriptionHealthSnapshotRecordByKey({
+  client,
+  snapshotKey,
+}: {
+  client: QueryClient;
+  snapshotKey: string;
+}): Promise<SubscriptionHealthSnapshotRecord | null> {
+  const rows = await client.$queryRaw<Array<{
+    id: string;
+    snapshotKey: string;
+    source: string;
+    activeSubscriptions: number;
+    trialingSubscriptions: number;
+    pastDueSubscriptions: number;
+    unpaidSubscriptions: number;
+    canceledSubscriptions: number;
+    newSubscriptions: number;
+    cancellations: number;
+    failedRenewalPayments: number;
+    estimatedMonthlyRevenue: number;
+    netSubscriptionMovement: number;
+    windowStart: Date | null;
+    windowEnd: Date | null;
+  }>>(Prisma.sql`
+    SELECT
+      "id",
+      "snapshotKey",
+      "source",
+      "activeSubscriptions",
+      "trialingSubscriptions",
+      "pastDueSubscriptions",
+      "unpaidSubscriptions",
+      "canceledSubscriptions",
+      "newSubscriptions",
+      "cancellations",
+      "failedRenewalPayments",
+      "estimatedMonthlyRevenue",
+      "netSubscriptionMovement",
+      "windowStart",
+      "windowEnd"
+    FROM "SubscriptionHealthSnapshot"
+    WHERE "snapshotKey" = ${snapshotKey}
+    LIMIT 1
+  `);
+
+  const row = rows[0];
+  if (!row || !row.windowStart || !row.windowEnd) {
+    return null;
+  }
+
+  return row as SubscriptionHealthSnapshotRecord;
+}
+
+async function getPreviousSubscriptionHealthSnapshotRecord({
+  client,
+  stripeAccountId,
+  currentSnapshotId,
+}: {
+  client: QueryClient;
+  stripeAccountId: string;
+  currentSnapshotId: string;
+}): Promise<SubscriptionHealthSnapshotRecord | null> {
+  const rows = await client.$queryRaw<Array<{
+    id: string;
+    snapshotKey: string;
+    source: string;
+    activeSubscriptions: number;
+    trialingSubscriptions: number;
+    pastDueSubscriptions: number;
+    unpaidSubscriptions: number;
+    canceledSubscriptions: number;
+    newSubscriptions: number;
+    cancellations: number;
+    failedRenewalPayments: number;
+    estimatedMonthlyRevenue: number;
+    netSubscriptionMovement: number;
+    windowStart: Date | null;
+    windowEnd: Date | null;
+  }>>(Prisma.sql`
+    SELECT
+      "id",
+      "snapshotKey",
+      "source",
+      "activeSubscriptions",
+      "trialingSubscriptions",
+      "pastDueSubscriptions",
+      "unpaidSubscriptions",
+      "canceledSubscriptions",
+      "newSubscriptions",
+      "cancellations",
+      "failedRenewalPayments",
+      "estimatedMonthlyRevenue",
+      "netSubscriptionMovement",
+      "windowStart",
+      "windowEnd"
+    FROM "SubscriptionHealthSnapshot"
+    WHERE "stripeAccountId" = ${stripeAccountId}
+      AND "id" <> ${currentSnapshotId}
+    ORDER BY "updatedAt" DESC, "createdAt" DESC
+    LIMIT 1
+  `);
+
+  const row = rows[0];
+  if (!row || !row.windowStart || !row.windowEnd) {
+    return null;
+  }
+
+  return row as SubscriptionHealthSnapshotRecord;
+}
+
+function shouldCreateSubscriptionDropAlert({
+  previousSnapshot,
+  currentSnapshot,
+}: {
+  previousSnapshot: SubscriptionHealthSnapshotRecord | null;
+  currentSnapshot: SubscriptionHealthSnapshotRecord;
+}) {
+  if (!previousSnapshot) return false;
+  if (previousSnapshot.activeSubscriptions < 5) return false;
+  if (
+    currentSnapshot.activeSubscriptions >= previousSnapshot.activeSubscriptions
+  ) {
+    return false;
+  }
+
+  const dropCount =
+    previousSnapshot.activeSubscriptions - currentSnapshot.activeSubscriptions;
+  const dropPercent = dropCount / previousSnapshot.activeSubscriptions;
+  return dropPercent >= 0.2;
+}
+
+function shouldCreateCancellationSpikeAlert({
+  previousSnapshot,
+  currentSnapshot,
+}: {
+  previousSnapshot: SubscriptionHealthSnapshotRecord | null;
+  currentSnapshot: SubscriptionHealthSnapshotRecord;
+}) {
+  const currentCancellations = currentSnapshot.cancellations;
+  if (currentCancellations < 3) return false;
+
+  const baselineCancellations = previousSnapshot?.cancellations ?? 0;
+  if (baselineCancellations > 0) {
+    return currentCancellations >= baselineCancellations * 2;
+  }
+
+  return currentCancellations >= 5;
+}
+
+async function evaluateSubscriptionHealthTrendAlerts({
+  client,
+  stripeAccountId,
+  currentSnapshotKey,
+}: {
+  client: QueryClient;
+  stripeAccountId: string;
+  currentSnapshotKey: string;
+}) {
+  const currentSnapshot = await getSubscriptionHealthSnapshotRecordByKey({
+    client,
+    snapshotKey: currentSnapshotKey,
+  });
+
+  if (!currentSnapshot) {
+    return;
+  }
+
+  const previousSnapshot = await getPreviousSubscriptionHealthSnapshotRecord({
+    client,
+    stripeAccountId,
+    currentSnapshotId: currentSnapshot.id,
+  });
+
+  if (
+    shouldCreateSubscriptionDropAlert({
+      previousSnapshot,
+      currentSnapshot,
+    }) &&
+    previousSnapshot
+  ) {
+    await createSubscriptionDropAlert({
+      stripeAccountId,
+      previousSnapshot,
+      currentSnapshot,
+    });
+  }
+
+  if (
+    shouldCreateCancellationSpikeAlert({
+      previousSnapshot,
+      currentSnapshot,
+    })
+  ) {
+    await createCancellationSpikeAlert({
+      stripeAccountId,
+      previousSnapshot,
+      currentSnapshot,
+    });
+  }
+}
+
 export async function syncSubscriptionHealthSnapshot({
   client,
   stripeAccountId,
@@ -629,6 +968,11 @@ export async function syncSubscriptionHealthSnapshot({
     snapshotKey,
     source,
     counts,
+  });
+  await evaluateSubscriptionHealthTrendAlerts({
+    client,
+    stripeAccountId,
+    currentSnapshotKey: snapshotKey,
   });
   return counts;
 }
@@ -996,6 +1340,12 @@ export async function seedSubscriptionHealthTestState({
   nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
   const lastWeek = new Date(now);
   lastWeek.setUTCDate(lastWeek.getUTCDate() - 7);
+  const baselineWindowEnd = new Date(now);
+  baselineWindowEnd.setUTCDate(baselineWindowEnd.getUTCDate() - 7);
+  const baselineWindowStart = new Date(baselineWindowEnd);
+  baselineWindowStart.setUTCDate(
+    baselineWindowStart.getUTCDate() - SNAPSHOT_WINDOW_DAYS
+  );
 
   await clearDevSeedSubscriptionHealthTestState({ stripeAccountId });
 
@@ -1021,6 +1371,12 @@ export async function seedSubscriptionHealthTestState({
     amountPaid: number | null;
     estimatedMonthlyRevenue: number;
     occurredAt: Date;
+  }> = [];
+
+  const baselineSnapshots: Array<{
+    snapshotKey: string;
+    source: string;
+    counts: SubscriptionHealthCounts;
   }> = [];
 
   const pushSubscription = ({
@@ -1180,6 +1536,84 @@ export async function seedSubscriptionHealthTestState({
     });
   }
 
+  if (scenario === "trend-subscription-drop") {
+    for (let index = 1; index <= 7; index += 1) {
+      pushSubscription({
+        suffix: `active-${index}`,
+        status: "active",
+        interval: "month",
+        intervalCount: 1,
+        unitAmount: 3900,
+      });
+    }
+
+    baselineSnapshots.push({
+      snapshotKey: `${DEV_SEED_PREFIX}:baseline-subscription-drop:${stripeAccountId}`,
+      source: "dev",
+      counts: {
+        activeSubscriptions: 10,
+        trialingSubscriptions: 0,
+        pastDueSubscriptions: 0,
+        unpaidSubscriptions: 0,
+        canceledSubscriptions: 0,
+        newSubscriptions: 0,
+        cancellations: 0,
+        failedRenewalPayments: 0,
+        estimatedMonthlyRevenue: 39000,
+        netSubscriptionMovement: 0,
+        windowStart: baselineWindowStart,
+        windowEnd: baselineWindowEnd,
+      },
+    });
+  }
+
+  if (scenario === "trend-cancellation-spike") {
+    for (let index = 1; index <= 5; index += 1) {
+      eventRows.push({
+        stripeEventId: buildDevSeedId(
+          "event",
+          stripeAccountId,
+          `cancellation-${index}`
+        ),
+        stripeSubscriptionId: buildDevSeedId(
+          "subscription",
+          stripeAccountId,
+          `cancellation-${index}`
+        ),
+        stripeCustomerId: buildDevSeedId(
+          "customer",
+          stripeAccountId,
+          `cancellation-${index}`
+        ),
+        type: "customer.subscription.deleted",
+        billingReason: null,
+        amountDue: null,
+        amountPaid: null,
+        estimatedMonthlyRevenue: 0,
+        occurredAt: now,
+      });
+    }
+
+    baselineSnapshots.push({
+      snapshotKey: `${DEV_SEED_PREFIX}:baseline-cancellation-spike:${stripeAccountId}`,
+      source: "dev",
+      counts: {
+        activeSubscriptions: 10,
+        trialingSubscriptions: 0,
+        pastDueSubscriptions: 0,
+        unpaidSubscriptions: 0,
+        canceledSubscriptions: 0,
+        newSubscriptions: 0,
+        cancellations: 2,
+        failedRenewalPayments: 0,
+        estimatedMonthlyRevenue: 39000,
+        netSubscriptionMovement: -2,
+        windowStart: baselineWindowStart,
+        windowEnd: baselineWindowEnd,
+      },
+    });
+  }
+
   await prisma.$transaction(async (tx) => {
     for (const row of subscriptionRows) {
       await tx.$executeRaw(Prisma.sql`
@@ -1249,6 +1683,16 @@ export async function seedSubscriptionHealthTestState({
         amountPaid: event.amountPaid,
         estimatedMonthlyRevenue: event.estimatedMonthlyRevenue,
         occurredAt: event.occurredAt,
+      });
+    }
+
+    for (const snapshot of baselineSnapshots) {
+      await upsertSubscriptionHealthSnapshot({
+        client: tx,
+        stripeAccountId,
+        snapshotKey: snapshot.snapshotKey,
+        source: snapshot.source,
+        counts: snapshot.counts,
       });
     }
   });
