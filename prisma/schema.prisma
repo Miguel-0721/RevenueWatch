@@ -176,3 +176,79 @@ model PostDraft {
   @@index([status])
   @@index([updatedAt])
 }
+
+model SubscriptionHealthSubscription {
+  id                     String   @id @default(cuid())
+  stripeSubscriptionId   String   @unique
+  stripeAccountId        String
+  stripeCustomerId       String?
+  status                 String
+  priceId                String?
+  currency               String?
+  interval               String?
+  intervalCount          Int?
+  quantity               Int      @default(1)
+  unitAmount             Int?
+  estimatedMonthlyRevenue Int     @default(0)
+  cancelAtPeriodEnd      Boolean  @default(false)
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  trialStart             DateTime?
+  trialEnd               DateTime?
+  canceledAt             DateTime?
+  endedAt                DateTime?
+  lastEventCreatedAt     DateTime?
+  lastSyncedAt           DateTime @default(now())
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([stripeAccountId])
+  @@index([status])
+  @@index([currentPeriodEnd])
+}
+
+model SubscriptionHealthEvent {
+  id                     String   @id @default(cuid())
+  stripeEventId          String   @unique
+  stripeAccountId        String
+  stripeSubscriptionId   String?
+  stripeCustomerId       String?
+  type                   String
+  subscriptionStatus     String?
+  billingReason          String?
+  currency               String?
+  amountDue              Int?
+  amountPaid             Int?
+  estimatedMonthlyRevenue Int     @default(0)
+  occurredAt             DateTime
+  createdAt              DateTime @default(now())
+
+  @@index([stripeAccountId])
+  @@index([type])
+  @@index([occurredAt])
+}
+
+model SubscriptionHealthSnapshot {
+  id                     String   @id @default(cuid())
+  snapshotKey            String   @unique
+  stripeAccountId        String
+  source                 String
+  activeSubscriptions    Int      @default(0)
+  trialingSubscriptions  Int      @default(0)
+  pastDueSubscriptions   Int      @default(0)
+  unpaidSubscriptions    Int      @default(0)
+  canceledSubscriptions  Int      @default(0)
+  newSubscriptions       Int      @default(0)
+  cancellations          Int      @default(0)
+  failedRenewalPayments  Int      @default(0)
+  estimatedMonthlyRevenue Int     @default(0)
+  netSubscriptionMovement Int     @default(0)
+  windowStart            DateTime?
+  windowEnd              DateTime?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([stripeAccountId])
+  @@index([source])
+  @@index([createdAt])
+}

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { backfillStripeAccountHistory } from "@/lib/stripe-backfill";
 import { prisma } from "@/lib/prisma";
+import {
+  backfillStripeAccountSubscriptions,
+  getLatestSubscriptionHealthSnapshotCounts,
+} from "@/lib/subscription-health-store";
 import { auth } from "../../../../auth";
 
 type BackfillStatus = "pending" | "running" | "completed" | "failed";
@@ -19,7 +23,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    let body: { stripeAccountId?: string } | null = null;
+    let body:
+      | {
+          stripeAccountId?: string;
+          runSubscriptionHealthBackfill?: boolean;
+          forceSubscriptionHealthBackfill?: boolean;
+        }
+      | null = null;
 
     try {
       body = (await req.json()) as { stripeAccountId?: string };
@@ -31,6 +41,9 @@ export async function POST(req: Request) {
     }
 
     const stripeAccountId = body?.stripeAccountId?.trim();
+    const shouldRunSubscriptionHealthBackfill = Boolean(
+      body?.runSubscriptionHealthBackfill || body?.forceSubscriptionHealthBackfill
+    );
 
     if (!stripeAccountId) {
       return NextResponse.json(
@@ -59,17 +72,53 @@ export async function POST(req: Request) {
       );
     }
 
+    const existingSubscriptionSnapshotCounts =
+      await getLatestSubscriptionHealthSnapshotCounts({
+        stripeAccountId: stripeAccount.stripeAccountId,
+      });
+    const subscriptionSnapshotMissing = !existingSubscriptionSnapshotCounts;
+
     if (stripeAccount.backfillStatus === "completed") {
+      if (shouldRunSubscriptionHealthBackfill || subscriptionSnapshotMissing) {
+        const result = await backfillStripeAccountSubscriptions({
+          stripeAccountId: stripeAccount.stripeAccountId,
+        });
+
+        return NextResponse.json({
+          ok: true,
+          stripeAccountId: stripeAccount.stripeAccountId,
+          backfillStatus: "completed",
+          alreadyCompleted: true,
+          paymentBackfillSkipped: true,
+          subscriptionBackfillRan: true,
+          successfulPaymentsImported: 0,
+          failedPaymentsImported: 0,
+          skippedDuplicates: 0,
+          processedPaymentIntents: 0,
+          processedSubscriptions: result.processedSubscriptions,
+          backfillIncomplete: result.backfillIncomplete,
+          importedSubscriptions: result.importedSubscriptions,
+          updatedSubscriptions: result.updatedSubscriptions,
+          subscriptionSnapshotCounts: result.snapshotCounts,
+        });
+      }
+
       return NextResponse.json({
         ok: true,
         stripeAccountId: stripeAccount.stripeAccountId,
         backfillStatus: "completed",
         alreadyCompleted: true,
+        paymentBackfillSkipped: true,
+        subscriptionBackfillRan: false,
         successfulPaymentsImported: 0,
         failedPaymentsImported: 0,
         skippedDuplicates: 0,
         processedPaymentIntents: 0,
+        processedSubscriptions: 0,
         backfillIncomplete: false,
+        importedSubscriptions: 0,
+        updatedSubscriptions: 0,
+        subscriptionSnapshotCounts: existingSubscriptionSnapshotCounts,
       });
     }
 
@@ -79,11 +128,17 @@ export async function POST(req: Request) {
         stripeAccountId: stripeAccount.stripeAccountId,
         backfillStatus: "running",
         alreadyRunning: true,
+        paymentBackfillSkipped: true,
+        subscriptionBackfillRan: false,
         successfulPaymentsImported: 0,
         failedPaymentsImported: 0,
         skippedDuplicates: 0,
         processedPaymentIntents: 0,
+        processedSubscriptions: 0,
         backfillIncomplete: false,
+        importedSubscriptions: 0,
+        updatedSubscriptions: 0,
+        subscriptionSnapshotCounts: existingSubscriptionSnapshotCounts,
       });
     }
 
@@ -122,11 +177,17 @@ export async function POST(req: Request) {
         backfillStatus: currentState?.backfillStatus ?? "unknown",
         alreadyRunning: currentState?.backfillStatus === "running",
         alreadyCompleted: currentState?.backfillStatus === "completed",
+        paymentBackfillSkipped: true,
+        subscriptionBackfillRan: false,
         successfulPaymentsImported: 0,
         failedPaymentsImported: 0,
         skippedDuplicates: 0,
         processedPaymentIntents: 0,
+        processedSubscriptions: 0,
         backfillIncomplete: false,
+        importedSubscriptions: 0,
+        updatedSubscriptions: 0,
+        subscriptionSnapshotCounts: existingSubscriptionSnapshotCounts,
       });
     }
 
@@ -153,9 +214,15 @@ export async function POST(req: Request) {
         ok: true,
         stripeAccountId: stripeAccount.stripeAccountId,
         backfillStatus: "completed",
+        paymentBackfillSkipped: false,
+        subscriptionBackfillRan: true,
         processedPaymentIntents: result.processedPaymentIntents,
+        processedSubscriptions: result.processedSubscriptions,
         successfulPaymentsImported: result.insertedRevenueMetrics,
         failedPaymentsImported: result.insertedFailureEvents,
+        importedSubscriptions: result.importedSubscriptions,
+        updatedSubscriptions: result.updatedSubscriptions,
+        subscriptionSnapshotCounts: result.subscriptionSnapshotCounts,
         skippedDuplicates: result.skippedDuplicates,
         backfillIncomplete: result.backfillIncomplete,
       });

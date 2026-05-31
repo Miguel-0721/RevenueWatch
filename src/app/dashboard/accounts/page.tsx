@@ -3,6 +3,11 @@ import { AutoBackfillTrigger } from "./AutoBackfillTrigger";
 import { AccountStatusActions } from "./AccountStatusActions";
 import { getActiveDemoAlerts, hasDemoAccount } from "@/lib/demoData";
 import { prisma } from "@/lib/prisma";
+import {
+  getLatestSubscriptionHealthSummary,
+  type SubscriptionHealthSummary,
+} from "@/lib/subscription-health-store";
+import { formatMoneyAmount } from "@/lib/currency";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import styles from "./page.module.css";
@@ -46,8 +51,14 @@ function formatRelativeTime(date: Date | null | undefined) {
 }
 
 function alertLabel(type: string) {
-  if (type === "revenue_drop") return "Revenue Drop Detected";
-  if (type === "payment_failed") return "Payment Failure Spike";
+  if (type === "revenue_drop") return "Revenue drop";
+  if (type === "payment_failed") return "Payment failures";
+  if (type === "subscription_canceled") return "Subscription canceled";
+  if (type === "failed_renewal") return "Failed renewal";
+  if (type === "subscription_drop") return "Subscription drop";
+  if (type === "cancellation_spike") return "Cancellation spike";
+  if (type === "past_due_increase") return "Past-due increase";
+  if (type === "unpaid_subscription") return "Unpaid subscription";
   return type.replace(/_/g, " ");
 }
 
@@ -183,6 +194,30 @@ export default async function DashboardAccountsPage({
     return accountDisplayName(left.name).localeCompare(accountDisplayName(right.name));
   });
   const visibleAccounts = sortedAccounts.filter((account) => account.status !== "disconnected");
+  const summaryEntries = await Promise.all(
+    visibleAccounts.map(
+      async (
+        account
+      ): Promise<[string, SubscriptionHealthSummary | null]> => [
+        account.stripeAccountId,
+        await getLatestSubscriptionHealthSummary({
+          stripeAccountId: account.stripeAccountId,
+        }),
+      ]
+    )
+  );
+  const summaryByAccount = new Map<string, SubscriptionHealthSummary | null>(
+    summaryEntries
+  );
+  const activeAlertCountByAccount = new Map<string, number>();
+
+  for (const alert of activeAlertRecords) {
+    if (!alert.stripeAccountId) continue;
+    activeAlertCountByAccount.set(
+      alert.stripeAccountId,
+      (activeAlertCountByAccount.get(alert.stripeAccountId) ?? 0) + 1
+    );
+  }
 
   return (
     <section className={styles.shell}>
@@ -199,7 +234,7 @@ export default async function DashboardAccountsPage({
         <header className={styles.header}>
           <div>
             <h1>Connected accounts</h1>
-            <p>Review the Stripe accounts Parveil is monitoring and open a detailed account view when something needs attention.</p>
+            <p>Review subscription health, cancellations, failed renewals, and supporting Stripe monitoring for each connected account.</p>
           </div>
           <Link href="/api/stripe/connect" className={styles.addAccountLink}>
             Add account
@@ -220,7 +255,7 @@ export default async function DashboardAccountsPage({
             </div>
           ) : null}
           <p className={styles.helperText}>
-            Active and paused accounts are shown here. Accounts needing review are shown first.
+            Active and paused accounts are shown here. Accounts needing subscription-health review are shown first.
           </p>
           {visibleAccounts.length === 0 ? (
             <div className={styles.emptyState}>
@@ -234,6 +269,9 @@ export default async function DashboardAccountsPage({
                 const topAlert = active
                   ? topAlertByAccount.get(account.stripeAccountId) ?? null
                   : null;
+                const summary = summaryByAccount.get(account.stripeAccountId) ?? null;
+                const activeAlertCount =
+                  activeAlertCountByAccount.get(account.stripeAccountId) ?? 0;
                 const highlightVariant = disconnected
                   ? "disconnected"
                   : !active
@@ -250,7 +288,7 @@ export default async function DashboardAccountsPage({
                       ? "Paused"
                       : account.backfillStatus === "pending" || account.backfillStatus === "running"
                         ? "Importing history"
-                        : "Monitoring";
+                        : "Normal";
                 const cardVariantClass =
                   highlightVariant === "attention"
                     ? styles.cardAttention
@@ -304,6 +342,29 @@ export default async function DashboardAccountsPage({
                       ) : null}
                       {topAlert ? (
                         <div className={styles.cardSignal}>{alertLabel(topAlert.type)}</div>
+                      ) : null}
+                      {summary ? (
+                        <div className={styles.cardStats}>
+                          <span className={styles.cardStat}>
+                            <strong>{summary.activeSubscriptions}</strong>
+                            <small>Active subscriptions</small>
+                          </span>
+                          <span className={styles.cardStat}>
+                            <strong>
+                              {formatMoneyAmount(
+                                summary.estimatedMonthlyRevenue,
+                                summary.currency
+                              )}
+                            </strong>
+                            <small>Estimated MRR</small>
+                          </span>
+                          <span className={styles.cardStat}>
+                            <strong>
+                              {activeAlertCount > 0 ? activeAlertCount : "None"}
+                            </strong>
+                            <small>{activeAlertCount > 0 ? "Active alerts" : "Active alerts"}</small>
+                          </span>
+                        </div>
                       ) : null}
                     </div>
                     </Link>

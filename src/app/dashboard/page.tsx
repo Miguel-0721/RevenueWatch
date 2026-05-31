@@ -42,8 +42,14 @@ type DisplayHistoryItem = {
 };
 
 function alertLabel(type: string) {
-  if (type === "revenue_drop") return "Revenue Drop Detected";
-  if (type === "payment_failed") return "Payment Failure Spike";
+  if (type === "revenue_drop") return "Revenue drop";
+  if (type === "payment_failed") return "Payment failures";
+  if (type === "subscription_canceled") return "Subscription canceled";
+  if (type === "failed_renewal") return "Failed renewal";
+  if (type === "subscription_drop") return "Subscription drop";
+  if (type === "cancellation_spike") return "Cancellation spike";
+  if (type === "past_due_increase") return "Past-due increase";
+  if (type === "unpaid_subscription") return "Unpaid subscription";
   return type.replace(/_/g, " ");
 }
 
@@ -161,7 +167,7 @@ function formatHistoryTime(date: Date) {
 
 function buildStatusCopy(activeAlertsCount: number, accountCount: number) {
   if (accountCount === 0) {
-    return "Connect a Stripe account to start monitoring revenue and failed payments.";
+    return "Connect a Stripe account to start monitoring subscription health, failed renewals, cancellations, past-due subscriptions, and revenue changes.";
   }
 
   if (activeAlertsCount > 0) {
@@ -169,12 +175,12 @@ function buildStatusCopy(activeAlertsCount: number, accountCount: number) {
       accountCount === 1 ? "" : "s"
     }. ${activeAlertsCount} active alert${
       activeAlertsCount === 1 ? "" : "s"
-    } currently require review across revenue and payment-failure monitoring.`;
+    } currently require review across subscription health and supporting Stripe monitoring.`;
   }
 
   return `Monitoring ${accountCount} Stripe account${
     accountCount === 1 ? "" : "s"
-  }. No issues detected in the last 24 hours.`;
+  } for subscription health. No active issues need review right now.`;
 }
 
 function demoSeverityToDisplaySeverity(severity: string): "critical" | "warning" {
@@ -219,6 +225,17 @@ function HistoryIcon() {
       <path
         fill="currentColor"
         d="M12 2a10 10 0 0 0-9.95 9H0l3.07 3.08L6.15 11H4.07A8 8 0 1 1 12 20a7.86 7.86 0 0 1-5.66-2.34l-1.42 1.42A9.86 9.86 0 0 0 12 22a10 10 0 0 0 0-20Zm-1 5v6l5.25 3.15.75-1.23-4.5-2.67V7Z"
+      />
+    </svg>
+  );
+}
+
+function FocusIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.sectionIcon}>
+      <path
+        fill="currentColor"
+        d="M12 3c4.97 0 9 4.03 9 9s-4.03 9-9 9-9-4.03-9-9 4.03-9 9-9Zm0 2a7 7 0 1 0 0 14 7 7 0 0 0 0-14Zm-.75 2.75h1.5v4.19l2.72 2.72-1.06 1.06-3.16-3.16V7.75Z"
       />
     </svg>
   );
@@ -508,8 +525,39 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         </header>
 
       <div className={styles.workspaceContent}>
-        <h1 className={styles.workspaceTitle}>Stripe monitoring overview</h1>
+        <h1 className={styles.workspaceTitle}>Subscription health overview</h1>
         <p className={styles.workspaceIntro}>{statusCopy}</p>
+
+        <section className={styles.focusCard} aria-label="Monitoring focus">
+          <div className={styles.focusHeader}>
+            <FocusIcon />
+            <div>
+              <h2 className={styles.sideCardTitle}>What Parveil is watching</h2>
+              <p className={styles.focusIntro}>
+                Parveil tracks subscription health first, with revenue changes kept as a
+                supporting signal.
+              </p>
+            </div>
+          </div>
+          <div className={styles.focusList}>
+            <div className={styles.focusItem}>
+              <strong>Cancellations and failed renewals</strong>
+              <span>Spot churn and renewal friction before it compounds.</span>
+            </div>
+            <div className={styles.focusItem}>
+              <strong>Past-due and unpaid subscriptions</strong>
+              <span>See payment-collection issues that threaten subscription health.</span>
+            </div>
+            <div className={styles.focusItem}>
+              <strong>Subscription drops and spikes</strong>
+              <span>Review meaningful shifts in active subscriptions and cancellations.</span>
+            </div>
+            <div className={styles.focusItem}>
+              <strong>Revenue health as supporting context</strong>
+              <span>Use revenue changes to confirm whether subscription problems are growing.</span>
+            </div>
+          </div>
+        </section>
 
         <CurrentAlertsRail
           pendingLabel={alertsPendingLabel}
@@ -597,7 +645,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
               <div>
                 <h2 className={styles.sectionTitle}>View all connected accounts</h2>
                 <p className={styles.accountsOverviewText}>
-                  Review account status, active monitoring, and account-specific alert details.
+                  Review subscription health, active monitoring, and account-specific alert details.
                 </p>
               </div>
             </div>

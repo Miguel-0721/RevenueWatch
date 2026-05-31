@@ -7,6 +7,7 @@ import { getAlertSensitivityConfig } from "@/lib/alert-sensitivity";
 import { normalizeCurrencyCode } from "@/lib/currency";
 import { evaluateRevenueDropForAccount } from "@/lib/revenue-drop";
 import { getStripeMode } from "@/lib/stripe-customer";
+import { handleConnectedAccountSubscriptionHealthEvent } from "@/lib/subscription-health-store";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-12-15.clover",
@@ -497,7 +498,7 @@ export async function POST(req: Request) {
     }
 
 
-    if (event.type === "checkout.session.completed") {
+    if (!event.account && event.type === "checkout.session.completed") {
       console.log("Checkout session completed webhook received", event.id);
 
       const session = event.data.object as Stripe.Checkout.Session;
@@ -561,9 +562,12 @@ export async function POST(req: Request) {
     }
 
     if (
-      event.type === "customer.subscription.created" ||
-      event.type === "customer.subscription.updated" ||
-      event.type === "customer.subscription.deleted"
+      !event.account &&
+      (
+        event.type === "customer.subscription.created" ||
+        event.type === "customer.subscription.updated" ||
+        event.type === "customer.subscription.deleted"
+      )
     ) {
       console.log("Customer subscription billing webhook received", {
         eventType: event.type,
@@ -617,7 +621,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true });
     }
 
-    if (event.type === "invoice.paid") {
+    if (!event.account && event.type === "invoice.paid") {
       console.log("Invoice paid webhook received", event.id);
 
       const invoice = event.data.object as Stripe.Invoice;
@@ -733,6 +737,21 @@ export async function POST(req: Request) {
 
 
     // Ignore unrelated events
+    if (
+      event.type === "customer.subscription.created" ||
+      event.type === "customer.subscription.updated" ||
+      event.type === "customer.subscription.deleted" ||
+      event.type === "invoice.payment_failed" ||
+      event.type === "invoice.payment_succeeded"
+    ) {
+      await handleConnectedAccountSubscriptionHealthEvent({
+        event,
+        stripeAccountId,
+      });
+
+      return NextResponse.json({ received: true });
+    }
+
     if (
       event.type !== "payment_intent.succeeded" &&
       event.type !== "payment_intent.payment_failed"

@@ -31,8 +31,14 @@ type HistoryRecord = {
 };
 
 function alertLabel(type: string) {
-  if (type === "revenue_drop") return "Revenue Drop Detected";
-  if (type === "payment_failed") return "Payment Failure Spike";
+  if (type === "revenue_drop") return "Revenue drop";
+  if (type === "payment_failed") return "Payment failures";
+  if (type === "subscription_canceled") return "Subscription canceled";
+  if (type === "failed_renewal") return "Failed renewal";
+  if (type === "subscription_drop") return "Subscription drop";
+  if (type === "cancellation_spike") return "Cancellation spike";
+  if (type === "past_due_increase") return "Past-due increase";
+  if (type === "unpaid_subscription") return "Unpaid subscription";
   return type.replace(/_/g, " ");
 }
 
@@ -297,7 +303,10 @@ export default async function DashboardAlertsPage() {
         <div className={styles.header}>
           <div>
             <h1>Alerts</h1>
-            <p>Review current issues and past alert activity across your connected accounts.</p>
+            <p>
+              Review current subscription-health issues first, then scan calmer alert
+              history across your connected accounts.
+            </p>
           </div>
         </div>
 
@@ -310,7 +319,9 @@ export default async function DashboardAlertsPage() {
       <div className={styles.content}>
         <section className={styles.section}>
           {activeAlerts.length === 0 ? (
-            <div className={styles.emptyState}>No active alerts right now.</div>
+            <div className={styles.emptyState}>
+              No active alerts need review right now.
+            </div>
           ) : (
             <div className={styles.list}>
               {activeAlerts.map((alert) => {
