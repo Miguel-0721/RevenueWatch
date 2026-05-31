@@ -22,6 +22,373 @@ Current branding note:
 
 ---
 
+## Latest Memory Refresh (May 31, 2026)
+
+This section supersedes older notes where they conflict.
+
+### Current Working Branch
+
+- Current active branch:
+  - `feature-subscription-health-foundation`
+- Current product direction:
+  - Parveil is moving from mainly `payment failures and revenue drops`
+  - toward `subscription health monitoring, starting with Stripe`
+- Important trust rule remains unchanged:
+  - monitoring-only behavior
+  - no money movement
+  - no Stripe writes
+
+### Latest Pushed Commits On This Branch
+
+- `2661824`
+  - `Add subscription health monitoring foundation`
+- `9e7608b`
+  - `Harden subscription health MRR calculations`
+- `dee6d43`
+  - `Add subscription trend alerts`
+- `27d9702`
+  - `Harden subscription health monitoring engine`
+- `850668c`
+  - `Document subscription health monitoring engine`
+
+### Subscription-Health Backbone Now In Place
+
+Current backbone on this branch includes:
+- subscription health data foundation
+- connected-account subscription/invoice webhook handling
+- safe subscription-health backfill for already-connected Stripe accounts
+- account-detail subscription health cards
+- informational subscription cancellation alerts
+- failed renewal alerts
+- subscription trend alerts
+- alert review / resolve flow
+- dev-only test helpers blocked in production
+- internal documentation for the monitoring engine
+
+### Current Subscription-Health Data Model
+
+Current subscription-health tables/models:
+- `SubscriptionHealthSubscription`
+  - stores current per-subscription state for a connected Stripe account
+- `SubscriptionHealthEvent`
+  - stores normalized subscription/invoice monitoring events
+- `SubscriptionHealthSnapshot`
+  - stores account-level subscription health snapshots used by the UI and trend evaluator
+
+Important runtime implementation rule:
+- new subscription-health runtime paths avoid depending on regenerated Prisma client types
+- raw SQL helpers in `src/lib/subscription-health-store.ts` are used because this Windows machine has recurring Prisma `EPERM` / generate issues
+
+### Current Subscription-Health Metrics
+
+Current subscription-health summary metrics:
+- `activeSubscriptions`
+- `trialingSubscriptions`
+- `pastDueSubscriptions`
+- `unpaidSubscriptions`
+- `canceledSubscriptions`
+- `failedRenewalPayments`
+- `estimatedMonthlyRevenue`
+- `netSubscriptionMovement`
+
+Current account-detail UI surfaces these metrics on:
+- `/dashboard/accounts/[accountId]`
+
+### Estimated MRR Rules (Current Source Of Truth)
+
+Current `Estimated MRR` behavior:
+- only `active` subscriptions count
+- `trialing` does not count
+- `past_due` does not count
+- `unpaid` does not count
+- `canceled` does not count
+- monthly subscriptions count directly
+- yearly subscriptions are normalized to monthly by dividing by `12`
+- `interval_count` is handled correctly
+- `quantity` is multiplied into the recurring amount
+- multi-item subscriptions are summed
+
+Important helper functions:
+- `normalizeRecurringAmountToMonthly(...)`
+- `calculateEstimatedMonthlyRevenue(...)`
+
+### Stripe Events Currently Supported For Subscription Health
+
+Connected-account subscription health handling currently supports:
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `invoice.payment_failed`
+- `invoice.payment_succeeded`
+
+Important behavior:
+- this is monitoring-only
+- Parveil does not modify subscriptions, customers, invoices, or payments in Stripe
+
+### Subscription Backfill State
+
+Current protected route:
+- `POST /api/internal/backfill-stripe-account`
+
+Current subscription backfill behavior:
+- works for already-connected Stripe accounts
+- does not reconnect Stripe
+- does not write to Stripe
+- reads current subscriptions for the connected account
+- upserts local subscription rows
+- refreshes/writes the latest subscription snapshot
+
+Current request option for already-completed accounts:
+- `runSubscriptionHealthBackfill: true`
+- alias also supported:
+  - `forceSubscriptionHealthBackfill: true`
+
+Current response fields include:
+- `stripeAccountId`
+- `processedSubscriptions`
+- `importedSubscriptions`
+- `updatedSubscriptions`
+- `subscriptionSnapshotCounts`
+- `paymentBackfillSkipped`
+- `subscriptionBackfillRan`
+
+### Current Subscription-Health Alert Types
+
+Current implemented alert types:
+- `subscription_canceled`
+- `failed_renewal`
+- `subscription_drop`
+- `cancellation_spike`
+- `past_due_increase`
+- `unpaid_subscription`
+
+Current readable UI labels:
+- `subscription_canceled` -> `Subscription canceled`
+- `failed_renewal` -> `Failed renewal`
+- `subscription_drop` -> `Subscription drop`
+- `cancellation_spike` -> `Cancellation spike`
+- `past_due_increase` -> `Past-due increase`
+- `unpaid_subscription` -> `Unpaid subscription`
+- existing legacy labels still in use:
+  - `payment_failed` -> `Payment failures`
+  - `revenue_drop` -> `Revenue drop`
+
+### Current Alert Logic Summary
+
+`subscription_canceled`
+- created when a connected-account `customer.subscription.deleted` event is processed
+- also created during backfill if a canceled subscription is discovered and no matching alert exists
+- severity currently uses:
+  - `warning`
+
+`failed_renewal`
+- created when a connected-account `invoice.payment_failed` event belongs to a subscription renewal
+- severity currently uses:
+  - `warning`
+
+`subscription_drop`
+- compares latest snapshot to previous snapshot for the same Stripe account
+- only evaluates if previous active subscriptions are at least `5`
+- triggers when active subscriptions drop by at least `20%`
+
+`cancellation_spike`
+- compares current cancellations to previous/baseline cancellations
+- conservative MVP rule:
+  - current cancellations at least `3`
+  - and at least `2x` baseline
+  - or no baseline and current cancellations at least `5`
+
+`past_due_increase`
+- compares latest `pastDueSubscriptions` to the previous snapshot
+- triggers if:
+  - previous past due was `0` and current is at least `1`, or
+  - current increased by at least `2`, or
+  - current is at least `2x` previous
+
+`unpaid_subscription`
+- triggers when the current snapshot has `unpaidSubscriptions >= 1`
+
+### Current Alert Deduplication Keys
+
+Important rule:
+- all subscription-health alerts use stable `Alert.stripeEventId` keys and `upsert` behavior to avoid duplicate alert spam
+
+Current key patterns:
+- `subscription_canceled:${stripeSubscriptionId}:${canceledAt}`
+- `failed_renewal:${invoiceId}`
+  - subscription fallback exists if invoice id is unavailable
+- `subscription_drop:${stripeAccountId}:${currentSnapshotKey}`
+- `cancellation_spike:${stripeAccountId}:${currentSnapshotKey}`
+- `past_due_increase:${stripeAccountId}:${currentSnapshotKey}`
+- `unpaid_subscription:${stripeAccountId}:${currentSnapshotKey}`
+
+Important engine hardening already done:
+- subscription-health alert writes now use the same DB client / transaction path as the surrounding snapshot or webhook flow where applicable
+- this avoids alerts being committed outside the intended transaction
+
+### Current Snapshot / Trend Evaluation Rules
+
+Current trend evaluation behavior:
+- trend evaluation runs after new snapshots are written
+- latest snapshot is compared to the most recent previous snapshot for the same Stripe account
+- webhook, backfill, and dev-seed paths all reuse the same snapshot synchronization and evaluation path where possible
+
+Important current helper:
+- `syncSubscriptionHealthSnapshot(...)`
+
+### Mark As Reviewed Flow
+
+Current review flow:
+- active alerts can be marked as reviewed from `/dashboard/accounts/[accountId]`
+- status is updated from:
+  - `active`
+  - to `resolved`
+- reviewed alerts leave `Current Issue`
+- reviewed alerts appear in `Alert History`
+- if no active alerts remain, the account returns to a healthy/normal monitoring state
+
+### Dev/Test Helpers (Current State)
+
+Current dev-only routes:
+- `/api/internal/dev/create-failed-renewal-test-alert`
+- `/api/internal/dev/seed-subscription-health-test-state`
+
+Current production safety:
+- both routes return `404` in production
+- both require a signed-in user locally
+- both verify the connected Stripe account belongs to the signed-in user
+- both operate only on local Parveil tables
+- neither route calls Stripe
+- neither route sends customer emails or owner emails
+
+Current available seed scenarios:
+- `basic-active`
+- `multiple-active`
+- `mixed-health`
+- `yearly-active`
+- `quantity-active`
+- `mixed-mrr`
+- `trend-subscription-drop`
+- `trend-cancellation-spike`
+- `trend-past-due-increase`
+- `trend-unpaid-subscription`
+- `empty`
+
+Important `empty` behavior:
+- clears only dev-created subscription-health rows, snapshots, events, and dev-created alerts
+- does not delete real Stripe-imported data
+- returns the account to the real local state
+
+### Internal Documentation Added
+
+Current internal monitoring-engine documentation:
+- `docs/subscription-health-monitoring.md`
+
+This file documents:
+- overview
+- metrics
+- MRR rules
+- alert types and logic
+- snapshot/trend behavior
+- dev helper routes and scenarios
+- production safety
+- future improvements
+
+### Current Positioning / Copy Direction On This Branch
+
+Current core positioning:
+- `Monitor subscription health before revenue problems grow.`
+
+Current support wording:
+- Parveil tracks:
+  - cancellations
+  - failed renewals
+  - past-due subscriptions
+  - unpaid subscriptions
+  - revenue changes as supporting signal
+- starting with Stripe
+
+Current important wording rule:
+- revenue monitoring and payment failure monitoring are now supporting signals
+- subscription health is the primary product story
+
+### Current Local Uncommitted UX Polish (Not Yet Committed/Pushed)
+
+At the time of this memory refresh, there is current local-only UX polish in the worktree on this branch.
+
+Modified files:
+- `src/app/dashboard/page.tsx`
+- `src/app/dashboard/page.module.css`
+- `src/app/dashboard/accounts/page.tsx`
+- `src/app/dashboard/accounts/page.module.css`
+- `src/app/dashboard/accounts/[accountId]/page.tsx`
+- `src/app/dashboard/accounts/[accountId]/page.module.css`
+- `src/app/dashboard/alerts/page.tsx`
+- `src/app/dashboard/alerts/page.module.css`
+
+Current local UX changes:
+- `/dashboard`
+  - added a `What Parveil is watching` summary card
+  - clarifies that Parveil is watching:
+    - cancellations and failed renewals
+    - past-due and unpaid subscriptions
+    - subscription drops and spikes
+    - revenue health as supporting context
+- `/dashboard/accounts`
+  - connected-account rows now show lightweight subscription-health context when available:
+    - active subscriptions
+    - estimated MRR
+    - active alert count
+- `/dashboard/accounts/[accountId]`
+  - subscription-health metric cards now include helper subtext
+  - active alerts are easier to scan
+  - resolved/history alerts feel calmer
+  - empty state now says:
+    - `No active alerts. Parveil is monitoring subscription health for this account.`
+- `/dashboard/alerts`
+  - current vs historical alerts are visually clearer
+  - resolved/history alerts use calmer treatment
+  - empty state now says:
+    - `No active alerts need review right now.`
+
+Important current status:
+- these UX changes are local only at the moment
+- backend monitoring logic was not changed by this UX pass
+- `npx.cmd tsc --noEmit` passed after the UX work
+
+### Current Local-Only Files To Keep Out Of Commits
+
+At the time of this memory refresh, these remain local-only and uncommitted:
+- `antigravity_config.json`
+- `public/uploads/`
+
+Important rule:
+- do not accidentally commit those files unless explicitly requested
+
+### Current Most Relevant Files For Future Subscription-Health Work
+
+Inspect these first in future chats on this branch:
+- `PROJECT_MEMORY.md`
+- `docs/subscription-health-monitoring.md`
+- `prisma/schema.prisma`
+- `prisma/migrations/20260521093000_add_subscription_health_foundation/migration.sql`
+- `src/lib/subscription-health-store.ts`
+- `src/lib/stripe-backfill.ts`
+- `src/app/api/internal/backfill-stripe-account/route.ts`
+- `src/app/api/stripe/webhook/route.ts`
+- `src/app/api/internal/dev/create-failed-renewal-test-alert/route.ts`
+- `src/app/api/internal/dev/seed-subscription-health-test-state/route.ts`
+- `src/app/dashboard/page.tsx`
+- `src/app/dashboard/page.module.css`
+- `src/app/dashboard/accounts/page.tsx`
+- `src/app/dashboard/accounts/page.module.css`
+- `src/app/dashboard/accounts/[accountId]/page.tsx`
+- `src/app/dashboard/accounts/[accountId]/page.module.css`
+- `src/app/dashboard/alerts/page.tsx`
+- `src/app/dashboard/alerts/page.module.css`
+
+---
+
 ## Algemeen
 
 Parveil is a simple monitoring and alerting product for Stripe.

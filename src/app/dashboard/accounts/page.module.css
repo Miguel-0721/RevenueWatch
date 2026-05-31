@@ -205,6 +205,39 @@
   font-weight: 600;
 }
 
+.cardStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.cardStat {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 116px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f7f9fc;
+  box-shadow: inset 0 0 0 1px rgba(193, 198, 215, 0.2);
+}
+
+.cardStat strong {
+  color: #191c1d;
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.cardStat small {
+  color: #6a7280;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .cardHint {
   color: #6a7280;
   font-size: 0.82rem;
@@ -318,5 +351,9 @@
 
   .cardTitleRow {
     align-items: flex-start;
+  }
+
+  .cardStats {
+    width: 100%;
   }
 }

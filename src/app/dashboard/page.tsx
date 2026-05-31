@@ -230,6 +230,17 @@ function HistoryIcon() {
   );
 }
 
+function FocusIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.sectionIcon}>
+      <path
+        fill="currentColor"
+        d="M12 3c4.97 0 9 4.03 9 9s-4.03 9-9 9-9-4.03-9-9 4.03-9 9-9Zm0 2a7 7 0 1 0 0 14 7 7 0 0 0 0-14Zm-.75 2.75h1.5v4.19l2.72 2.72-1.06 1.06-3.16-3.16V7.75Z"
+      />
+    </svg>
+  );
+}
+
 type DashboardPageProps = {
   searchParams?: Promise<{
     billing?: string;
@@ -516,6 +527,37 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       <div className={styles.workspaceContent}>
         <h1 className={styles.workspaceTitle}>Subscription health overview</h1>
         <p className={styles.workspaceIntro}>{statusCopy}</p>
+
+        <section className={styles.focusCard} aria-label="Monitoring focus">
+          <div className={styles.focusHeader}>
+            <FocusIcon />
+            <div>
+              <h2 className={styles.sideCardTitle}>What Parveil is watching</h2>
+              <p className={styles.focusIntro}>
+                Parveil tracks subscription health first, with revenue changes kept as a
+                supporting signal.
+              </p>
+            </div>
+          </div>
+          <div className={styles.focusList}>
+            <div className={styles.focusItem}>
+              <strong>Cancellations and failed renewals</strong>
+              <span>Spot churn and renewal friction before it compounds.</span>
+            </div>
+            <div className={styles.focusItem}>
+              <strong>Past-due and unpaid subscriptions</strong>
+              <span>See payment-collection issues that threaten subscription health.</span>
+            </div>
+            <div className={styles.focusItem}>
+              <strong>Subscription drops and spikes</strong>
+              <span>Review meaningful shifts in active subscriptions and cancellations.</span>
+            </div>
+            <div className={styles.focusItem}>
+              <strong>Revenue health as supporting context</strong>
+              <span>Use revenue changes to confirm whether subscription problems are growing.</span>
+            </div>
+          </div>
+        </section>
 
         <CurrentAlertsRail
           pendingLabel={alertsPendingLabel}

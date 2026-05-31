@@ -881,6 +881,20 @@
   padding: 16px;
 }
 
+.alertRowBody,
+.resolvedRowBody {
+  min-width: 0;
+}
+
+.alertRowHeader,
+.resolvedRowHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .alertIconCritical,
 .alertIconWarning {
   width: 34px;
@@ -930,6 +944,33 @@
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.activeAlertPill,
+.historyPill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.activeAlertPill {
+  background: rgba(0, 88, 188, 0.08);
+  color: #0058bc;
+}
+
+.historyPill {
+  background: #f1f4f7;
+  color: #5f6b7b;
+}
+
+.alertMetaText {
+  color: #6f7684 !important;
 }
 
 .alertRowActions {
@@ -990,9 +1031,9 @@
 .resolvedRow {
   display: block;
   padding: 18px 20px;
-  background: #ffffff;
-  border-color: rgba(193, 198, 215, 0.22);
-  box-shadow: 0 2px 8px rgba(25, 28, 29, 0.035);
+  background: linear-gradient(180deg, #fbfcfd 0%, #ffffff 100%);
+  border-color: rgba(193, 198, 215, 0.18);
+  box-shadow: 0 1px 4px rgba(25, 28, 29, 0.025);
 }
 
 .emptyState {
@@ -1105,6 +1146,14 @@
   letter-spacing: -0.04em;
 }
 
+.subscriptionMetricCard small {
+  display: block;
+  margin-top: 8px;
+  color: #5f6b7b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .subscriptionEmptyState {
   padding: 16px 18px;
   border-radius: 10px;
@@ -1169,6 +1218,11 @@
 
   .alertRow {
     grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  .alertRowHeader,
+  .resolvedRowHeader {
+    align-items: flex-start;
   }
 
   .titlePrimary {

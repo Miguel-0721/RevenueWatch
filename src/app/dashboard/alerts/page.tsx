@@ -303,7 +303,10 @@ export default async function DashboardAlertsPage() {
         <div className={styles.header}>
           <div>
             <h1>Alerts</h1>
-            <p>Review current issues and past alert activity across your connected accounts.</p>
+            <p>
+              Review current subscription-health issues first, then scan calmer alert
+              history across your connected accounts.
+            </p>
           </div>
         </div>
 
@@ -316,7 +319,9 @@ export default async function DashboardAlertsPage() {
       <div className={styles.content}>
         <section className={styles.section}>
           {activeAlerts.length === 0 ? (
-            <div className={styles.emptyState}>No active alerts right now.</div>
+            <div className={styles.emptyState}>
+              No active alerts need review right now.
+            </div>
           ) : (
             <div className={styles.list}>
               {activeAlerts.map((alert) => {

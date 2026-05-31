@@ -2157,12 +2157,19 @@ function ActiveAlertRow({ alert }: { alert: AlertLike }) {
   return (
     <article className={styles.alertRow}>
       <div className={severity.iconClass}>!</div>
-      <div>
-        <h3>{alertLabel(alert.type)}</h3>
+      <div className={styles.alertRowBody}>
+        <div className={styles.alertRowHeader}>
+          <h3>{alertLabel(alert.type)}</h3>
+          <span className={styles.activeAlertPill}>{getSeverityLabel(alert.severity)}</span>
+        </div>
         <p>{buildReadableAlertMessage(alert)}</p>
-        <span>
-          {getSeverityLabel(alert.severity)} · {detectedAt ? `Detected ${detectedAt}` : alert.detectedLabel ? `Detected ${alert.detectedLabel}` : `Triggered ${fmtDate(alert.createdAt)}`}
-          </span>
+        <span className={styles.alertMetaText}>
+          {detectedAt
+            ? `Detected ${detectedAt}`
+            : alert.detectedLabel
+              ? `Detected ${alert.detectedLabel}`
+              : `Triggered ${fmtDate(alert.createdAt)}`}
+        </span>
         {alert.id && alert.stripeAccountId ? (
           <form action={markAlertReviewedAction} className={styles.alertRowActions}>
             <input type="hidden" name="alertId" value={alert.id} />
@@ -2182,8 +2189,11 @@ function HistoryRow({ alert }: { alert: AlertLike }) {
 
   return (
     <article className={styles.resolvedRow}>
-      <div>
-        <h3>{alertLabel(alert.type)}</h3>
+      <div className={styles.resolvedRowBody}>
+        <div className={styles.resolvedRowHeader}>
+          <h3>{alertLabel(alert.type)}</h3>
+          <span className={styles.historyPill}>Reviewed</span>
+        </div>
         <p>{buildHistoryAlertMessage(alert)}</p>
         <span className={styles.historyDetected}>Detected {detectedAt}</span>
       </div>
@@ -2198,15 +2208,40 @@ function SubscriptionHealthSection({
 }) {
   const metrics = summary
     ? [
-        { label: "Active subscriptions", value: formatCount(summary.activeSubscriptions) },
-        { label: "Trialing", value: formatCount(summary.trialingSubscriptions) },
-        { label: "Past due", value: formatCount(summary.pastDueSubscriptions) },
-        { label: "Unpaid", value: formatCount(summary.unpaidSubscriptions) },
-        { label: "Canceled", value: formatCount(summary.canceledSubscriptions) },
-        { label: "Failed renewals", value: formatCount(summary.failedRenewalPayments) },
+        {
+          label: "Active subscriptions",
+          value: formatCount(summary.activeSubscriptions),
+          help: "Currently active paid subscriptions.",
+        },
+        {
+          label: "Trialing",
+          value: formatCount(summary.trialingSubscriptions),
+          help: "Subscriptions currently in trial.",
+        },
+        {
+          label: "Past due",
+          value: formatCount(summary.pastDueSubscriptions),
+          help: "Subscriptions with payment collection issues.",
+        },
+        {
+          label: "Unpaid",
+          value: formatCount(summary.unpaidSubscriptions),
+          help: "Subscriptions currently marked unpaid.",
+        },
+        {
+          label: "Canceled",
+          value: formatCount(summary.canceledSubscriptions),
+          help: "Canceled subscriptions tracked for this account.",
+        },
+        {
+          label: "Failed renewals",
+          value: formatCount(summary.failedRenewalPayments),
+          help: "Renewal payments that failed in the current window.",
+        },
         {
           label: "Estimated MRR",
           value: formatMoneyAmount(summary.estimatedMonthlyRevenue, summary.currency),
+          help: "Estimated monthly recurring revenue from active subscriptions only.",
         },
         {
           label: "Net subscription movement",
@@ -2214,6 +2249,7 @@ function SubscriptionHealthSection({
             summary.netSubscriptionMovement > 0
               ? `+${formatCount(summary.netSubscriptionMovement)}`
               : formatCount(summary.netSubscriptionMovement),
+          help: "Recent net subscription movement in the current monitoring window.",
         },
       ]
     : [];
@@ -2237,6 +2273,7 @@ function SubscriptionHealthSection({
             <article key={metric.label} className={styles.subscriptionMetricCard}>
               <span>{metric.label}</span>
               <strong>{metric.value}</strong>
+              <small>{metric.help}</small>
             </article>
           ))}
         </div>
@@ -2513,7 +2550,9 @@ export default async function AccountDetailPage({
               {activeAlerts.length > 0 ? (
                 activeAlerts.map((alert) => <ActiveAlertRow key={alert.id ?? alert.type} alert={alert} />)
               ) : (
-                <div className={styles.emptyState}>No active alerts for this account right now.</div>
+                <div className={styles.emptyState}>
+                  No active alerts. Parveil is monitoring subscription health for this account.
+                </div>
               )}
             </div>
           </div>
