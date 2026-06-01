@@ -1,26 +1,27 @@
 .dashboardPage {
-  height: 100vh;
+  min-height: 100vh;
   margin-top: calc(var(--topbar-height) * -1);
-  background: #eef1f5;
+  background: #f7f9fc;
   color: #191c1d;
-  padding: 24px;
-  overflow: hidden;
+  padding: 0;
+  overflow: visible;
   box-sizing: border-box;
 }
 
 .dashboardShell {
-  max-width: 1520px;
-  margin: 0 auto;
-  height: calc(100vh - 48px);
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  min-height: 100vh;
   box-sizing: border-box;
 }
 
 .sidebarColumn {
   position: fixed;
-  left: max(24px, calc((100vw - 1520px) / 2));
-  top: 24px;
-  width: 280px;
-  height: calc(100vh - 48px);
+  left: 0;
+  top: 0;
+  width: 240px;
+  height: 100vh;
   z-index: 10;
   box-sizing: border-box;
 }
@@ -28,13 +29,13 @@
 .sidebarPanel {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 0;
   height: 100%;
-  padding: 34px 26px;
-  border-radius: 28px;
+  padding: 24px 0;
+  border-radius: 0;
   background: #ffffff;
-  box-shadow: 0 18px 42px rgba(25, 28, 29, 0.05),
-    inset 0 0 0 1px rgba(193, 198, 215, 0.34);
+  box-shadow: none;
+  border-right: 1px solid #e2e8f0;
   overflow-y: auto;
   overflow-x: hidden;
   box-sizing: border-box;
@@ -42,10 +43,10 @@
 
 .mainPanel {
   min-width: 0;
-  margin-left: 304px;
-  height: calc(100vh - 48px);
-  min-height: 0;
-  overflow: hidden;
+  margin-left: 240px;
+  min-height: 100vh;
+  background: #f7f9fc;
+  overflow: visible;
   box-sizing: border-box;
 }
 
@@ -53,7 +54,9 @@
   display: flex;
   align-items: flex-start;
   gap: 14px;
-  min-height: 64px;
+  min-height: auto;
+  padding: 0 20px;
+  margin-bottom: 32px;
 }
 
 .sidebarBrandLink {
@@ -73,140 +76,122 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 12px;
+  gap: 0;
 }
 
 .sidebarBrandSub {
-  color: #7d8796;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.22em;
-  line-height: 1;
-  text-transform: uppercase;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  margin-top: 2px;
 }
 
 .sidebarBrandLogo {
+  display: none;
+}
+
+.sidebarBrandMark {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #004ac6;
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.sidebarBrandMarkIcon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.sidebarBrandTitle {
+  color: #131b2e;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 20px;
 }
 
 .sidebarNav {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  padding: 0 12px;
 }
 
 .sidebarLink {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 52px;
-  padding: 0 18px;
-  border-radius: 10px;
-  color: #191c1d;
-  font-size: 0.98rem;
-  font-weight: 600;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 6px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
   transition: background-color 180ms ease, color 180ms ease, transform 180ms ease,
     box-shadow 180ms ease;
 }
 
 .sidebarLink:hover,
 .sidebarLink:focus-visible {
-  background: rgba(255, 255, 255, 0.88);
-  transform: translateY(-1px);
+  color: #131b2e;
+  background: #f2f3ff;
 }
 
 .sidebarLinkActive {
-  background: #dfe9f5;
-  color: #0058bc;
-  font-weight: 800;
-  box-shadow: inset 0 0 0 1px rgba(161, 190, 253, 0.4);
+  background: #eff6ff;
+  color: #004ac6;
+  font-weight: 500;
+  box-shadow: none;
 }
 
-.sidebarNavIcon,
-.sidebarLink svg {
+.sidebarIcon {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
   color: currentColor;
 }
 
-.sidebarUserArea {
-  margin-top: auto;
-  padding-top: 20px;
-  border-top: 1px solid #eceef1;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.sidebarUserIdentity {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.sidebarUserAvatar {
-  display: flex;
+.sidebarLinkBadge {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  min-width: 18px;
+  height: 18px;
+  margin-left: auto;
+  padding: 0 5px;
   border-radius: 999px;
-  background: #dfe9f5;
-  color: #0058bc;
-  font-size: 0.9rem;
+  background: #004ac6;
+  color: #ffffff;
+  font-size: 10px;
   font-weight: 800;
 }
 
-.sidebarUserMeta {
+.sidebarUserArea {
+  margin-top: auto;
+  padding: 0 12px;
   display: flex;
   flex-direction: column;
-  min-width: 0;
-  gap: 2px;
+  gap: 8px;
 }
 
-.sidebarUserName {
-  color: #191c1d;
-  font-size: 0.88rem;
-  font-weight: 700;
-}
-
-.sidebarUserEmail {
-  color: #717786;
-  font-size: 0.78rem;
-  font-weight: 500;
-}
-
-.sidebarSignOut {
-  border: none;
-  background: transparent;
-  color: #0058bc;
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-  padding: 0;
-  align-self: flex-start;
-}
-
-.sidebarFooterLinks {
+.sidebarProfileLink {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  padding-top: 6px;
-}
-
-.sidebarFooterLink {
-  color: #7d8796;
-  font-size: 0.73rem;
-  font-weight: 500;
-  line-height: 1.4;
-  transition: color 180ms ease;
-}
-
-.sidebarFooterLink:hover,
-.sidebarFooterLink:focus-visible {
-  color: #4f5b6c;
+  align-items: center;
+  gap: 12px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 6px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 18px;
 }
 
 @media (max-width: 900px) {
@@ -234,6 +219,8 @@
     min-height: auto;
     height: auto;
     overflow: visible;
+    border-right: none;
+    border-bottom: 1px solid rgba(193, 198, 215, 0.56);
   }
 
   .mainPanel {

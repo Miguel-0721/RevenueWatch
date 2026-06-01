@@ -796,6 +796,14 @@
   line-height: 1.4;
 }
 
+.monitoringNote {
+  margin-top: 10px;
+  color: #6b7483;
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 700;
+}
+
 .panelGrid {
   display: grid;
   grid-template-columns: 1fr;
@@ -971,6 +979,14 @@
 
 .alertMetaText {
   color: #6f7684 !important;
+}
+
+.inlineMonitoringNote {
+  margin-top: 10px;
+  color: #6f7684;
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 700;
 }
 
 .alertRowActions {

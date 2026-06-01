@@ -4,7 +4,7 @@ import SeverityHelpPopover from "@/components/SeverityHelpPopover";
 import { getAlertSensitivityConfig } from "@/lib/alert-sensitivity";
 import { formatMoneyAmount, normalizeCurrencyCode } from "@/lib/currency";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import detailStyles from "@/app/dashboard/accounts/[accountId]/page.module.css";
 import styles from "./CurrentAlertsRail.module.css";
 
@@ -23,6 +23,11 @@ type CurrentAlertRailItem = {
   href: string;
   context?: string | null;
   createdAt?: string | null;
+};
+
+type ActivityEntry = {
+  label: string;
+  time?: string;
 };
 
 type RevenueContext = {
@@ -389,6 +394,21 @@ function buildReadableAlertMessage(alert: CurrentAlertRailItem) {
     return parsed.displayMessage;
   }
 
+  if (alert.type === "failed_renewal") {
+    const amountDue =
+      parsed && typeof parsed.amountDue === "number" ? parsed.amountDue : null;
+    const currency =
+      parsed && typeof parsed.currency === "string"
+        ? normalizeCurrencyCode(parsed.currency)
+        : "EUR";
+
+    if (amountDue !== null) {
+      return `A subscription renewal payment failed. The subscription is now past due and ${formatMoneyAmount(amountDue, currency)} per month is at risk.`;
+    }
+
+    return "A subscription renewal payment failed. The subscription is now past due and the monthly amount is at risk.";
+  }
+
   const revenueContext = getRevenueContext(alert);
   if (revenueContext) {
     return `Sales are ${Math.round(revenueContext.dropRatio * 100)}% lower than usual for this time period.`;
@@ -400,6 +420,171 @@ function buildReadableAlertMessage(alert: CurrentAlertRailItem) {
   }
 
   return alert.message;
+}
+
+function buildDetailSummary(alert: CurrentAlertRailItem) {
+  if (alert.type === "failed_renewal") {
+    return "A subscription renewal payment failed. The subscription is now past due and the monthly amount is at risk.";
+  }
+
+  if (alert.type === "payment_failed") {
+    return "Review the payment failure monitoring signal affecting this account.";
+  }
+
+  if (alert.type === "revenue_drop") {
+    return "Review the revenue health change that may confirm a broader subscription-health issue.";
+  }
+
+  return "Review the subscription-health issue that needs attention right now.";
+}
+
+function buildAlertFacts(alert: CurrentAlertRailItem) {
+  const parsed = safeParseContext(alert.context);
+  const facts: Array<{ label: string; value: string }> = [
+    {
+      label: "Detected",
+      value: alert.detectedLabel.replace(/^Detected\s+/i, ""),
+    },
+  ];
+
+  if (parsed && typeof parsed.amountDue === "number") {
+    const currency =
+      typeof parsed.currency === "string" ? normalizeCurrencyCode(parsed.currency) : "EUR";
+    facts.unshift({
+      label: "Amount at risk",
+      value: formatMoneyAmount(parsed.amountDue, currency),
+    });
+  } else if (parsed && typeof parsed.estimatedMonthlyRevenue === "number") {
+    const currency =
+      typeof parsed.currency === "string" ? normalizeCurrencyCode(parsed.currency) : "EUR";
+    facts.unshift({
+      label: "Monthly impact",
+      value: formatMoneyAmount(parsed.estimatedMonthlyRevenue, currency),
+    });
+  }
+
+  if (
+    parsed &&
+    typeof parsed.previousActiveSubscriptions === "number" &&
+    typeof parsed.currentActiveSubscriptions === "number"
+  ) {
+    facts.push({
+      label: "Active subs",
+      value: `${parsed.previousActiveSubscriptions} → ${parsed.currentActiveSubscriptions}`,
+    });
+  }
+
+  if (
+    parsed &&
+    typeof parsed.baselineCancellations === "number" &&
+    typeof parsed.currentCancellations === "number"
+  ) {
+    facts.push({
+      label: "Cancellations",
+      value: `${parsed.baselineCancellations} → ${parsed.currentCancellations}`,
+    });
+  }
+
+  if (parsed && typeof parsed.currentPastDueSubscriptions === "number") {
+    facts.push({
+      label: "Past due",
+      value: `${parsed.currentPastDueSubscriptions}`,
+    });
+  }
+
+  if (parsed && typeof parsed.unpaidSubscriptions === "number") {
+    facts.push({
+      label: "Unpaid",
+      value: `${parsed.unpaidSubscriptions}`,
+    });
+  }
+
+  if (parsed && typeof parsed.status === "string") {
+    facts.push({
+      label: "Status",
+      value: parsed.status,
+    });
+  }
+
+  if (parsed && typeof parsed.planName === "string") {
+    facts.push({
+      label: "Plan",
+      value: parsed.planName,
+    });
+  }
+
+  return facts.slice(0, 4);
+}
+
+function buildRecentActivity(alert: CurrentAlertRailItem) {
+  const parsed = safeParseContext(alert.context);
+  if (!parsed || !Array.isArray(parsed.recentActivity)) return [];
+
+  return parsed.recentActivity.flatMap((entry): ActivityEntry[] => {
+    if (typeof entry === "string" && entry.trim().length > 0) {
+      return [{ label: entry }];
+    }
+
+    if (
+      typeof entry === "object" &&
+      entry !== null &&
+      typeof (entry as { label?: unknown }).label === "string"
+    ) {
+      return [
+        {
+          label: (entry as { label: string }).label,
+          time:
+            typeof (entry as { time?: unknown }).time === "string"
+              ? (entry as { time: string }).time
+              : undefined,
+        },
+      ];
+    }
+
+    return [];
+  });
+}
+
+function buildAlertCardChips(alert: CurrentAlertRailItem) {
+  const parsed = safeParseContext(alert.context);
+  const chips: Array<{ label: string; tone: "neutral" | "review" | "critical" }> = [];
+
+  if (parsed && typeof parsed.amountDue === "number") {
+    const currency =
+      typeof parsed.currency === "string" ? normalizeCurrencyCode(parsed.currency) : "EUR";
+    chips.push({
+      label: `${formatMoneyAmount(parsed.amountDue, currency)} at risk`,
+      tone: "review",
+    });
+  } else if (parsed && typeof parsed.estimatedMonthlyRevenue === "number") {
+    const currency =
+      typeof parsed.currency === "string" ? normalizeCurrencyCode(parsed.currency) : "EUR";
+    chips.push({
+      label: `${formatMoneyAmount(parsed.estimatedMonthlyRevenue, currency)} impact`,
+      tone: "neutral",
+    });
+  }
+
+  if (
+    parsed &&
+    typeof parsed.previousActiveSubscriptions === "number" &&
+    typeof parsed.currentActiveSubscriptions === "number"
+  ) {
+    chips.push({
+      label: `${parsed.previousActiveSubscriptions} to ${parsed.currentActiveSubscriptions} active`,
+      tone: "critical",
+    });
+  }
+
+  if (alert.type === "subscription_canceled") {
+    chips.push({ label: "Normal", tone: "neutral" });
+  } else if (alert.severityKind === "critical") {
+    chips.push({ label: "Attention needed", tone: "critical" });
+  } else {
+    chips.push({ label: "Review needed", tone: "review" });
+  }
+
+  return chips.slice(0, 2);
 }
 
 function buildRevenueChartModel(alert: CurrentAlertRailItem, now: Date): RevenueChartModel {
@@ -1124,6 +1309,21 @@ function RevenueChartFigure({
   );
 }
 
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={styles.closeIcon}>
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+        d="M7 7 17 17 M17 7 7 17"
+      />
+    </svg>
+  );
+}
+
 function AlertsEmptyIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" className={className ?? styles.emptyStateIcon}>
@@ -1192,12 +1392,14 @@ function SelectedAlertDetail({
   canSelectRight,
   onSelectLeft,
   onSelectRight,
+  onClose,
 }: {
   alert: CurrentAlertRailItem;
   canSelectLeft: boolean;
   canSelectRight: boolean;
   onSelectLeft: () => void;
   onSelectRight: () => void;
+  onClose: () => void;
 }) {
   const now = new Date();
   const severity = getSeverityPresentation(alert.severityKind);
@@ -1208,16 +1410,18 @@ function SelectedAlertDetail({
       <div className={styles.detailSection}>
         <div className={styles.detailHeader}>
           <div>
-            <span className={styles.detailKicker}>Selected alert</span>
+            <span className={styles.detailKicker}>Current issue</span>
             <div className={styles.detailTitleRow}>
-              <h3 className={styles.detailAccountName}>{alert.accountName}</h3>
+              <h3 className={styles.detailAccountName}>{alert.typeLabel}</h3>
               <span className={severity.statusClass}>{severity.label}</span>
             </div>
-            <p className={styles.detailSummary}>
-              Review the payment failure spike that triggered for this account.
+            <p className={styles.detailAccountMeta}>Account: {alert.accountName}</p>
+            <p className={styles.detailSummary}>{buildDetailSummary(alert)}</p>
+            <p className={styles.monitoringNote}>
+              Parveil only monitors this issue. No Stripe changes are made.
             </p>
           </div>
-          <div className={styles.detailNav}>
+          <div className={styles.detailHeaderActions}>
             <button
               type="button"
               className={`${styles.detailNavButton}${!canSelectLeft ? ` ${styles.detailNavButtonDisabled}` : ""}`}
@@ -1236,10 +1440,118 @@ function SelectedAlertDetail({
             >
               <ArrowRightIcon />
             </button>
+            <button
+              type="button"
+              className={styles.detailCloseButton}
+              onClick={onClose}
+              aria-label="Close issue details"
+            >
+              <CloseIcon />
+            </button>
           </div>
         </div>
 
         <PaymentFailureMonitor alert={alert} paymentContext={paymentContext} severity={severity} />
+        <div className={styles.detailFooter}>
+          <div className={styles.detailFooterActions}>
+            <Link href={alert.href} className={styles.detailGhostLink}>
+              View details
+            </Link>
+            <Link href={alert.href} className={styles.detailReviewLink}>
+              Mark as reviewed
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (alert.type !== "revenue_drop") {
+    const facts = buildAlertFacts(alert);
+    const recentActivity = buildRecentActivity(alert);
+
+    return (
+      <div className={styles.detailSection}>
+        <div className={styles.detailHeader}>
+          <div>
+            <span className={styles.detailKicker}>Current issue</span>
+            <div className={styles.detailTitleRow}>
+              <h3 className={styles.detailAccountName}>{alert.typeLabel}</h3>
+              <span className={severity.statusClass}>{severity.label}</span>
+            </div>
+            <p className={styles.detailAccountMeta}>Account: {alert.accountName}</p>
+            <p className={styles.detailSummary}>{buildReadableAlertMessage(alert)}</p>
+            <p className={styles.monitoringNote}>
+              Parveil only monitors this issue. No Stripe changes are made.
+            </p>
+          </div>
+          <div className={styles.detailHeaderActions}>
+            <button
+              type="button"
+              className={`${styles.detailNavButton}${!canSelectLeft ? ` ${styles.detailNavButtonDisabled}` : ""}`}
+              onClick={onSelectLeft}
+              disabled={!canSelectLeft}
+              aria-label="Select previous alert"
+            >
+              <ArrowLeftIcon />
+            </button>
+            <button
+              type="button"
+              className={`${styles.detailNavButton}${!canSelectRight ? ` ${styles.detailNavButtonDisabled}` : ""}`}
+              onClick={onSelectRight}
+              disabled={!canSelectRight}
+              aria-label="Select next alert"
+            >
+              <ArrowRightIcon />
+            </button>
+            <button
+              type="button"
+              className={styles.detailCloseButton}
+              onClick={onClose}
+              aria-label="Close issue details"
+            >
+              <CloseIcon />
+            </button>
+          </div>
+        </div>
+
+        <div className={styles.genericDetailCard}>
+          <div className={styles.genericFactsGrid}>
+            {facts.map((fact) => (
+              <div key={fact.label} className={styles.genericFact}>
+                <span>{fact.label}</span>
+                <strong>{fact.value}</strong>
+              </div>
+            ))}
+          </div>
+          <div className={styles.genericDetailMessage}>
+            <span className={styles.genericDetailLabel}>{alert.typeLabel}</span>
+            <p>{buildReadableAlertMessage(alert)}</p>
+          </div>
+          {recentActivity.length > 0 ? (
+            <div className={styles.activityBlock}>
+              <span className={styles.genericDetailLabel}>Recent activity</span>
+              <ul className={styles.activityList}>
+                {recentActivity.map((entry) => (
+                  <li key={`${entry.label}-${entry.time ?? ""}`} className={styles.activityItem}>
+                    <strong>{entry.label}</strong>
+                    {entry.time ? <span>{entry.time}</span> : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          <div className={styles.detailFooter}>
+            <div className={styles.detailFooterActions}>
+              <Link href={alert.href} className={styles.detailGhostLink}>
+                View details
+              </Link>
+              <Link href={alert.href} className={styles.detailReviewLink}>
+                Mark as reviewed
+              </Link>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -1250,16 +1562,18 @@ function SelectedAlertDetail({
     <div className={styles.detailSection}>
       <div className={styles.detailHeader}>
         <div>
-          <span className={styles.detailKicker}>Selected alert</span>
+          <span className={styles.detailKicker}>Current issue</span>
           <div className={styles.detailTitleRow}>
-            <h3 className={styles.detailAccountName}>{alert.accountName}</h3>
+            <h3 className={styles.detailAccountName}>{alert.typeLabel}</h3>
             <span className={severity.statusClass}>{severity.label}</span>
           </div>
-          <p className={styles.detailSummary}>
-            Review the revenue drop that triggered for this account.
+          <p className={styles.detailAccountMeta}>Account: {alert.accountName}</p>
+          <p className={styles.detailSummary}>{buildDetailSummary(alert)}</p>
+          <p className={styles.monitoringNote}>
+            Parveil only monitors this issue. No Stripe changes are made.
           </p>
         </div>
-        <div className={styles.detailNav}>
+        <div className={styles.detailHeaderActions}>
           <button
             type="button"
             className={`${styles.detailNavButton}${!canSelectLeft ? ` ${styles.detailNavButtonDisabled}` : ""}`}
@@ -1278,10 +1592,28 @@ function SelectedAlertDetail({
           >
             <ArrowRightIcon />
           </button>
+          <button
+            type="button"
+            className={styles.detailCloseButton}
+            onClick={onClose}
+            aria-label="Close issue details"
+          >
+            <CloseIcon />
+          </button>
         </div>
       </div>
 
       <RevenueAlertMonitor alert={alert} model={model} paymentContext={paymentContext} severity={severity} />
+      <div className={styles.detailFooter}>
+        <div className={styles.detailFooterActions}>
+          <Link href={alert.href} className={styles.detailGhostLink}>
+            View details
+          </Link>
+          <Link href={alert.href} className={styles.detailReviewLink}>
+            Mark as reviewed
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1289,40 +1621,49 @@ function SelectedAlertDetail({
 export default function CurrentAlertsRail({
   alerts,
   pendingLabel,
+  listFooter,
+  initialSelectedId,
+  detailPlaceholder,
 }: {
   alerts: CurrentAlertRailItem[];
   pendingLabel: string;
+  listFooter?: React.ReactNode;
+  initialSelectedId?: string;
+  detailPlaceholder?: React.ReactNode;
 }) {
-  const railRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    if (selectedIndex >= alerts.length) {
-      setSelectedIndex(0);
+    if (selectedIndex !== null && selectedIndex >= alerts.length) {
+      setSelectedIndex(null);
     }
   }, [alerts.length, selectedIndex]);
 
   useEffect(() => {
+    if (!initialSelectedId) return;
+    const matchIndex = alerts.findIndex((alert) => alert.id === initialSelectedId);
+    if (matchIndex >= 0) {
+      setSelectedIndex(matchIndex);
+    }
+  }, [alerts, initialSelectedId]);
+
+  useEffect(() => {
+    if (selectedIndex === null) return;
     const selectedCard = cardRefs.current[selectedIndex];
     selectedCard?.scrollIntoView({
       behavior: "smooth",
       block: "nearest",
-      inline: "start",
     });
   }, [selectedIndex]);
 
-  const selectedAlert = alerts[selectedIndex] ?? null;
-  const canSelectLeft = selectedIndex > 0;
-  const canSelectRight = selectedIndex < alerts.length - 1;
-
-  const fadeClasses = useMemo(
-    () => `${canSelectLeft ? ` ${styles.fadeLeft}` : ""}${canSelectRight ? ` ${styles.fadeRight}` : ""}`,
-    [canSelectLeft, canSelectRight]
-  );
+  const selectedAlert = selectedIndex !== null ? alerts[selectedIndex] ?? null : null;
+  const canSelectLeft = selectedIndex !== null && selectedIndex > 0;
+  const canSelectRight = selectedIndex !== null && selectedIndex < alerts.length - 1;
 
   function moveSelection(direction: "left" | "right") {
     setSelectedIndex((current) => {
+      if (current === null) return current;
       if (direction === "left") {
         return Math.max(0, current - 1);
       }
@@ -1331,44 +1672,20 @@ export default function CurrentAlertsRail({
   }
 
   return (
-    <section className={styles.section} aria-label="Current alerts">
+    <section className={styles.section} aria-label="Needs review">
       <header className={styles.header}>
         <div className={styles.headerTitle}>
           <div className={styles.headerTitleRow}>
             <AlertsEmptyIcon className={styles.sectionIcon} />
             <div>
-              <h2 className={styles.title}>Current alerts</h2>
-              <p className={styles.intro}>Review the accounts that need attention right now.</p>
+              <h2 className={styles.title}>Needs Review</h2>
+              <p className={styles.intro}>What needs review right now across your monitored accounts.</p>
             </div>
           </div>
         </div>
 
         <div className={styles.controls}>
           <span className={styles.count}>{pendingLabel}</span>
-          {alerts.length > 0 ? (
-            <div className={styles.arrowGroup}>
-              <button
-                type="button"
-                className={`${styles.arrowButton}${!canSelectLeft ? ` ${styles.arrowButtonDisabled}` : ""}`}
-                aria-label="Scroll alerts left"
-                aria-disabled={!canSelectLeft}
-                disabled={!canSelectLeft}
-                onClick={() => moveSelection("left")}
-              >
-                <ArrowLeftIcon />
-              </button>
-              <button
-                type="button"
-                className={`${styles.arrowButton}${!canSelectRight ? ` ${styles.arrowButtonDisabled}` : ""}`}
-                aria-label="Scroll alerts right"
-                aria-disabled={!canSelectRight}
-                disabled={!canSelectRight}
-                onClick={() => moveSelection("right")}
-              >
-                <ArrowRightIcon />
-              </button>
-            </div>
-          ) : null}
         </div>
       </header>
 
@@ -1381,17 +1698,26 @@ export default function CurrentAlertsRail({
             <div className={styles.emptyStateCopy}>
               <h3>No active alerts</h3>
               <p>
-                Parveil is monitoring your connected Stripe accounts. Any alerts that need
-                review will appear here.
+                No active alerts need review right now. Parveil is still monitoring subscription
+                health across your connected Stripe accounts.
               </p>
             </div>
           </div>
         </div>
       ) : (
-        <>
-          <div className={`${styles.railViewport}${fadeClasses}`}>
-            <div ref={railRef} className={styles.rail}>
-              {alerts.map((alert, index) => (
+        <div className={styles.inboxGrid}>
+          <div className={styles.listPane}>
+            <div className={styles.listPaneHeader}>
+              <span className={styles.listPaneEyebrow}>Monitoring Inbox</span>
+              <p className={styles.listPaneNote}>
+                Select an issue to review its subscription-health context.
+              </p>
+            </div>
+            <div className={styles.listStack}>
+              {alerts.map((alert, index) => {
+                const cardChips = buildAlertCardChips(alert);
+
+                return (
                 <button
                   key={alert.id}
                   ref={(element) => {
@@ -1409,43 +1735,66 @@ export default function CurrentAlertsRail({
                   >
                     <div className={styles.cardTop}>
                       <div className={styles.cardHeading}>
-                        <h3 className={styles.accountName}>{alert.accountName}</h3>
-                        <p className={styles.typeLabel} style={{ color: alert.typeColor }}>
+                        <h3 className={styles.typeLabel} style={{ color: alert.typeColor }}>
                           {alert.typeLabel}
+                        </h3>
+                        <p className={styles.accountName}>
+                          {alert.accountName}
                         </p>
                       </div>
-                      <span
-                        className={styles.badge}
-                        style={{
-                          color: alert.severityTextColor,
-                          background: alert.severityBgColor,
-                        }}
-                      >
-                        {alert.severityLabel}
-                      </span>
+                      <span className={styles.timeLabel}>{alert.detectedLabel.replace(/^Detected\s+/i, "")}</span>
                     </div>
 
-                    <p className={styles.message}>{alert.message}</p>
-
-                    <div className={styles.cardFooter}>
-                      <span className={styles.timeLabel}>{alert.detectedLabel}</span>
+                    <div className={styles.cardChips}>
+                      {cardChips.map((chip) => (
+                        <span
+                          key={`${alert.id}-${chip.label}`}
+                          className={`${styles.cardChip} ${
+                            chip.tone === "critical"
+                              ? styles.cardChipCritical
+                              : chip.tone === "review"
+                                ? styles.cardChipReview
+                                : styles.cardChipNeutral
+                          }`}
+                        >
+                          {chip.label}
+                        </span>
+                      ))}
                     </div>
                   </article>
                 </button>
-              ))}
+                );
+              })}
             </div>
+            {!selectedAlert ? (
+              <div className={styles.inlinePlaceholder}>
+                {detailPlaceholder ?? (
+                  <div className={styles.detailPlaceholder}>
+                    <h3>Select an issue to review details.</h3>
+                    <p>
+                      Choose an item from Needs Review to open account context, alert facts, and the
+                      review actions for that issue.
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : null}
+            {listFooter ? <div className={styles.listPaneFooter}>{listFooter}</div> : null}
           </div>
 
           {selectedAlert ? (
-            <SelectedAlertDetail
-              alert={selectedAlert}
-              canSelectLeft={canSelectLeft}
-              canSelectRight={canSelectRight}
-              onSelectLeft={() => moveSelection("left")}
-              onSelectRight={() => moveSelection("right")}
-            />
+            <div className={styles.detailPane}>
+              <SelectedAlertDetail
+                alert={selectedAlert}
+                canSelectLeft={canSelectLeft}
+                canSelectRight={canSelectRight}
+                onSelectLeft={() => moveSelection("left")}
+                onSelectRight={() => moveSelection("right")}
+                onClose={() => setSelectedIndex(null)}
+              />
+            </div>
           ) : null}
-        </>
+        </div>
       )}
     </section>
   );

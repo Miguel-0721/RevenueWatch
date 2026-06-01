@@ -1,15 +1,10 @@
-import { auth, signOut } from "@/auth";
-import RevenueWatchLogo from "@/components/RevenueWatchLogo";
+import { auth } from "@/auth";
+import StitchIcon from "@/components/dashboard/StitchIcon";
 import DashboardSidebarNav from "@/components/dashboard/DashboardSidebarNav";
 import DashboardViewportLock from "@/components/dashboard/DashboardViewportLock";
 import styles from "@/components/dashboard/DashboardShell.module.css";
-import { isAdminEmail } from "@/lib/admin";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-
-function getUserDisplayName(name?: string | null, email?: string | null) {
-  return name?.trim() || email?.split("@")[0] || "Signed in";
-}
 
 export default async function DashboardLayout({
   children,
@@ -22,11 +17,6 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  const sessionDisplayName = getUserDisplayName(session.user.name, session.user.email);
-  const sessionInitial =
-    (session.user.name?.[0] || session.user.email?.[0] || "U").toUpperCase();
-  const showLeadsNav = isAdminEmail(session.user.email);
-
   return (
     <main className={styles.dashboardPage}>
       <DashboardViewportLock />
@@ -36,44 +26,23 @@ export default async function DashboardLayout({
             <div className={styles.sidebarBrand}>
               <Link href="/dashboard" className={styles.sidebarBrandLink}>
                 <div className={styles.sidebarBrandContent}>
-                  <RevenueWatchLogo className={styles.sidebarBrandLogo} compact size="sidebar" />
-                  <div className={styles.sidebarBrandSub}>MONITORING CENTER</div>
+                  <div className={styles.sidebarBrandMark}>
+                    <StitchIcon name="analytics" className={styles.sidebarBrandMarkIcon} />
+                  </div>
+                  <div>
+                    <div className={styles.sidebarBrandTitle}>Parveil</div>
+                    <div className={styles.sidebarBrandSub}>Subscription Health</div>
+                  </div>
                 </div>
               </Link>
             </div>
 
-            <DashboardSidebarNav showLeads={showLeadsNav} />
+            <DashboardSidebarNav />
 
             <div className={styles.sidebarUserArea}>
-              <div className={styles.sidebarUserIdentity}>
-                <div className={styles.sidebarUserAvatar}>{sessionInitial}</div>
-                <div className={styles.sidebarUserMeta}>
-                  <span className={styles.sidebarUserName}>{sessionDisplayName}</span>
-                  <span className={styles.sidebarUserEmail}>Signed in</span>
-                </div>
-              </div>
-
-              <form
-                action={async () => {
-                  "use server";
-                  await signOut({ redirectTo: "/login" });
-                }}
-              >
-                <button type="submit" className={styles.sidebarSignOut}>
-                  Sign out
-                </button>
-              </form>
-
-              <div className={styles.sidebarFooterLinks} aria-label="Legal and help">
-                <Link href="/privacy" className={styles.sidebarFooterLink}>
-                  Privacy
-                </Link>
-                <Link href="/terms" className={styles.sidebarFooterLink}>
-                  Terms
-                </Link>
-                <Link href="/contact" className={styles.sidebarFooterLink}>
-                  Contact
-                </Link>
+              <div className={styles.sidebarProfileLink}>
+                <StitchIcon name="account_circle" className={styles.sidebarIcon} />
+                <span>Profile</span>
               </div>
             </div>
           </aside>

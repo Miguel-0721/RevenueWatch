@@ -129,7 +129,7 @@ function buildAlertAction(alert: AlertRecord) {
     ? `/dashboard/accounts/${encodeURIComponent(alert.stripeAccountId)}`
     : "/dashboard";
 
-  return { label: alert.cta ?? "Review Issue", href };
+  return { label: "View details", href };
 }
 
 function formatResolvedTime(date: Date) {
@@ -305,13 +305,14 @@ export default async function DashboardAlertsPage() {
             <h1>Alerts</h1>
             <p>
               Review current subscription-health issues first, then scan calmer alert
-              history across your connected accounts.
+              history across your connected accounts. Parveil only monitors these issues. No
+              Stripe changes are made.
             </p>
           </div>
         </div>
 
         <div className={`${styles.sectionHeader} ${styles.stickySectionHeader}`}>
-          <h2>Active Alerts</h2>
+          <h2>Needs review</h2>
           <span className={styles.sectionCount}>{activeAlerts.length}</span>
         </div>
       </div>

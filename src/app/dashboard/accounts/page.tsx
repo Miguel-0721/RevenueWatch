@@ -233,8 +233,8 @@ export default async function DashboardAccountsPage({
       <div className={styles.stickyIntro}>
         <header className={styles.header}>
           <div>
-            <h1>Connected accounts</h1>
-            <p>Review subscription health, cancellations, failed renewals, and supporting Stripe monitoring for each connected account.</p>
+            <h1>Monitored accounts</h1>
+            <p>Review subscription health, monitoring status, and current issues for each connected Stripe account.</p>
           </div>
           <Link href="/api/stripe/connect" className={styles.addAccountLink}>
             Add account
@@ -242,7 +242,7 @@ export default async function DashboardAccountsPage({
         </header>
 
         <div className={`${styles.sectionHeader} ${styles.stickySectionHeader}`}>
-          <h2>Accounts</h2>
+          <h2>Monitoring active</h2>
           <span className={styles.sectionMeta}>{visibleAccounts.length} total</span>
         </div>
       </div>
@@ -255,7 +255,7 @@ export default async function DashboardAccountsPage({
             </div>
           ) : null}
           <p className={styles.helperText}>
-            Active and paused accounts are shown here. Accounts needing subscription-health review are shown first.
+            Accounts that need review appear first. Healthy subscription-health monitoring stays visible without crowding the list.
           </p>
           {visibleAccounts.length === 0 ? (
             <div className={styles.emptyState}>
@@ -286,9 +286,13 @@ export default async function DashboardAccountsPage({
                     ? "Disconnected"
                     : account.status === "paused"
                       ? "Paused"
+                      : topAlert?.severity === "critical"
+                        ? "Attention needed"
+                        : topAlert?.severity === "warning"
+                          ? "Review needed"
                       : account.backfillStatus === "pending" || account.backfillStatus === "running"
                         ? "Importing history"
-                        : "Normal";
+                        : "Monitoring active";
                 const cardVariantClass =
                   highlightVariant === "attention"
                     ? styles.cardAttention

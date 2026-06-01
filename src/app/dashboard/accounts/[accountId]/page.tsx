@@ -533,6 +533,21 @@ function buildReadableAlertMessage(alert: AlertLike) {
     return parsed.displayMessage;
   }
 
+  if (alert.type === "failed_renewal") {
+    const amountDue =
+      parsed && typeof parsed.amountDue === "number" ? parsed.amountDue : null;
+    const currency =
+      parsed && typeof parsed.currency === "string"
+        ? normalizeCurrencyCode(parsed.currency)
+        : "EUR";
+
+    if (amountDue !== null) {
+      return `A subscription renewal payment failed. The subscription is now past due and ${formatMoneyAmount(amountDue, currency)} per month is at risk.`;
+    }
+
+    return "A subscription renewal payment failed. The subscription is now past due and the monthly amount is at risk.";
+  }
+
   const revenueContext = getRevenueContext(alert);
   if (revenueContext) {
     const dropPercent = Math.round(revenueContext.dropRatio * 100);
@@ -1314,8 +1329,11 @@ function MonitorInsightPanel({
         <p>
           {topAlert
             ? buildReadableAlertMessage(topAlert)
-            : "No issues detected. Parveil is checking this account in read-only mode."}
+            : "No active alerts. Parveil is monitoring this account in read-only mode."}
         </p>
+        <div className={styles.monitoringNote}>
+          Parveil only monitors this issue. No Stripe changes are made.
+        </div>
         {topAlert ? (
           <div className={styles.detectedAt}>
             Detected: {fmtDetectedDate(topAlert.createdAt) ?? "Recently"}
@@ -2170,6 +2188,9 @@ function ActiveAlertRow({ alert }: { alert: AlertLike }) {
               ? `Detected ${alert.detectedLabel}`
               : `Triggered ${fmtDate(alert.createdAt)}`}
         </span>
+        <div className={styles.inlineMonitoringNote}>
+          Parveil only monitors this issue. No Stripe changes are made.
+        </div>
         {alert.id && alert.stripeAccountId ? (
           <form action={markAlertReviewedAction} className={styles.alertRowActions}>
             <input type="hidden" name="alertId" value={alert.id} />
@@ -2494,7 +2515,7 @@ export default async function AccountDetailPage({
         ? { label: "Disconnected", className: styles.statusCritical }
         : isImportingHistory
           ? { label: "Importing history", className: styles.statusHealthy }
-          : { label: "Normal", className: styles.statusHealthy };
+          : { label: "Monitoring active", className: styles.statusHealthy };
 
   return (
     <main className={styles.page}>
