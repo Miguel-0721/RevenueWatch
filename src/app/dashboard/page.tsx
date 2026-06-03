@@ -1,11 +1,12 @@
 import { auth } from "@/auth";
+import ConnectedAccountsTable from "@/components/dashboard/ConnectedAccountsTable";
 import { formatMoneyAmount } from "@/lib/currency";
 import { prisma } from "@/lib/prisma";
 import { getLatestSubscriptionHealthSummary } from "@/lib/subscription-health-store";
 import { syncUserPlanFromStripe } from "@/lib/subscription-sync";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { subscriptionHealthPreview } from "./previewData";
+import { previewAccountDetails, subscriptionHealthPreview } from "./previewData";
 import styles from "./page.module.css";
 
 type DashboardPageProps = {
@@ -43,6 +44,7 @@ type OverviewIssueSummary = {
   accountName: string;
   impact: string;
   statusLabel: string;
+  detectedAt?: string;
 };
 
 type OverviewAccountRow = {
@@ -53,6 +55,7 @@ type OverviewAccountRow = {
   estimatedMrr: string;
   activeAlerts: number;
   lastActivity: string;
+  href?: string;
 };
 
 type OverviewHistoryRow = {
@@ -73,8 +76,12 @@ function alertLabel(type: string) {
   if (type === "failed_renewal") return "Failed renewal";
   if (type === "subscription_drop") return "Subscription drop";
   if (type === "cancellation_spike") return "Cancellation spike";
+  if (type === "failed_renewal_spike") return "Failed renewal spike";
   if (type === "past_due_increase") return "Past-due increase";
   if (type === "unpaid_subscription") return "Unpaid subscription";
+  if (type === "unpaid_increase") return "Unpaid increase";
+  if (type === "negative_net_subscription_movement") return "Negative net movement";
+  if (type === "meaningful_mrr_drop") return "Meaningful MRR drop";
   return type.replace(/_/g, " ");
 }
 
@@ -82,6 +89,18 @@ function severityRank(severity: string) {
   if (severity === "critical") return 0;
   if (severity === "warning") return 1;
   return 2;
+}
+
+function issueTypePriority(type: string) {
+  if (type === "subscription_drop") return 0;
+  if (type === "cancellation_spike") return 1;
+  if (type === "past_due_increase") return 2;
+  if (type === "unpaid_increase" || type === "unpaid_subscription") return 3;
+  if (type === "negative_net_subscription_movement") return 4;
+  if (type === "failed_renewal_spike" || type === "failed_renewal") return 5;
+  if (type === "meaningful_mrr_drop") return 6;
+  if (type === "subscription_canceled") return 7;
+  return 8;
 }
 
 function statusRank(status: string, severity: string | null) {
@@ -162,6 +181,24 @@ function buildAlertImpact(
     if (previous !== null && current !== null) return `${previous} -> ${current} active`;
   }
 
+  if (alert.type === "cancellation_spike") {
+    const baselineCancellations =
+      typeof context?.baselineDailyCancellations === "number"
+        ? context.baselineDailyCancellations
+        : typeof context?.baselineCancellations === "number"
+          ? context.baselineCancellations
+          : null;
+    const currentCancellations =
+      typeof context?.currentDayCancellations === "number"
+        ? context.currentDayCancellations
+        : typeof context?.currentCancellations === "number"
+          ? context.currentCancellations
+          : null;
+    if (baselineCancellations !== null && currentCancellations !== null) {
+      return `${Math.round(baselineCancellations)} -> ${currentCancellations} cancels`;
+    }
+  }
+
   if (alert.type === "past_due_increase") {
     const previous = typeof context?.previousPastDueSubscriptions === "number"
       ? context.previousPastDueSubscriptions
@@ -175,6 +212,44 @@ function buildAlertImpact(
   if (alert.type === "unpaid_subscription") {
     const unpaid = typeof context?.unpaidSubscriptions === "number" ? context.unpaidSubscriptions : null;
     if (unpaid !== null) return `${unpaid} unpaid`;
+  }
+
+  if (alert.type === "unpaid_increase") {
+    const unpaid = typeof context?.currentUnpaidSubscriptions === "number"
+      ? context.currentUnpaidSubscriptions
+      : null;
+    if (unpaid !== null) return `${unpaid} unpaid`;
+  }
+
+  if (alert.type === "failed_renewal_spike") {
+    const current = typeof context?.currentDayFailedRenewals === "number"
+      ? context.currentDayFailedRenewals
+      : null;
+    const baselineFailedRenewals =
+      typeof context?.baselineDailyFailedRenewals === "number"
+        ? context.baselineDailyFailedRenewals
+        : null;
+    if (current !== null && baselineFailedRenewals !== null) {
+      return `${Math.round(baselineFailedRenewals)} -> ${current} failed`;
+    }
+    if (current !== null) return `${current} failed renewals`;
+  }
+
+  if (alert.type === "negative_net_subscription_movement") {
+    const added = typeof context?.currentDayNewSubscriptions === "number"
+      ? context.currentDayNewSubscriptions
+      : null;
+    const lost = typeof context?.currentDayCancellations === "number"
+      ? context.currentDayCancellations
+      : null;
+    if (added !== null && lost !== null) return `${added} added · ${lost} lost`;
+  }
+
+  if (alert.type === "meaningful_mrr_drop") {
+    const current = typeof context?.currentEstimatedMonthlyRevenue === "number"
+      ? context.currentEstimatedMonthlyRevenue
+      : null;
+    if (current !== null) return `${formatMoneyAmount(current, currency)} current`;
   }
 
   return "Needs review";
@@ -225,6 +300,7 @@ type MetricCardProps = {
   value: string | number;
   helper: string;
   badgeLabel?: string;
+  periodLabel?: string;
   sparkline?: number[];
   compact?: boolean;
   tone?: "default" | "review" | "risk";
@@ -259,6 +335,7 @@ function MetricCard({
   value,
   helper,
   badgeLabel,
+  periodLabel,
   sparkline,
   compact = false,
   tone = "default",
@@ -276,6 +353,7 @@ function MetricCard({
       <div className={styles.metricCardHeader}>
         <span className={styles.metricLabelRow}>
           <span className={styles.metricLabel}>{label}</span>
+          {periodLabel ? <span className={styles.metricPeriodPill}>{periodLabel}</span> : null}
           {tooltip ? <InfoTooltip text={tooltip} /> : null}
         </span>
         {badgeLabel ? <span className={toneClass}>{badgeLabel}</span> : null}
@@ -294,6 +372,7 @@ function MetricCard({
 type OverviewProps = {
   previewMode: boolean;
   scopeCountLabel: string;
+  totalActiveIssues: number;
   primaryMetrics: {
     activeSubscriptions: number | string;
     estimatedMrr: string;
@@ -316,6 +395,7 @@ type OverviewProps = {
 function DashboardOverview({
   previewMode,
   scopeCountLabel,
+  totalActiveIssues,
   primaryMetrics,
   secondaryMetrics,
   issues,
@@ -368,20 +448,19 @@ function DashboardOverview({
           <MetricCard
             label="Needs review"
             value={primaryMetrics.needsReview}
-            helper="Issues waiting in Inbox"
+            helper="Active issues waiting in Inbox"
             compact
             badgeLabel="Inbox"
             tone="review"
-            tooltip="Active subscription-health issues waiting in the Inbox. These are alerts Parveil found, such as failed renewals, cancellations, or subscription drops."
           />
           <MetricCard
             label="Failed renewals"
             value={primaryMetrics.failedRenewals}
-            helper="Renewal payments at risk"
+            helper="Failed payments · Last 7 days"
             compact
             badgeLabel="At risk"
             tone="risk"
-            tooltip="Renewal payments that failed recently. For example, a customer's monthly subscription tried to renew, but the payment did not go through."
+            tooltip="Renewal invoice payments that failed in the last 7 days. For example, a customer's subscription tried to renew, but the payment did not go through."
           />
         </div>
       </section>
@@ -397,7 +476,7 @@ function DashboardOverview({
         <article className={`${styles.secondaryCard} ${styles.secondaryReview}`}>
           <span className={styles.secondaryLabelRow}>
             <span>Past-due</span>
-            <InfoTooltip text="Subscriptions where Stripe could not collect the latest payment yet. For example, the customer's card failed or the payment still needs to be completed." />
+            <InfoTooltip text="Subscriptions where Stripe has not collected the latest payment yet. If payment is completed and the subscription becomes active again, this count goes down." />
           </span>
           <strong>{secondaryMetrics.pastDue}</strong>
           <small>Payment not collected yet</small>
@@ -405,25 +484,25 @@ function DashboardOverview({
         <article className={`${styles.secondaryCard} ${styles.secondaryAttention}`}>
           <span className={styles.secondaryLabelRow}>
             <span>Unpaid</span>
-            <InfoTooltip text="Subscriptions Stripe has marked as unpaid after payment collection failed or was not completed. These usually need attention because the subscription may no longer be paying." />
+            <InfoTooltip text="Subscriptions Stripe currently marks as unpaid after payment could not be collected. If the status changes, this count updates." />
           </span>
           <strong>{secondaryMetrics.unpaid}</strong>
           <small>Marked unpaid in Stripe</small>
         </article>
         <article className={`${styles.secondaryCard} ${styles.secondaryNeutral}`}>
           <span className={styles.secondaryLabelRow}>
-            <span>Canceled this week</span>
+            <span>Canceled</span>
           </span>
           <strong>{secondaryMetrics.canceled}</strong>
-          <small>Subscriptions ended this week</small>
+          <small>Canceled · Last 7 days</small>
         </article>
         <article className={`${styles.secondaryCard} ${styles.secondaryPositive}`}>
           <span className={styles.secondaryLabelRow}>
             <span>Net subscriptions</span>
-            <InfoTooltip text="New subscriptions minus canceled subscriptions for the selected period. For example, 20 new subscriptions and 2 cancellations means +18 net subscriptions." />
+            <InfoTooltip text="New subscriptions minus canceled subscriptions during this month. For example, 20 new subscriptions and 2 cancellations means +18 net subscriptions." />
           </span>
           <strong>{secondaryMetrics.netMovement}</strong>
-          <small>New minus canceled</small>
+          <small>New minus canceled · This month</small>
         </article>
       </section>
 
@@ -433,9 +512,11 @@ function DashboardOverview({
             <div className={styles.sectionHeader}>
               <div>
                 <h2>Current issues summary</h2>
-                <p>Top active subscription-health alerts. Open Inbox to review details.</p>
+                <p>Top active subscription-health alerts across connected accounts.</p>
                 <span className={styles.sectionMetaPill}>
-                  {issues.length} active issue{issues.length === 1 ? "" : "s"}
+                  {totalActiveIssues <= 3
+                    ? `${totalActiveIssues} issue${totalActiveIssues === 1 ? "" : "s"} need review`
+                    : `${totalActiveIssues} issues need review · Showing top 3 by priority`}
                 </span>
               </div>
               <Link href={inboxHref} className={styles.sectionLink}>
@@ -457,6 +538,9 @@ function DashboardOverview({
                       <span>{issue.accountName}</span>
                     </div>
                     <div className={styles.issueSummaryMeta}>
+                      {issue.detectedAt ? (
+                        <span className={styles.issueDetected}>{issue.detectedAt}</span>
+                      ) : null}
                       <span className={styles.issueImpact}>{issue.impact}</span>
                       <span className={`${styles.statusPill} ${statusTone(issue.statusLabel)}`}>
                         {issue.statusLabel}
@@ -482,52 +566,7 @@ function DashboardOverview({
               </Link>
             </div>
 
-            <div className={styles.tableWrap}>
-              <table className={styles.accountsTable}>
-                <thead>
-                  <tr>
-                    <th>Account</th>
-                    <th>Status</th>
-                    <th>Active subscriptions</th>
-                    <th>Estimated MRR</th>
-                    <th>Active alerts</th>
-                    <th>Last activity</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {accounts.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className={styles.emptyRow}>
-                        No connected Stripe accounts yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    accounts.map((account) => (
-                      <tr key={account.stripeAccountId}>
-                        <td>
-                          <div className={styles.accountCell}>
-                            <span className={styles.accountLink}>{account.name}</span>
-                            <small>{account.lastActivity}</small>
-                          </div>
-                        </td>
-                        <td>
-                          <span className={`${styles.statusPill} ${statusTone(account.statusLabel)}`}>
-                            {account.statusLabel}
-                          </span>
-                        </td>
-                        <td>{account.activeSubscriptions}</td>
-                        <td>{account.estimatedMrr}</td>
-                        <td>{account.activeAlerts}</td>
-                        <td>{account.lastActivity}</td>
-                        <td className={styles.accountChevronCell} aria-hidden="true">
-                          <span className={styles.accountChevron}>›</span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <ConnectedAccountsTable accounts={accounts} />
           </section>
         </div>
 
@@ -592,6 +631,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       accountName: "Northstar Commerce",
       impact: "€39 impact",
       statusLabel: "Review needed",
+      detectedAt: "12m ago",
     },
     {
       id: "preview-failed-renewal",
@@ -599,6 +639,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       accountName: "BluePeak Studio",
       impact: "€39 at risk",
       statusLabel: "Review needed",
+      detectedAt: "45m ago",
     },
     {
       id: "preview-subscription-drop",
@@ -606,8 +647,16 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       accountName: "Cedar Labs",
       impact: "10 -> 7 active",
       statusLabel: "Attention needed",
+      detectedAt: "2h ago",
     },
   ];
+
+  const previewHrefByAccountId = new Map(
+    Object.values(previewAccountDetails).map((account) => [
+      account.stripeAccountId,
+      `/dashboard/accounts/${account.slug}?preview=subscription-health`,
+    ]),
+  );
 
   const previewAccounts: OverviewAccountRow[] = subscriptionHealthPreview.accounts.map((account) => ({
     stripeAccountId: account.stripeAccountId,
@@ -617,6 +666,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     estimatedMrr: account.estimatedMrr,
     activeAlerts: account.activeAlerts,
     lastActivity: account.lastActivity,
+    href: previewHrefByAccountId.get(account.stripeAccountId),
   }));
 
   const previewHistory: OverviewHistoryRow[] = subscriptionHealthPreview.history.map((alert) => ({
@@ -631,6 +681,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       <DashboardOverview
         previewMode
         scopeCountLabel="3 connected Stripe accounts"
+        totalActiveIssues={subscriptionHealthPreview.overview.needsReview}
         primaryMetrics={{
           activeSubscriptions: subscriptionHealthPreview.overview.activeSubscriptions,
           estimatedMrr: subscriptionHealthPreview.overview.estimatedMrr,
@@ -777,6 +828,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       <DashboardOverview
         previewMode
         scopeCountLabel="3 connected Stripe accounts"
+        totalActiveIssues={subscriptionHealthPreview.overview.needsReview}
         primaryMetrics={{
           activeSubscriptions: subscriptionHealthPreview.overview.activeSubscriptions,
           estimatedMrr: subscriptionHealthPreview.overview.estimatedMrr,
@@ -808,7 +860,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       return accountDisplayName(left.name).localeCompare(accountDisplayName(right.name));
     });
 
-  const issueSummaries: OverviewIssueSummary[] = sortedAlerts.slice(0, 3).map((alert) => {
+  const prioritizedAlerts = [...sortedAlerts].sort((left, right) => {
+    const typeDiff = issueTypePriority(left.type) - issueTypePriority(right.type);
+    if (typeDiff !== 0) return typeDiff;
+    const severityDiff = severityRank(left.severity) - severityRank(right.severity);
+    if (severityDiff !== 0) return severityDiff;
+    return right.createdAt.getTime() - left.createdAt.getTime();
+  });
+
+  const issueSummaries: OverviewIssueSummary[] = prioritizedAlerts.slice(0, 3).map((alert) => {
     const accountName = accountDisplayName(
       accounts.find((account) => account.stripeAccountId === alert.stripeAccountId)?.name ?? null,
     );
@@ -821,6 +881,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       accountName,
       impact: buildAlertImpact(alert, currency),
       statusLabel: alert.severity === "critical" ? "Attention needed" : "Review needed",
+      detectedAt: formatLastActivity(alert.createdAt),
     };
   });
 
@@ -854,6 +915,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     <DashboardOverview
       previewMode={false}
       scopeCountLabel={`${orderedAccounts.length} connected Stripe account${orderedAccounts.length === 1 ? "" : "s"}`}
+      totalActiveIssues={sortedAlerts.length}
       primaryMetrics={{
         activeSubscriptions: totals.activeSubscriptions,
         estimatedMrr: formatMoneyAmount(totals.estimatedMonthlyRevenue, displayCurrency),

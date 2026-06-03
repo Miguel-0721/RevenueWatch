@@ -154,4 +154,157 @@ export const subscriptionHealthPreview = {
   ],
 };
 
+export type PreviewAccountDetail = {
+  slug: string;
+  stripeAccountId: string;
+  name: string;
+  status: "Review needed" | "Monitoring active" | "Attention needed";
+  lastActivity: string;
+  activeSubscriptions: number;
+  estimatedMrr: string;
+  activeAlerts: number;
+  trials: number;
+  pastDue: number;
+  unpaid: number;
+  canceledThisWeek: number;
+  failedRenewals: number;
+  netSubscriptions: string;
+  currentIssue: {
+    id: string;
+    type: "subscription_canceled" | "failed_renewal" | "subscription_drop";
+    severity: "warning" | "critical";
+    message: string;
+    detectedLabel: string;
+    impact: string;
+  };
+  history: Array<{
+    id: string;
+    type:
+      | "subscription_canceled"
+      | "failed_renewal"
+      | "past_due_increase"
+      | "unpaid_subscription"
+      | "subscription_drop";
+    message: string;
+    timestamp: string;
+  }>;
+};
+
+export const previewAccountDetails: Record<string, PreviewAccountDetail> = {
+  "northstar-commerce": {
+    slug: "northstar-commerce",
+    stripeAccountId: "preview-northstar",
+    name: "Northstar Commerce",
+    status: "Review needed",
+    lastActivity: "12m ago",
+    activeSubscriptions: 124,
+    estimatedMrr: `${EURO}6,420`,
+    activeAlerts: 1,
+    trials: 8,
+    pastDue: 2,
+    unpaid: 1,
+    canceledThisWeek: 1,
+    failedRenewals: 3,
+    netSubscriptions: "+4 this month",
+    currentIssue: {
+      id: "preview-northstar-current-issue",
+      type: "subscription_canceled",
+      severity: "warning",
+      message: `A customer canceled a subscription. Estimated monthly revenue impact: ${EURO}39.`,
+      detectedLabel: "12m ago",
+      impact: `${EURO}39 impact`,
+    },
+    history: [
+      {
+        id: "preview-northstar-history-canceled",
+        type: "subscription_canceled",
+        message: `A customer canceled a subscription. Estimated monthly revenue impact: ${EURO}39.`,
+        timestamp: "12m ago",
+      },
+      {
+        id: "preview-northstar-history-past-due",
+        type: "past_due_increase",
+        message: "Past-due subscriptions increased from 1 to 2.",
+        timestamp: "Yesterday, 16:20",
+      },
+    ],
+  },
+  "bluepeak-studio": {
+    slug: "bluepeak-studio",
+    stripeAccountId: "preview-bluepeak",
+    name: "BluePeak Studio",
+    status: "Monitoring active",
+    lastActivity: "45m ago",
+    activeSubscriptions: 88,
+    estimatedMrr: `${EURO}3,900`,
+    activeAlerts: 1,
+    trials: 6,
+    pastDue: 4,
+    unpaid: 1,
+    canceledThisWeek: 2,
+    failedRenewals: 8,
+    netSubscriptions: "+6 this month",
+    currentIssue: {
+      id: "preview-bluepeak-current-issue",
+      type: "failed_renewal",
+      severity: "warning",
+      message: `A subscription renewal payment failed. Monthly amount at risk: ${EURO}39.`,
+      detectedLabel: "45m ago",
+      impact: `${EURO}39 at risk`,
+    },
+    history: [
+      {
+        id: "preview-bluepeak-history-past-due",
+        type: "past_due_increase",
+        message: "Past-due subscriptions increased from 2 to 4.",
+        timestamp: "Yesterday, 16:20",
+      },
+      {
+        id: "preview-bluepeak-history-failed-renewal",
+        type: "failed_renewal",
+        message: `A subscription renewal payment failed. Monthly amount at risk: ${EURO}39.`,
+        timestamp: "45m ago",
+      },
+    ],
+  },
+  "cedar-labs": {
+    slug: "cedar-labs",
+    stripeAccountId: "preview-cedar",
+    name: "Cedar Labs",
+    status: "Attention needed",
+    lastActivity: "2h ago",
+    activeSubscriptions: 216,
+    estimatedMrr: `${EURO}8,100`,
+    activeAlerts: 1,
+    trials: 18,
+    pastDue: 3,
+    unpaid: 2,
+    canceledThisWeek: 2,
+    failedRenewals: 3,
+    netSubscriptions: "+8 this month",
+    currentIssue: {
+      id: "preview-cedar-current-issue",
+      type: "subscription_drop",
+      severity: "critical",
+      message: "Active subscriptions dropped from 10 to 7.",
+      detectedLabel: "2h ago",
+      impact: "10 -> 7 active",
+    },
+    history: [
+      {
+        id: "preview-cedar-history-unpaid",
+        type: "unpaid_subscription",
+        message: "2 subscriptions were marked unpaid.",
+        timestamp: "Yesterday, 09:45",
+      },
+      {
+        id: "preview-cedar-history-drop",
+        type: "subscription_drop",
+        message: "Active subscriptions dropped from 10 to 7.",
+        timestamp: "2h ago",
+      },
+    ],
+  },
+};
+
 export { EURO, RIGHT_ARROW };

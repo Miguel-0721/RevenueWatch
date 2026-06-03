@@ -41,8 +41,12 @@ function alertLabel(type: string) {
   if (type === "failed_renewal") return "Failed renewal";
   if (type === "subscription_drop") return "Subscription drop";
   if (type === "cancellation_spike") return "Cancellation spike";
+  if (type === "failed_renewal_spike") return "Failed renewal spike";
   if (type === "past_due_increase") return "Past-due increase";
   if (type === "unpaid_subscription") return "Unpaid subscription";
+  if (type === "unpaid_increase") return "Unpaid increase";
+  if (type === "negative_net_subscription_movement") return "Negative net movement";
+  if (type === "meaningful_mrr_drop") return "Meaningful MRR drop";
   return type.replace(/_/g, " ");
 }
 
@@ -72,11 +76,23 @@ function severityRank(severity: string) {
 }
 
 function typeColor(type: string, severity: string) {
-  if (type === "failed_renewal" || type === "past_due_increase" || type === "unpaid_subscription") {
+  if (
+    type === "failed_renewal" ||
+    type === "failed_renewal_spike" ||
+    type === "past_due_increase" ||
+    type === "unpaid_subscription" ||
+    type === "unpaid_increase"
+  ) {
     return "#9a6700";
   }
 
-  if (severity === "critical" || type === "subscription_drop" || type === "cancellation_spike") {
+  if (
+    severity === "critical" ||
+    type === "subscription_drop" ||
+    type === "cancellation_spike" ||
+    type === "negative_net_subscription_movement" ||
+    type === "meaningful_mrr_drop"
+  ) {
     return "#b42318";
   }
 
@@ -330,7 +346,9 @@ export default async function DashboardInboxPage({ searchParams }: DashboardInbo
       return accountDisplayName(left.name).localeCompare(accountDisplayName(right.name));
     });
 
-  const failedRenewalsCount = sortedAlerts.filter((alert) => alert.type === "failed_renewal").length;
+  const failedRenewalsCount = sortedAlerts.filter(
+    (alert) => alert.type === "failed_renewal" || alert.type === "failed_renewal_spike"
+  ).length;
   const attentionCount = sortedAlerts.filter((alert) => alert.severity === "critical").length;
 
   const railAlerts = sortedAlerts.map((alert) => ({

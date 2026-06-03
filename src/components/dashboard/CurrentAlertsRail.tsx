@@ -427,12 +427,24 @@ function buildDetailSummary(alert: CurrentAlertRailItem) {
     return "A subscription renewal payment failed. The subscription is now past due and the monthly amount is at risk.";
   }
 
+  if (alert.type === "failed_renewal_spike") {
+    return "Failed renewals are higher than usual for this account. Review the spike against the recent baseline.";
+  }
+
   if (alert.type === "payment_failed") {
     return "Review the payment failure monitoring signal affecting this account.";
   }
 
   if (alert.type === "revenue_drop") {
     return "Review the revenue health change that may confirm a broader subscription-health issue.";
+  }
+
+  if (alert.type === "negative_net_subscription_movement") {
+    return "Net subscription movement turned negative for this account. Review whether recent losses are outweighing new subscriptions.";
+  }
+
+  if (alert.type === "meaningful_mrr_drop") {
+    return "Estimated recurring revenue is lower than usual for this account. Review the recent subscription-health changes driving the drop.";
   }
 
   return "Review the subscription-health issue that needs attention right now.";
@@ -476,8 +488,10 @@ function buildAlertFacts(alert: CurrentAlertRailItem) {
 
   if (
     parsed &&
-    typeof parsed.baselineCancellations === "number" &&
-    typeof parsed.currentCancellations === "number"
+    (typeof parsed.baselineDailyCancellations === "number" ||
+      typeof parsed.baselineCancellations === "number") &&
+    (typeof parsed.currentDayCancellations === "number" ||
+      typeof parsed.currentCancellations === "number")
   ) {
     facts.push({
       label: "Cancellations",
@@ -496,6 +510,28 @@ function buildAlertFacts(alert: CurrentAlertRailItem) {
     facts.push({
       label: "Unpaid",
       value: `${parsed.unpaidSubscriptions}`,
+    });
+  }
+
+  if (
+    parsed &&
+    typeof parsed.currentDayFailedRenewals === "number" &&
+    typeof parsed.baselineDailyFailedRenewals === "number"
+  ) {
+    facts.push({
+      label: "Failed renewals",
+      value: `${Math.round(parsed.baselineDailyFailedRenewals)} → ${parsed.currentDayFailedRenewals}`,
+    });
+  }
+
+  if (
+    parsed &&
+    typeof parsed.currentDayNewSubscriptions === "number" &&
+    typeof parsed.currentDayCancellations === "number"
+  ) {
+    facts.push({
+      label: "Net movement",
+      value: `${parsed.currentDayNewSubscriptions} added / ${parsed.currentDayCancellations} lost`,
     });
   }
 
@@ -578,6 +614,35 @@ function buildAlertCardChips(alert: CurrentAlertRailItem) {
 
   if (alert.type === "subscription_canceled") {
     chips.push({ label: "Normal", tone: "neutral" });
+  } else if (
+    parsed &&
+    typeof parsed.currentDayFailedRenewals === "number" &&
+    alert.type === "failed_renewal_spike"
+  ) {
+    chips.push({
+      label: `${parsed.currentDayFailedRenewals} failed today`,
+      tone: "review",
+    });
+  } else if (
+    parsed &&
+    typeof parsed.currentDayNetSubscriptionMovement === "number" &&
+    alert.type === "negative_net_subscription_movement"
+  ) {
+    chips.push({
+      label: `${parsed.currentDayNetSubscriptionMovement} net today`,
+      tone: "critical",
+    });
+  } else if (
+    parsed &&
+    typeof parsed.currentEstimatedMonthlyRevenue === "number" &&
+    alert.type === "meaningful_mrr_drop"
+  ) {
+    const currency =
+      typeof parsed.currency === "string" ? normalizeCurrencyCode(parsed.currency) : "EUR";
+    chips.push({
+      label: `${formatMoneyAmount(parsed.currentEstimatedMonthlyRevenue, currency)} current`,
+      tone: "review",
+    });
   } else if (alert.severityKind === "critical") {
     chips.push({ label: "Attention needed", tone: "critical" });
   } else {

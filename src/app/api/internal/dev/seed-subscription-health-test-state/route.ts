@@ -20,6 +20,13 @@ const SUPPORTED_SCENARIOS = new Set<SubscriptionHealthTestScenario>([
   "trend-cancellation-spike",
   "trend-past-due-increase",
   "trend-unpaid-subscription",
+  "smart-low-single-cancellation",
+  "smart-high-normal-cancellations",
+  "smart-high-cancellation-spike",
+  "smart-high-positive-net-movement",
+  "smart-failed-renewal-spike",
+  "smart-past-due-baseline-increase",
+  "smart-unpaid-baseline-increase",
   "empty",
 ]);
 
@@ -52,7 +59,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error:
-          "scenario must be one of basic-active, multiple-active, yearly-active, quantity-active, mixed-health, mixed-mrr, trend-subscription-drop, trend-cancellation-spike, trend-past-due-increase, trend-unpaid-subscription, empty",
+          "scenario must be one of basic-active, multiple-active, yearly-active, quantity-active, mixed-health, mixed-mrr, trend-subscription-drop, trend-cancellation-spike, trend-past-due-increase, trend-unpaid-subscription, smart-low-single-cancellation, smart-high-normal-cancellations, smart-high-cancellation-spike, smart-high-positive-net-movement, smart-failed-renewal-spike, smart-past-due-baseline-increase, smart-unpaid-baseline-increase, empty",
       },
       { status: 400 }
     );

@@ -10,6 +10,8 @@ import {
   getLatestSubscriptionHealthSummary,
   type SubscriptionHealthSummary,
 } from "@/lib/subscription-health-store";
+import { previewAccountDetails } from "@/app/dashboard/previewData";
+import dashboardStyles from "@/app/dashboard/page.module.css";
 import { AccountStatusActions } from "../AccountStatusActions";
 import { markAlertReviewedAction } from "./actions";
 import RenameAccountControl from "./RenameAccountControl";
@@ -31,6 +33,8 @@ type AlertLike = {
   detectedLabel?: string;
   displayTimestamp?: string;
 };
+
+type PreviewAccountStatus = "Review needed" | "Monitoring active" | "Attention needed";
 
 type RevenueContext = {
   parsed: Record<string, unknown>;
@@ -343,8 +347,12 @@ function alertLabel(type: string) {
   if (type === "failed_renewal") return "Failed renewal";
   if (type === "subscription_drop") return "Subscription drop";
   if (type === "cancellation_spike") return "Cancellation spike";
+  if (type === "failed_renewal_spike") return "Failed renewal spike";
   if (type === "past_due_increase") return "Past-due increase";
   if (type === "unpaid_subscription") return "Unpaid subscription";
+  if (type === "unpaid_increase") return "Unpaid increase";
+  if (type === "negative_net_subscription_movement") return "Negative net movement";
+  if (type === "meaningful_mrr_drop") return "Meaningful MRR drop";
   return type.replace(/_/g, " ");
 }
 
@@ -2169,6 +2177,206 @@ function AccountMonitor({
 }
 
 function ActiveAlertRow({ alert }: { alert: AlertLike }) {
+  return <ActiveAlertRowInner alert={alert} previewMode={false} />;
+}
+
+function parsePreviewMoneyToCents(value: string) {
+  const normalized = value.replace(/[^\d,.-]/g, "").replace(/,/g, "");
+  const amount = Number.parseFloat(normalized);
+  if (!Number.isFinite(amount)) return 0;
+  return Math.round(amount * 100);
+}
+
+function previewStatusTone(status: PreviewAccountStatus) {
+  if (status === "Attention needed") return styles.previewStatusAttention;
+  if (status === "Review needed") return styles.previewStatusReview;
+  return styles.previewStatusMonitoring;
+}
+
+function previewIssueTone(status: PreviewAccountStatus) {
+  if (status === "Attention needed") return styles.previewIssueAttention;
+  if (status === "Review needed") return styles.previewIssueReview;
+  return styles.previewIssueMonitoring;
+}
+
+function previewSecondaryTone(label: string) {
+  if (label === "Past-due") return dashboardStyles.secondaryReview;
+  if (label === "Unpaid") return dashboardStyles.secondaryAttention;
+  if (label === "Net subscriptions") return dashboardStyles.secondaryPositive;
+  return dashboardStyles.secondaryNeutral;
+}
+
+function PreviewMetricSparkline({
+  points,
+}: {
+  points: number[];
+}) {
+  const width = 216;
+  const height = 44;
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const range = Math.max(1, max - min);
+  const step = width / Math.max(1, points.length - 1);
+
+  const coordinates = points.map((point, index) => {
+    const x = index * step;
+    const y = height - ((point - min) / range) * (height - 8) - 4;
+    return { x, y };
+  });
+
+  const linePath = coordinates.reduce((accumulator, point, index, array) => {
+    if (index === 0) {
+      return `M ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
+    }
+
+    const previous = array[index - 1];
+    const midpointX = ((previous.x + point.x) / 2).toFixed(2);
+    return `${accumulator} Q ${previous.x.toFixed(2)} ${previous.y.toFixed(2)} ${midpointX} ${(
+      (previous.y + point.y) /
+      2
+    ).toFixed(2)} T ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
+  }, "");
+
+  const areaPath = `${linePath} L ${coordinates[coordinates.length - 1]?.x.toFixed(2)} ${height} L ${coordinates[0]?.x.toFixed(2)} ${height} Z`;
+
+  return (
+    <svg
+      className={styles.previewSparkline}
+      viewBox={`0 0 ${width} ${height}`}
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path className={styles.previewSparklineArea} d={areaPath} />
+      <path className={styles.previewSparklineLine} d={linePath} />
+    </svg>
+  );
+}
+
+function PreviewLargeMetricCard({
+  label,
+  value,
+  helper,
+  badge,
+  points,
+  tooltip,
+}: {
+  label: string;
+  value: string | number;
+  helper: string;
+  badge: string;
+  points: number[];
+  tooltip?: string;
+}) {
+  return (
+    <article className={`${dashboardStyles.metricCard} ${dashboardStyles.metricCardLarge}`}>
+      <div className={dashboardStyles.metricCardHeader}>
+        <span className={dashboardStyles.metricLabelRow}>
+          <span className={dashboardStyles.metricLabel}>{label}</span>
+          {tooltip ? <PreviewInfoTooltip text={tooltip} /> : null}
+        </span>
+        <span className={dashboardStyles.metricTrendPill}>{badge}</span>
+      </div>
+      <strong className={dashboardStyles.metricValue}>{value}</strong>
+      <div className={dashboardStyles.metricSparklineWrap}>
+        <PreviewMetricSparkline points={points} />
+      </div>
+      <small className={dashboardStyles.metricHelper}>{helper}</small>
+    </article>
+  );
+}
+
+function PreviewCompactMetricCard({
+  label,
+  value,
+  helper,
+  pill,
+  periodLabel,
+  tone,
+  tooltip,
+}: {
+  label: string;
+  value: string | number;
+  helper: string;
+  pill: string;
+  periodLabel?: string;
+  tone: "review" | "risk";
+  tooltip?: string;
+}) {
+  return (
+    <article className={`${dashboardStyles.metricCard} ${dashboardStyles.metricCardCompact}`}>
+      <div className={dashboardStyles.metricCardHeader}>
+        <span className={dashboardStyles.metricLabelRow}>
+          <span className={dashboardStyles.metricLabel}>{label}</span>
+          {periodLabel ? <span className={dashboardStyles.metricPeriodPill}>{periodLabel}</span> : null}
+          {tooltip ? <PreviewInfoTooltip text={tooltip} /> : null}
+        </span>
+        <span
+          className={
+            tone === "risk" ? dashboardStyles.metricBadgeRisk : dashboardStyles.metricBadgeReview
+          }
+        >
+          {pill}
+        </span>
+      </div>
+      <strong className={dashboardStyles.metricValueSmall}>{value}</strong>
+      <small className={dashboardStyles.metricHelper}>{helper}</small>
+    </article>
+  );
+}
+
+function PreviewSupportingMetricCard({
+  label,
+  value,
+  helper,
+  tooltip,
+}: {
+  label: string;
+  value: string | number;
+  helper: string;
+  tooltip?: string;
+}) {
+  return (
+    <article className={`${dashboardStyles.secondaryCard} ${previewSecondaryTone(label)}`}>
+      <span className={dashboardStyles.secondaryLabelRow}>
+        <span>{label}</span>
+        {tooltip ? <PreviewInfoTooltip text={tooltip} /> : null}
+      </span>
+      <strong>{value}</strong>
+      <small>{helper}</small>
+    </article>
+  );
+}
+
+function PreviewInfoTooltip({ text }: { text: string }) {
+  const tooltipId = `account-preview-tooltip-${text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")}`;
+
+  return (
+    <span className={dashboardStyles.infoTooltipWrap}>
+      <button
+        type="button"
+        className={dashboardStyles.infoTooltip}
+        aria-label={text}
+        aria-describedby={tooltipId}
+      >
+        i
+      </button>
+      <span id={tooltipId} role="tooltip" className={dashboardStyles.infoTooltipBubble}>
+        {text}
+      </span>
+    </span>
+  );
+}
+
+function ActiveAlertRowInner({
+  alert,
+  previewMode,
+}: {
+  alert: AlertLike;
+  previewMode: boolean;
+}) {
   const severity = getSeverityPresentation(alert.severity);
   const detectedAt = fmtDetectedDate(alert.createdAt);
 
@@ -2191,7 +2399,16 @@ function ActiveAlertRow({ alert }: { alert: AlertLike }) {
         <div className={styles.inlineMonitoringNote}>
           Parveil only monitors this issue. No Stripe changes are made.
         </div>
-        {alert.id && alert.stripeAccountId ? (
+        {previewMode ? (
+          <div className={styles.alertRowActions}>
+            <Link href="/dashboard/inbox?preview=subscription-health" className={styles.reviewActionSecondary}>
+              View details
+            </Link>
+            <button type="button" className={styles.reviewAction} disabled>
+              Mark as reviewed
+            </button>
+          </div>
+        ) : alert.id && alert.stripeAccountId ? (
           <form action={markAlertReviewedAction} className={styles.alertRowActions}>
             <input type="hidden" name="alertId" value={alert.id} />
             <input type="hidden" name="stripeAccountId" value={alert.stripeAccountId} />
@@ -2206,7 +2423,8 @@ function ActiveAlertRow({ alert }: { alert: AlertLike }) {
 }
 
 function HistoryRow({ alert }: { alert: AlertLike }) {
-  const detectedAt = fmtDetectedDate(alert.createdAt) ?? fmtDate(alert.createdAt);
+  const detectedAt =
+    alert.displayTimestamp ?? fmtDetectedDate(alert.createdAt) ?? fmtDate(alert.createdAt);
 
   return (
     <article className={styles.resolvedRow}>
@@ -2310,8 +2528,10 @@ function SubscriptionHealthSection({
 
 export default async function AccountDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ accountId: string }>;
+  searchParams?: Promise<{ preview?: string }>;
 }) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -2319,6 +2539,203 @@ export default async function AccountDetailPage({
   }
 
   const { accountId } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const isPreviewMode = resolvedSearchParams?.preview === "subscription-health";
+  const previewAccount = isPreviewMode ? previewAccountDetails[accountId] : undefined;
+
+  if (previewAccount) {
+    const previewNetMovement = Number.parseInt(previewAccount.netSubscriptions, 10) || 0;
+    const previewHistory = previewAccount.history.map((entry) => ({
+      id: entry.id,
+      label: alertLabel(entry.type),
+      message: entry.message,
+      timestamp: entry.timestamp,
+    }));
+
+    const primaryTrendByAccount: Record<string, { active: string; mrr: string; activePoints: number[]; mrrPoints: number[] }> = {
+      "northstar-commerce": {
+        active: "+3.4% this month",
+        mrr: "+2.1% this month",
+        activePoints: [92, 98, 101, 109, 112, 124],
+        mrrPoints: [5400, 5520, 5660, 5890, 6110, 6420],
+      },
+      "bluepeak-studio": {
+        active: "+2.6% this month",
+        mrr: "+1.8% this month",
+        activePoints: [74, 76, 79, 81, 84, 88],
+        mrrPoints: [3320, 3390, 3510, 3600, 3720, 3900],
+      },
+      "cedar-labs": {
+        active: "+4.1% this month",
+        mrr: "+2.7% this month",
+        activePoints: [182, 188, 194, 201, 207, 216],
+        mrrPoints: [7240, 7380, 7520, 7710, 7890, 8100],
+      },
+    };
+
+    const primaryTrend =
+      primaryTrendByAccount[previewAccount.slug] ?? primaryTrendByAccount["northstar-commerce"];
+    const currentIssueStatus: PreviewAccountStatus =
+      previewAccount.currentIssue.severity === "critical" ? "Attention needed" : "Review needed";
+
+    return (
+      <main className={styles.page}>
+        <div className={`${styles.shell} ${styles.previewShell}`}>
+          <header className={styles.previewHeader}>
+            <div className={styles.previewHeaderCopy}>
+              <div className={styles.previewTitleRow}>
+                <h1 className={styles.previewPageTitle}>{previewAccount.name}</h1>
+                <span className={`${styles.previewStatusPill} ${previewStatusTone(previewAccount.status)}`}>
+                  {previewAccount.status}
+                </span>
+              </div>
+              <p className={styles.previewHeaderSubtitle}>
+                Subscription-health monitoring for this connected Stripe account.
+              </p>
+              <div className={styles.previewHeaderMeta}>
+                <span className={styles.previewHeaderMetaPill}>Single account view</span>
+              </div>
+            </div>
+
+            <div className={styles.previewHeaderActions}>
+              <Link href="/dashboard?preview=subscription-health" className={styles.previewHeaderAction}>
+                ← Back to dashboard
+              </Link>
+            </div>
+          </header>
+
+          <section className={styles.previewPrimaryMetrics}>
+            <PreviewLargeMetricCard
+              label="Active subscriptions"
+              value={previewAccount.activeSubscriptions}
+              helper="Currently active paid subscriptions"
+              badge={primaryTrend.active}
+              points={primaryTrend.activePoints}
+            />
+            <PreviewLargeMetricCard
+              label="Estimated MRR"
+              value={previewAccount.estimatedMrr}
+              helper="Active subscriptions only"
+              badge={primaryTrend.mrr}
+              points={primaryTrend.mrrPoints}
+              tooltip="Estimated monthly recurring revenue from active subscriptions only. Trials, canceled, unpaid, and past-due subscriptions are not counted."
+            />
+            <div className={dashboardStyles.metricStack}>
+              <PreviewCompactMetricCard
+                label="Needs review"
+                value={previewAccount.activeAlerts}
+                helper="Active issues waiting in Inbox"
+                pill="Inbox"
+                tone="review"
+              />
+              <PreviewCompactMetricCard
+                label="Failed renewals"
+                value={previewAccount.failedRenewals}
+                helper="Failed payments · Last 7 days"
+                pill="At risk"
+                tone="risk"
+                tooltip="Renewal invoice payments that failed in the last 7 days. For example, a customer's subscription tried to renew, but the payment did not go through."
+              />
+            </div>
+          </section>
+
+          <section className={styles.previewSecondaryMetrics}>
+            <PreviewSupportingMetricCard
+              label="Trials"
+              value={previewAccount.trials}
+              helper="Currently in trial"
+            />
+            <PreviewSupportingMetricCard
+              label="Past-due"
+              value={previewAccount.pastDue}
+              helper="Payment not collected yet"
+              tooltip="Subscriptions where Stripe has not collected the latest payment yet. If payment is completed and the subscription becomes active again, this count goes down."
+            />
+            <PreviewSupportingMetricCard
+              label="Unpaid"
+              value={previewAccount.unpaid}
+              helper="Marked unpaid in Stripe"
+              tooltip="Subscriptions Stripe currently marks as unpaid after payment could not be collected. If the status changes, this count updates."
+            />
+            <PreviewSupportingMetricCard
+              label="Canceled"
+              value={previewAccount.canceledThisWeek}
+              helper="Canceled · Last 7 days"
+            />
+            <PreviewSupportingMetricCard
+              label="Net subscriptions"
+              value={previewNetMovement > 0 ? `+${previewNetMovement}` : previewNetMovement}
+              helper="New minus canceled · This month"
+              tooltip="New subscriptions minus canceled subscriptions during this month. For example, 20 new subscriptions and 2 cancellations means +18 net subscriptions."
+            />
+          </section>
+
+          <section className={styles.previewLowerGrid}>
+            <section className={styles.previewSectionCard}>
+              <div className={styles.previewSectionHeader}>
+                <div>
+                  <h2>Current issue</h2>
+                  <p>Active subscription-health alert for this account.</p>
+                </div>
+              </div>
+
+              <article className={`${styles.previewIssueCard} ${previewIssueTone(currentIssueStatus)}`}>
+                <div className={styles.previewIssueHeader}>
+                  <div>
+                    <strong>{alertLabel(previewAccount.currentIssue.type)}</strong>
+                    <span>{previewAccount.currentIssue.detectedLabel}</span>
+                  </div>
+                </div>
+                <p>{previewAccount.currentIssue.message}</p>
+                <div className={styles.previewIssuePills}>
+                  <span className={styles.previewIssueImpact}>{previewAccount.currentIssue.impact}</span>
+                  <span className={`${styles.previewStatusPill} ${previewStatusTone(currentIssueStatus)}`}>
+                    {currentIssueStatus}
+                  </span>
+                </div>
+                <div className={styles.previewIssueActions}>
+                  <Link href="/dashboard/inbox?preview=subscription-health" className={styles.previewActionSecondary}>
+                    View details
+                  </Link>
+                  <button type="button" className={styles.previewActionPrimary} disabled>
+                    Mark as reviewed
+                  </button>
+                </div>
+              </article>
+            </section>
+
+            <section className={styles.previewSectionCard}>
+              <div className={styles.previewSectionHeader}>
+                <div>
+                  <h2>Alert history</h2>
+                  <p>Recent alerts that were reviewed or moved to history.</p>
+                </div>
+              </div>
+
+              <div className={styles.previewHistoryList}>
+                {previewHistory.map((entry) => (
+                  <article key={entry.id} className={styles.previewHistoryItem}>
+                    <div className={styles.previewHistoryMain}>
+                      <span className={styles.previewHistoryDot} aria-hidden="true" />
+                      <div>
+                        <strong>{entry.label}</strong>
+                        <p>{entry.message}</p>
+                      </div>
+                    </div>
+                    <div className={styles.previewHistoryMeta}>
+                      <span className={styles.previewHistoryPill}>Reviewed</span>
+                      <small>{entry.timestamp}</small>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
   const [account, alerts, lastEvent] = await Promise.all([
     prisma.stripeAccount.findFirst({
       where: { stripeAccountId: accountId },

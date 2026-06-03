@@ -71,12 +71,42 @@ export type SubscriptionHealthTestScenario =
   | "trend-cancellation-spike"
   | "trend-past-due-increase"
   | "trend-unpaid-subscription"
+  | "smart-low-single-cancellation"
+  | "smart-high-normal-cancellations"
+  | "smart-high-cancellation-spike"
+  | "smart-high-positive-net-movement"
+  | "smart-failed-renewal-spike"
+  | "smart-past-due-baseline-increase"
+  | "smart-unpaid-baseline-increase"
   | "empty";
 
 type SubscriptionHealthSnapshotRecord = SubscriptionHealthCounts & {
   id: string;
   snapshotKey: string;
   source: string;
+};
+
+type AccountActivityLevel = "low" | "medium" | "high";
+
+type BaselineConfidence = "low" | "medium" | "high";
+
+type SubscriptionHealthBaseline = {
+  activityLevel: AccountActivityLevel;
+  confidence: BaselineConfidence;
+  daysObserved: number;
+  avgDailyCancellations: number;
+  avgDailyFailedRenewals: number;
+  avgDailyNewSubscriptions: number;
+  avgDailyNetSubscriptionMovement: number;
+  avgPastDueSubscriptions: number;
+  avgUnpaidSubscriptions: number;
+  avgActiveSubscriptions: number;
+  avgEstimatedMonthlyRevenue: number;
+  estimatedMrrTrendRatio: number;
+  currentDayCancellations: number;
+  currentDayFailedRenewals: number;
+  currentDayNewSubscriptions: number;
+  currentDayNetSubscriptionMovement: number;
 };
 
 function toDateFromUnix(value?: number | null) {
@@ -159,6 +189,46 @@ function calculateEstimatedMonthlyRevenue(subscription: Stripe.Subscription) {
   }, 0);
 }
 
+function startOfUtcDay(date: Date) {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+  );
+}
+
+function addUtcDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function diffUtcDays(start: Date, end: Date) {
+  return Math.max(
+    0,
+    Math.round(
+      (startOfUtcDay(end).getTime() - startOfUtcDay(start).getTime()) /
+        (24 * 60 * 60 * 1000)
+    )
+  );
+}
+
+function getUtcDayKey(value: Date | string) {
+  const date = typeof value === "string" ? new Date(value) : value;
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(date.getUTCDate()).padStart(2, "0")}`;
+}
+
+function averageFromNumbers(values: number[], fallback = 0) {
+  if (values.length === 0) return fallback;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function roundMetric(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Number(value.toFixed(2));
+}
+
 function getSubscriptionCancellationDate(
   subscription: Stripe.Subscription,
   fallbackDate: Date
@@ -234,6 +304,46 @@ function buildUnpaidSubscriptionAlertKey({
   return `unpaid_subscription:${stripeAccountId}:${currentSnapshotKey}`;
 }
 
+function buildFailedRenewalSpikeAlertKey({
+  stripeAccountId,
+  currentSnapshotKey,
+}: {
+  stripeAccountId: string;
+  currentSnapshotKey: string;
+}) {
+  return `failed_renewal_spike:${stripeAccountId}:${currentSnapshotKey}`;
+}
+
+function buildUnpaidIncreaseAlertKey({
+  stripeAccountId,
+  currentSnapshotKey,
+}: {
+  stripeAccountId: string;
+  currentSnapshotKey: string;
+}) {
+  return `unpaid_increase:${stripeAccountId}:${currentSnapshotKey}`;
+}
+
+function buildNegativeNetSubscriptionMovementAlertKey({
+  stripeAccountId,
+  currentSnapshotKey,
+}: {
+  stripeAccountId: string;
+  currentSnapshotKey: string;
+}) {
+  return `negative_net_subscription_movement:${stripeAccountId}:${currentSnapshotKey}`;
+}
+
+function buildMeaningfulMrrDropAlertKey({
+  stripeAccountId,
+  currentSnapshotKey,
+}: {
+  stripeAccountId: string;
+  currentSnapshotKey: string;
+}) {
+  return `meaningful_mrr_drop:${stripeAccountId}:${currentSnapshotKey}`;
+}
+
 function buildDevSeedId(kind: string, stripeAccountId: string, suffix: string) {
   return `${DEV_SEED_PREFIX}:${kind}:${stripeAccountId}:${suffix}`;
 }
@@ -242,16 +352,304 @@ function buildDevSeedSnapshotKey(stripeAccountId: string) {
   return `${DEV_SEED_PREFIX}:snapshot:${stripeAccountId}`;
 }
 
+function classifyAccountActivity({
+  avgActiveSubscriptions,
+  avgDailySubscriptionEvents,
+  avgDailyCancellations,
+  avgDailyFailedRenewals,
+}: {
+  avgActiveSubscriptions: number;
+  avgDailySubscriptionEvents: number;
+  avgDailyCancellations: number;
+  avgDailyFailedRenewals: number;
+}): AccountActivityLevel {
+  if (
+    avgActiveSubscriptions >= 150 ||
+    avgDailySubscriptionEvents >= 15 ||
+    avgDailyCancellations >= 8 ||
+    avgDailyFailedRenewals >= 4
+  ) {
+    return "high";
+  }
+
+  if (
+    avgActiveSubscriptions >= 40 ||
+    avgDailySubscriptionEvents >= 4 ||
+    avgDailyCancellations >= 2 ||
+    avgDailyFailedRenewals >= 1
+  ) {
+    return "medium";
+  }
+
+  return "low";
+}
+
+async function getSubscriptionHealthBaseline({
+  client,
+  stripeAccountId,
+  currentSnapshot,
+  windowEnd,
+}: {
+  client: QueryClient;
+  stripeAccountId: string;
+  currentSnapshot?: SubscriptionHealthSnapshotRecord | null;
+  windowEnd?: Date;
+}): Promise<SubscriptionHealthBaseline> {
+  const baselineWindowEnd = windowEnd ?? currentSnapshot?.windowEnd ?? new Date();
+  const currentDayStart = startOfUtcDay(baselineWindowEnd);
+  const nextDayStart = addUtcDays(currentDayStart, 1);
+  const baselineStart = addUtcDays(currentDayStart, -(SNAPSHOT_WINDOW_DAYS - 1));
+  const currentDayKey = getUtcDayKey(currentDayStart);
+
+  const [eventRows, snapshotRows] = await Promise.all([
+    client.$queryRaw<
+      Array<{
+        day: Date | string;
+        cancellations: number;
+        failedRenewals: number;
+        newSubscriptions: number;
+      }>
+    >(Prisma.sql`
+      SELECT
+        DATE("occurredAt") AS "day",
+        SUM(CASE WHEN "type" = 'customer.subscription.deleted' THEN 1 ELSE 0 END)::int AS "cancellations",
+        SUM(
+          CASE
+            WHEN "type" = 'invoice.payment_failed'
+              AND ("stripeSubscriptionId" IS NOT NULL OR COALESCE("billingReason", '') LIKE 'subscription%')
+            THEN 1
+            ELSE 0
+          END
+        )::int AS "failedRenewals",
+        SUM(CASE WHEN "type" = 'customer.subscription.created' THEN 1 ELSE 0 END)::int AS "newSubscriptions"
+      FROM "SubscriptionHealthEvent"
+      WHERE "stripeAccountId" = ${stripeAccountId}
+        AND "occurredAt" >= ${baselineStart}
+        AND "occurredAt" < ${nextDayStart}
+      GROUP BY DATE("occurredAt")
+      ORDER BY DATE("occurredAt") DESC
+    `),
+    client.$queryRaw<
+      Array<{
+        day: Date | string;
+        activeSubscriptions: number;
+        pastDueSubscriptions: number;
+        unpaidSubscriptions: number;
+        estimatedMonthlyRevenue: number;
+        netSubscriptionMovement: number;
+      }>
+    >(Prisma.sql`
+      WITH ranked AS (
+        SELECT
+          DATE("windowEnd") AS "day",
+          "activeSubscriptions",
+          "pastDueSubscriptions",
+          "unpaidSubscriptions",
+          "estimatedMonthlyRevenue",
+          "netSubscriptionMovement",
+          ROW_NUMBER() OVER (
+            PARTITION BY DATE("windowEnd")
+            ORDER BY "updatedAt" DESC, "createdAt" DESC
+          ) AS "rowNumber"
+        FROM "SubscriptionHealthSnapshot"
+        WHERE "stripeAccountId" = ${stripeAccountId}
+          AND "windowEnd" >= ${baselineStart}
+          AND "windowEnd" < ${nextDayStart}
+          ${currentSnapshot
+            ? Prisma.sql`AND "id" <> ${currentSnapshot.id}`
+            : Prisma.empty}
+      )
+      SELECT
+        "day",
+        "activeSubscriptions",
+        "pastDueSubscriptions",
+        "unpaidSubscriptions",
+        "estimatedMonthlyRevenue",
+        "netSubscriptionMovement"
+      FROM ranked
+      WHERE "rowNumber" = 1
+      ORDER BY "day" DESC
+    `),
+  ]);
+
+  const liveCountsRows =
+    !currentSnapshot && snapshotRows.length === 0
+      ? await client.$queryRaw<
+          Array<{
+            activeSubscriptions: number;
+            pastDueSubscriptions: number;
+            unpaidSubscriptions: number;
+            estimatedMonthlyRevenue: number;
+          }>
+        >(Prisma.sql`
+          SELECT
+            COUNT(*) FILTER (WHERE "status" = 'active')::int AS "activeSubscriptions",
+            COUNT(*) FILTER (WHERE "status" = 'past_due')::int AS "pastDueSubscriptions",
+            COUNT(*) FILTER (WHERE "status" = 'unpaid')::int AS "unpaidSubscriptions",
+            COALESCE(SUM(CASE WHEN "status" = 'active' THEN "estimatedMonthlyRevenue" ELSE 0 END), 0)::int AS "estimatedMonthlyRevenue"
+          FROM "SubscriptionHealthSubscription"
+          WHERE "stripeAccountId" = ${stripeAccountId}
+        `)
+      : [];
+  const liveCounts = liveCountsRows[0];
+  const snapshotFallback = currentSnapshot ?? snapshotRows[0] ?? null;
+
+  const currentDayEvents = eventRows.find(
+    (row) => getUtcDayKey(row.day) === currentDayKey
+  );
+  const baselineEventRows = eventRows.filter(
+    (row) => getUtcDayKey(row.day) !== currentDayKey
+  );
+  const baselineSnapshotRows = snapshotRows.filter(
+    (row) => getUtcDayKey(row.day) !== currentDayKey
+  );
+  const earliestObservedDate = [
+    ...eventRows.map((row) =>
+      typeof row.day === "string" ? new Date(row.day) : row.day
+    ),
+    ...snapshotRows.map((row) =>
+      typeof row.day === "string" ? new Date(row.day) : row.day
+    ),
+  ].reduce<Date | null>((earliest, value) => {
+    if (!earliest || value.getTime() < earliest.getTime()) {
+      return value;
+    }
+    return earliest;
+  }, null);
+  const daysObserved = earliestObservedDate
+    ? Math.min(
+        SNAPSHOT_WINDOW_DAYS,
+        diffUtcDays(earliestObservedDate, currentDayStart) + 1
+      )
+    : 1;
+  const baselineDaysObserved = Math.max(1, daysObserved - 1);
+  const confidence: BaselineConfidence =
+    daysObserved >= 21 ? "high" : daysObserved >= 10 ? "medium" : "low";
+
+  const avgDailyCancellations = roundMetric(
+    baselineEventRows.reduce(
+      (sum, row) => sum + Number(row.cancellations ?? 0),
+      0
+    ) / baselineDaysObserved
+  );
+  const avgDailyFailedRenewals = roundMetric(
+    baselineEventRows.reduce(
+      (sum, row) => sum + Number(row.failedRenewals ?? 0),
+      0
+    ) / baselineDaysObserved
+  );
+  const avgDailyNewSubscriptions = roundMetric(
+    baselineEventRows.reduce(
+      (sum, row) => sum + Number(row.newSubscriptions ?? 0),
+      0
+    ) / baselineDaysObserved
+  );
+  const avgDailyNetSubscriptionMovement = roundMetric(
+    baselineEventRows.reduce(
+      (sum, row) =>
+        sum +
+        (Number(row.newSubscriptions ?? 0) - Number(row.cancellations ?? 0)),
+      0
+    ) / baselineDaysObserved
+  );
+
+  const avgPastDueSubscriptions = roundMetric(
+    averageFromNumbers(
+      baselineSnapshotRows.map((row) => Number(row.pastDueSubscriptions ?? 0)),
+      snapshotFallback?.pastDueSubscriptions ?? liveCounts?.pastDueSubscriptions ?? 0
+    )
+  );
+  const avgUnpaidSubscriptions = roundMetric(
+    averageFromNumbers(
+      baselineSnapshotRows.map((row) => Number(row.unpaidSubscriptions ?? 0)),
+      snapshotFallback?.unpaidSubscriptions ?? liveCounts?.unpaidSubscriptions ?? 0
+    )
+  );
+  const avgActiveSubscriptions = roundMetric(
+    averageFromNumbers(
+      baselineSnapshotRows.map((row) => Number(row.activeSubscriptions ?? 0)),
+      snapshotFallback?.activeSubscriptions ?? liveCounts?.activeSubscriptions ?? 0
+    )
+  );
+  const avgEstimatedMonthlyRevenue = roundMetric(
+    averageFromNumbers(
+      baselineSnapshotRows.map((row) => Number(row.estimatedMonthlyRevenue ?? 0)),
+      snapshotFallback?.estimatedMonthlyRevenue ?? liveCounts?.estimatedMonthlyRevenue ?? 0
+    )
+  );
+  const latestBaselineRevenue =
+    baselineSnapshotRows[0]?.estimatedMonthlyRevenue ??
+    snapshotFallback?.estimatedMonthlyRevenue ??
+    liveCounts?.estimatedMonthlyRevenue ??
+    0;
+  const currentRevenue =
+    currentSnapshot?.estimatedMonthlyRevenue ??
+    snapshotFallback?.estimatedMonthlyRevenue ??
+    latestBaselineRevenue;
+  const estimatedMrrTrendRatio =
+    latestBaselineRevenue > 0
+      ? roundMetric((currentRevenue - latestBaselineRevenue) / latestBaselineRevenue)
+      : 0;
+
+  const activityLevel = classifyAccountActivity({
+    avgActiveSubscriptions,
+    avgDailySubscriptionEvents:
+      avgDailyNewSubscriptions +
+      avgDailyCancellations +
+      avgDailyFailedRenewals,
+    avgDailyCancellations,
+    avgDailyFailedRenewals,
+  });
+
+  const currentDayCancellations = Number(currentDayEvents?.cancellations ?? 0);
+  const currentDayFailedRenewals = Number(currentDayEvents?.failedRenewals ?? 0);
+  const currentDayNewSubscriptions = Number(currentDayEvents?.newSubscriptions ?? 0);
+
+  return {
+    activityLevel,
+    confidence,
+    daysObserved,
+    avgDailyCancellations,
+    avgDailyFailedRenewals,
+    avgDailyNewSubscriptions,
+    avgDailyNetSubscriptionMovement,
+    avgPastDueSubscriptions,
+    avgUnpaidSubscriptions,
+    avgActiveSubscriptions,
+    avgEstimatedMonthlyRevenue,
+    estimatedMrrTrendRatio,
+    currentDayCancellations,
+    currentDayFailedRenewals,
+    currentDayNewSubscriptions,
+    currentDayNetSubscriptionMovement:
+      currentDayNewSubscriptions - currentDayCancellations,
+  };
+}
+
+function shouldCreateIndividualSubscriptionCanceledAlert(
+  baseline: SubscriptionHealthBaseline
+) {
+  return baseline.activityLevel === "low";
+}
+
+function shouldCreateIndividualFailedRenewalAlert(
+  baseline: SubscriptionHealthBaseline
+) {
+  return baseline.activityLevel === "low";
+}
+
 async function createSubscriptionDropAlert({
   client,
   stripeAccountId,
   previousSnapshot,
   currentSnapshot,
+  baseline,
 }: {
   client: QueryClient;
   stripeAccountId: string;
   previousSnapshot: SubscriptionHealthSnapshotRecord;
   currentSnapshot: SubscriptionHealthSnapshotRecord;
+  baseline: SubscriptionHealthBaseline;
 }) {
   const dropCount =
     previousSnapshot.activeSubscriptions - currentSnapshot.activeSubscriptions;
@@ -283,6 +681,10 @@ async function createSubscriptionDropAlert({
         currentActiveSubscriptions: currentSnapshot.activeSubscriptions,
         dropCount,
         dropPercent,
+        baselineActiveSubscriptions: baseline.avgActiveSubscriptions,
+        activityLevel: baseline.activityLevel,
+        confidence: baseline.confidence,
+        daysObserved: baseline.daysObserved,
         previousSnapshotId: previousSnapshot.id,
         previousSnapshotKey: previousSnapshot.snapshotKey,
         currentSnapshotId: currentSnapshot.id,
@@ -299,25 +701,25 @@ async function createSubscriptionDropAlert({
 async function createCancellationSpikeAlert({
   client,
   stripeAccountId,
-  previousSnapshot,
   currentSnapshot,
+  baseline,
 }: {
   client: QueryClient;
   stripeAccountId: string;
-  previousSnapshot: SubscriptionHealthSnapshotRecord | null;
   currentSnapshot: SubscriptionHealthSnapshotRecord;
+  baseline: SubscriptionHealthBaseline;
 }) {
-  const baselineCancellations = previousSnapshot?.cancellations ?? 0;
   const multiplier =
-    baselineCancellations > 0
+    baseline.avgDailyCancellations > 0
       ? Number(
-          (currentSnapshot.cancellations / baselineCancellations).toFixed(2)
+          (
+            baseline.currentDayCancellations / baseline.avgDailyCancellations
+          ).toFixed(2)
         )
       : null;
-  const message =
-    baselineCancellations > 0
-      ? `Cancellations increased from ${baselineCancellations} to ${currentSnapshot.cancellations}.`
-      : `Cancellations are higher than usual: ${currentSnapshot.cancellations} cancellations in the recent window.`;
+  const message = `Cancellations are higher than usual. This account usually sees about ${Math.round(
+    baseline.avgDailyCancellations
+  )} cancellations per day, but ${baseline.currentDayCancellations} were detected today.`;
 
   await client.alert.upsert({
     where: {
@@ -338,13 +740,14 @@ async function createCancellationSpikeAlert({
       }),
       message,
       context: JSON.stringify({
-        currentCancellations: currentSnapshot.cancellations,
-        baselineCancellations,
+        currentDayCancellations: baseline.currentDayCancellations,
+        baselineDailyCancellations: baseline.avgDailyCancellations,
         multiplier,
+        activityLevel: baseline.activityLevel,
+        confidence: baseline.confidence,
+        daysObserved: baseline.daysObserved,
         windowStart: currentSnapshot.windowStart.toISOString(),
         windowEnd: currentSnapshot.windowEnd.toISOString(),
-        previousSnapshotId: previousSnapshot?.id ?? null,
-        previousSnapshotKey: previousSnapshot?.snapshotKey ?? null,
         currentSnapshotId: currentSnapshot.id,
         currentSnapshotKey: currentSnapshot.snapshotKey,
         source: currentSnapshot.source,
@@ -361,11 +764,13 @@ async function createPastDueIncreaseAlert({
   stripeAccountId,
   previousSnapshot,
   currentSnapshot,
+  baseline,
 }: {
   client: QueryClient;
   stripeAccountId: string;
   previousSnapshot: SubscriptionHealthSnapshotRecord | null;
   currentSnapshot: SubscriptionHealthSnapshotRecord;
+  baseline: SubscriptionHealthBaseline;
 }) {
   const previousPastDueSubscriptions =
     previousSnapshot?.pastDueSubscriptions ?? 0;
@@ -396,6 +801,10 @@ async function createPastDueIncreaseAlert({
         previousPastDueSubscriptions,
         currentPastDueSubscriptions,
         increaseCount,
+        baselinePastDueSubscriptions: baseline.avgPastDueSubscriptions,
+        activityLevel: baseline.activityLevel,
+        confidence: baseline.confidence,
+        daysObserved: baseline.daysObserved,
         previousSnapshotKey: previousSnapshot?.snapshotKey ?? null,
         currentSnapshotKey: currentSnapshot.snapshotKey,
         source: currentSnapshot.source,
@@ -452,6 +861,216 @@ async function createUnpaidSubscriptionAlert({
   });
 }
 
+async function createFailedRenewalSpikeAlert({
+  client,
+  stripeAccountId,
+  currentSnapshot,
+  baseline,
+}: {
+  client: QueryClient;
+  stripeAccountId: string;
+  currentSnapshot: SubscriptionHealthSnapshotRecord;
+  baseline: SubscriptionHealthBaseline;
+}) {
+  const message = `Failed renewals are higher than usual. This account usually sees about ${Math.round(
+    baseline.avgDailyFailedRenewals
+  )} failed renewals per day, but ${baseline.currentDayFailedRenewals} were detected today.`;
+
+  await client.alert.upsert({
+    where: {
+      stripeEventId: buildFailedRenewalSpikeAlertKey({
+        stripeAccountId,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+      }),
+    },
+    update: {},
+    create: {
+      type: "failed_renewal_spike",
+      severity: "warning",
+      status: "active",
+      stripeAccountId,
+      stripeEventId: buildFailedRenewalSpikeAlertKey({
+        stripeAccountId,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+      }),
+      message,
+      context: JSON.stringify({
+        baselineDailyFailedRenewals: baseline.avgDailyFailedRenewals,
+        currentDayFailedRenewals: baseline.currentDayFailedRenewals,
+        activityLevel: baseline.activityLevel,
+        confidence: baseline.confidence,
+        daysObserved: baseline.daysObserved,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+        source: currentSnapshot.source,
+        displayMessage: message,
+      }),
+      windowStart: currentSnapshot.windowStart,
+      windowEnd: currentSnapshot.windowEnd,
+    },
+  });
+}
+
+async function createUnpaidIncreaseAlert({
+  client,
+  stripeAccountId,
+  previousSnapshot,
+  currentSnapshot,
+  baseline,
+}: {
+  client: QueryClient;
+  stripeAccountId: string;
+  previousSnapshot: SubscriptionHealthSnapshotRecord | null;
+  currentSnapshot: SubscriptionHealthSnapshotRecord;
+  baseline: SubscriptionHealthBaseline;
+}) {
+  const previousUnpaidSubscriptions = previousSnapshot?.unpaidSubscriptions ?? 0;
+  const currentUnpaidSubscriptions = currentSnapshot.unpaidSubscriptions;
+  const message = `Unpaid subscriptions are higher than usual. This account typically has about ${Math.round(
+    baseline.avgUnpaidSubscriptions
+  )} unpaid subscriptions, but ${currentUnpaidSubscriptions} are now marked unpaid.`;
+
+  await client.alert.upsert({
+    where: {
+      stripeEventId: buildUnpaidIncreaseAlertKey({
+        stripeAccountId,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+      }),
+    },
+    update: {},
+    create: {
+      type: "unpaid_increase",
+      severity: "warning",
+      status: "active",
+      stripeAccountId,
+      stripeEventId: buildUnpaidIncreaseAlertKey({
+        stripeAccountId,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+      }),
+      message,
+      context: JSON.stringify({
+        previousUnpaidSubscriptions,
+        currentUnpaidSubscriptions,
+        baselineUnpaidSubscriptions: baseline.avgUnpaidSubscriptions,
+        activityLevel: baseline.activityLevel,
+        confidence: baseline.confidence,
+        daysObserved: baseline.daysObserved,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+        source: currentSnapshot.source,
+        displayMessage: message,
+      }),
+      windowStart: currentSnapshot.windowStart,
+      windowEnd: currentSnapshot.windowEnd,
+    },
+  });
+}
+
+async function createNegativeNetSubscriptionMovementAlert({
+  client,
+  stripeAccountId,
+  currentSnapshot,
+  baseline,
+}: {
+  client: QueryClient;
+  stripeAccountId: string;
+  currentSnapshot: SubscriptionHealthSnapshotRecord;
+  baseline: SubscriptionHealthBaseline;
+}) {
+  const message = `Net subscription movement turned negative. This account added ${baseline.currentDayNewSubscriptions} subscriptions and lost ${baseline.currentDayCancellations} during the current period.`;
+
+  await client.alert.upsert({
+    where: {
+      stripeEventId: buildNegativeNetSubscriptionMovementAlertKey({
+        stripeAccountId,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+      }),
+    },
+    update: {},
+    create: {
+      type: "negative_net_subscription_movement",
+      severity: "warning",
+      status: "active",
+      stripeAccountId,
+      stripeEventId: buildNegativeNetSubscriptionMovementAlertKey({
+        stripeAccountId,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+      }),
+      message,
+      context: JSON.stringify({
+        currentDayNewSubscriptions: baseline.currentDayNewSubscriptions,
+        currentDayCancellations: baseline.currentDayCancellations,
+        currentDayNetSubscriptionMovement:
+          baseline.currentDayNetSubscriptionMovement,
+        baselineDailyNetSubscriptionMovement:
+          baseline.avgDailyNetSubscriptionMovement,
+        activityLevel: baseline.activityLevel,
+        confidence: baseline.confidence,
+        daysObserved: baseline.daysObserved,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+        source: currentSnapshot.source,
+        displayMessage: message,
+      }),
+      windowStart: currentSnapshot.windowStart,
+      windowEnd: currentSnapshot.windowEnd,
+    },
+  });
+}
+
+async function createMeaningfulMrrDropAlert({
+  client,
+  stripeAccountId,
+  currentSnapshot,
+  baseline,
+}: {
+  client: QueryClient;
+  stripeAccountId: string;
+  currentSnapshot: SubscriptionHealthSnapshotRecord;
+  baseline: SubscriptionHealthBaseline;
+}) {
+  const baselineMrr = Math.round(baseline.avgEstimatedMonthlyRevenue);
+  const currentMrr = currentSnapshot.estimatedMonthlyRevenue;
+  const message = `Estimated MRR is lower than usual. This account typically sees about ${formatMoneyAmount(
+    baselineMrr,
+    "EUR"
+  )} in monthly recurring revenue, but the latest snapshot is ${formatMoneyAmount(
+    currentMrr,
+    "EUR"
+  )}.`;
+
+  await client.alert.upsert({
+    where: {
+      stripeEventId: buildMeaningfulMrrDropAlertKey({
+        stripeAccountId,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+      }),
+    },
+    update: {},
+    create: {
+      type: "meaningful_mrr_drop",
+      severity: "warning",
+      status: "active",
+      stripeAccountId,
+      stripeEventId: buildMeaningfulMrrDropAlertKey({
+        stripeAccountId,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+      }),
+      message,
+      context: JSON.stringify({
+        baselineEstimatedMonthlyRevenue: baseline.avgEstimatedMonthlyRevenue,
+        currentEstimatedMonthlyRevenue: currentMrr,
+        estimatedMrrTrendRatio: baseline.estimatedMrrTrendRatio,
+        activityLevel: baseline.activityLevel,
+        confidence: baseline.confidence,
+        daysObserved: baseline.daysObserved,
+        currentSnapshotKey: currentSnapshot.snapshotKey,
+        source: currentSnapshot.source,
+        displayMessage: message,
+      }),
+      windowStart: currentSnapshot.windowStart,
+      windowEnd: currentSnapshot.windowEnd,
+    },
+  });
+}
+
 async function createSubscriptionCanceledAlert({
   client = prisma,
   stripeAccountId,
@@ -478,6 +1097,16 @@ async function createSubscriptionCanceledAlert({
     stripeSubscriptionId,
     canceledAt,
   });
+  const baseline = await getSubscriptionHealthBaseline({
+    client,
+    stripeAccountId,
+    windowEnd: canceledAt,
+  });
+
+  if (!shouldCreateIndividualSubscriptionCanceledAlert(baseline)) {
+    return;
+  }
+
   const message = `A customer canceled a subscription. Estimated monthly revenue impact: ${formatMoneyAmount(
     estimatedMonthlyRevenue,
     normalizedCurrency
@@ -500,6 +1129,9 @@ async function createSubscriptionCanceledAlert({
         estimatedMonthlyRevenue,
         currency: normalizedCurrency,
         canceledAt: canceledAt.toISOString(),
+        activityLevel: baseline.activityLevel,
+        confidence: baseline.confidence,
+        avgDailyCancellations: baseline.avgDailyCancellations,
         source,
         displayMessage: message,
       }),
@@ -541,6 +1173,19 @@ export async function upsertFailedRenewalAlert({
       : typeof amountPaid === "number" && amountPaid > 0
         ? amountPaid
         : 0;
+  let baseline: SubscriptionHealthBaseline | null = null;
+  if (source !== "dev") {
+    baseline = await getSubscriptionHealthBaseline({
+      client,
+      stripeAccountId,
+      windowEnd: occurredAt,
+    });
+
+    if (!shouldCreateIndividualFailedRenewalAlert(baseline)) {
+      return;
+    }
+  }
+
   const message = `A subscription renewal payment failed. Amount at risk: ${formatMoneyAmount(
     amountAtRisk,
     normalizedCurrency
@@ -572,6 +1217,9 @@ export async function upsertFailedRenewalAlert({
         amountPaid: amountPaid ?? null,
         currency: normalizedCurrency,
         billingReason: billingReason ?? null,
+        activityLevel: baseline?.activityLevel ?? "low",
+        confidence: baseline?.confidence ?? "low",
+        avgDailyFailedRenewals: baseline?.avgDailyFailedRenewals ?? 0,
         source: source ?? "webhook",
         displayMessage: message,
       }),
@@ -989,9 +1637,11 @@ async function getPreviousSubscriptionHealthSnapshotRecord({
 function shouldCreateSubscriptionDropAlert({
   previousSnapshot,
   currentSnapshot,
+  baseline,
 }: {
   previousSnapshot: SubscriptionHealthSnapshotRecord | null;
   currentSnapshot: SubscriptionHealthSnapshotRecord;
+  baseline: SubscriptionHealthBaseline;
 }) {
   if (!previousSnapshot) return false;
   if (previousSnapshot.activeSubscriptions < 5) return false;
@@ -1004,22 +1654,31 @@ function shouldCreateSubscriptionDropAlert({
   const dropCount =
     previousSnapshot.activeSubscriptions - currentSnapshot.activeSubscriptions;
   const dropPercent = dropCount / previousSnapshot.activeSubscriptions;
-  return dropPercent >= 0.2;
+  const baselineDropCount = Math.max(
+    2,
+    Math.round(baseline.avgActiveSubscriptions * 0.05)
+  );
+  const belowBaseline =
+    baseline.avgActiveSubscriptions <= 0 ||
+    currentSnapshot.activeSubscriptions <= baseline.avgActiveSubscriptions * 0.9;
+
+  return dropPercent >= 0.2 && (dropCount >= baselineDropCount || belowBaseline);
 }
 
 function shouldCreateCancellationSpikeAlert({
-  previousSnapshot,
-  currentSnapshot,
+  baseline,
 }: {
-  previousSnapshot: SubscriptionHealthSnapshotRecord | null;
-  currentSnapshot: SubscriptionHealthSnapshotRecord;
+  baseline: SubscriptionHealthBaseline;
 }) {
-  const currentCancellations = currentSnapshot.cancellations;
+  const currentCancellations = baseline.currentDayCancellations;
   if (currentCancellations < 3) return false;
 
-  const baselineCancellations = previousSnapshot?.cancellations ?? 0;
-  if (baselineCancellations > 0) {
-    return currentCancellations >= baselineCancellations * 2;
+  if (baseline.avgDailyCancellations > 0) {
+    return (
+      currentCancellations >= Math.ceil(baseline.avgDailyCancellations * 2) &&
+      currentCancellations >=
+        Math.ceil(baseline.avgDailyCancellations + Math.max(2, baseline.avgDailyCancellations * 0.5))
+    );
   }
 
   return currentCancellations >= 5;
@@ -1028,9 +1687,11 @@ function shouldCreateCancellationSpikeAlert({
 function shouldCreatePastDueIncreaseAlert({
   previousSnapshot,
   currentSnapshot,
+  baseline,
 }: {
   previousSnapshot: SubscriptionHealthSnapshotRecord | null;
   currentSnapshot: SubscriptionHealthSnapshotRecord;
+  baseline: SubscriptionHealthBaseline;
 }) {
   const previousPastDueSubscriptions =
     previousSnapshot?.pastDueSubscriptions ?? 0;
@@ -1038,12 +1699,25 @@ function shouldCreatePastDueIncreaseAlert({
 
   if (currentPastDueSubscriptions < 1) return false;
   if (previousPastDueSubscriptions === 0) {
-    return currentPastDueSubscriptions >= 1;
+    return (
+      currentPastDueSubscriptions >=
+      Math.max(
+        1,
+        Math.ceil(baseline.avgPastDueSubscriptions + 1)
+      )
+    );
   }
 
   const increaseCount =
     currentPastDueSubscriptions - previousPastDueSubscriptions;
-  return (
+  const aboveBaseline =
+    currentPastDueSubscriptions >=
+    Math.max(
+      1,
+      Math.ceil(baseline.avgPastDueSubscriptions + Math.max(1, baseline.avgPastDueSubscriptions * 0.75))
+    );
+
+  return aboveBaseline || (
     increaseCount >= 2 ||
     currentPastDueSubscriptions >= previousPastDueSubscriptions * 2
   );
@@ -1051,10 +1725,95 @@ function shouldCreatePastDueIncreaseAlert({
 
 function shouldCreateUnpaidSubscriptionAlert({
   currentSnapshot,
+  baseline,
 }: {
   currentSnapshot: SubscriptionHealthSnapshotRecord;
+  baseline: SubscriptionHealthBaseline;
 }) {
-  return currentSnapshot.unpaidSubscriptions >= 1;
+  if (baseline.activityLevel === "low") {
+    return currentSnapshot.unpaidSubscriptions >= 1;
+  }
+
+  return false;
+}
+
+function shouldCreateUnpaidIncreaseAlert({
+  previousSnapshot,
+  currentSnapshot,
+  baseline,
+}: {
+  previousSnapshot: SubscriptionHealthSnapshotRecord | null;
+  currentSnapshot: SubscriptionHealthSnapshotRecord;
+  baseline: SubscriptionHealthBaseline;
+}) {
+  if (currentSnapshot.unpaidSubscriptions < 1) return false;
+
+  const previousUnpaidSubscriptions = previousSnapshot?.unpaidSubscriptions ?? 0;
+  const increaseCount =
+    currentSnapshot.unpaidSubscriptions - previousUnpaidSubscriptions;
+  const aboveBaseline =
+    currentSnapshot.unpaidSubscriptions >=
+    Math.max(
+      1,
+      Math.ceil(baseline.avgUnpaidSubscriptions + Math.max(1, baseline.avgUnpaidSubscriptions))
+    );
+
+  return aboveBaseline || increaseCount >= 1;
+}
+
+function shouldCreateFailedRenewalSpikeAlert({
+  baseline,
+}: {
+  baseline: SubscriptionHealthBaseline;
+}) {
+  if (baseline.currentDayFailedRenewals < 3) return false;
+
+  if (baseline.avgDailyFailedRenewals > 0) {
+    return (
+      baseline.currentDayFailedRenewals >=
+        Math.ceil(baseline.avgDailyFailedRenewals * 2) &&
+      baseline.currentDayFailedRenewals >=
+        Math.ceil(baseline.avgDailyFailedRenewals + Math.max(2, baseline.avgDailyFailedRenewals * 0.5))
+    );
+  }
+
+  return baseline.currentDayFailedRenewals >= 3;
+}
+
+function shouldCreateNegativeNetSubscriptionMovementAlert({
+  baseline,
+}: {
+  baseline: SubscriptionHealthBaseline;
+}) {
+  if (baseline.currentDayNetSubscriptionMovement >= 0) return false;
+
+  return (
+    Math.abs(baseline.currentDayNetSubscriptionMovement) >=
+    Math.max(2, Math.ceil(Math.abs(baseline.avgDailyNetSubscriptionMovement)) + 2)
+  );
+}
+
+function shouldCreateMeaningfulMrrDropAlert({
+  currentSnapshot,
+  baseline,
+}: {
+  currentSnapshot: SubscriptionHealthSnapshotRecord;
+  baseline: SubscriptionHealthBaseline;
+}) {
+  if (baseline.avgEstimatedMonthlyRevenue <= 0) return false;
+
+  const mrrDropAmount =
+    baseline.avgEstimatedMonthlyRevenue - currentSnapshot.estimatedMonthlyRevenue;
+  const thresholdAmount = Math.max(
+    2000,
+    Math.round(baseline.avgEstimatedMonthlyRevenue * 0.08)
+  );
+
+  return (
+    currentSnapshot.estimatedMonthlyRevenue <=
+      baseline.avgEstimatedMonthlyRevenue * 0.9 &&
+    mrrDropAmount >= thresholdAmount
+  );
 }
 
 async function evaluateSubscriptionHealthTrendAlerts({
@@ -1080,11 +1839,17 @@ async function evaluateSubscriptionHealthTrendAlerts({
     stripeAccountId,
     currentSnapshotId: currentSnapshot.id,
   });
+  const baseline = await getSubscriptionHealthBaseline({
+    client,
+    stripeAccountId,
+    currentSnapshot,
+  });
 
   if (
     shouldCreateSubscriptionDropAlert({
       previousSnapshot,
       currentSnapshot,
+      baseline,
     }) &&
     previousSnapshot
   ) {
@@ -1093,20 +1858,20 @@ async function evaluateSubscriptionHealthTrendAlerts({
       stripeAccountId,
       previousSnapshot,
       currentSnapshot,
+      baseline,
     });
   }
 
   if (
     shouldCreateCancellationSpikeAlert({
-      previousSnapshot,
-      currentSnapshot,
+      baseline,
     })
   ) {
     await createCancellationSpikeAlert({
       client,
       stripeAccountId,
-      previousSnapshot,
       currentSnapshot,
+      baseline,
     });
   }
 
@@ -1114,6 +1879,7 @@ async function evaluateSubscriptionHealthTrendAlerts({
     shouldCreatePastDueIncreaseAlert({
       previousSnapshot,
       currentSnapshot,
+      baseline,
     })
   ) {
     await createPastDueIncreaseAlert({
@@ -1121,10 +1887,70 @@ async function evaluateSubscriptionHealthTrendAlerts({
       stripeAccountId,
       previousSnapshot,
       currentSnapshot,
+      baseline,
     });
   }
 
-  if (shouldCreateUnpaidSubscriptionAlert({ currentSnapshot })) {
+  if (
+    shouldCreateFailedRenewalSpikeAlert({
+      baseline,
+    })
+  ) {
+    await createFailedRenewalSpikeAlert({
+      client,
+      stripeAccountId,
+      currentSnapshot,
+      baseline,
+    });
+  }
+
+  if (
+    shouldCreateNegativeNetSubscriptionMovementAlert({
+      baseline,
+    })
+  ) {
+    await createNegativeNetSubscriptionMovementAlert({
+      client,
+      stripeAccountId,
+      currentSnapshot,
+      baseline,
+    });
+  }
+
+  if (
+    shouldCreateMeaningfulMrrDropAlert({
+      currentSnapshot,
+      baseline,
+    })
+  ) {
+    await createMeaningfulMrrDropAlert({
+      client,
+      stripeAccountId,
+      currentSnapshot,
+      baseline,
+    });
+  }
+
+  if (
+    shouldCreateUnpaidIncreaseAlert({
+      previousSnapshot,
+      currentSnapshot,
+      baseline,
+    })
+  ) {
+    await createUnpaidIncreaseAlert({
+      client,
+      stripeAccountId,
+      previousSnapshot,
+      currentSnapshot,
+      baseline,
+    });
+  } else if (
+    shouldCreateUnpaidSubscriptionAlert({
+      currentSnapshot,
+      baseline,
+    })
+  ) {
     await createUnpaidSubscriptionAlert({
       client,
       stripeAccountId,
@@ -1494,8 +2320,14 @@ export async function clearDevSeedSubscriptionHealthTestState({
         AND (
           "stripeEventId" LIKE ${`subscription_drop:${stripeAccountId}:${DEV_SEED_PREFIX}:%`}
           OR "stripeEventId" LIKE ${`cancellation_spike:${stripeAccountId}:${DEV_SEED_PREFIX}:%`}
+          OR "stripeEventId" LIKE ${`failed_renewal_spike:${stripeAccountId}:${DEV_SEED_PREFIX}:%`}
           OR "stripeEventId" LIKE ${`past_due_increase:${stripeAccountId}:${DEV_SEED_PREFIX}:%`}
           OR "stripeEventId" LIKE ${`unpaid_subscription:${stripeAccountId}:${DEV_SEED_PREFIX}:%`}
+          OR "stripeEventId" LIKE ${`unpaid_increase:${stripeAccountId}:${DEV_SEED_PREFIX}:%`}
+          OR "stripeEventId" LIKE ${`negative_net_subscription_movement:${stripeAccountId}:${DEV_SEED_PREFIX}:%`}
+          OR "stripeEventId" LIKE ${`meaningful_mrr_drop:${stripeAccountId}:${DEV_SEED_PREFIX}:%`}
+          OR "stripeEventId" LIKE 'subscription_canceled:dev_seed:%'
+          OR "stripeEventId" LIKE 'failed_renewal:dev_seed:%'
           OR "stripeEventId" LIKE 'failed_renewal:dev_failed_renewal_invoice:%'
         )
     `);
@@ -1578,6 +2410,9 @@ export async function seedSubscriptionHealthTestState({
     source: string;
     counts: SubscriptionHealthCounts;
   }> = [];
+  const afterSyncActions: Array<
+    (client: QueryClient, snapshotCounts: SubscriptionHealthCounts) => Promise<void>
+  > = [];
 
   const pushSubscription = ({
     suffix,
@@ -1614,6 +2449,68 @@ export async function seedSubscriptionHealthTestState({
       estimatedMonthlyRevenue,
       canceledAt,
     });
+  };
+
+  const pushEvent = ({
+    suffix,
+    type,
+    occurredAt,
+    billingReason = null,
+    amountDue = null,
+    amountPaid = null,
+    estimatedMonthlyRevenue = 0,
+  }: {
+    suffix: string;
+    type: string;
+    occurredAt: Date;
+    billingReason?: string | null;
+    amountDue?: number | null;
+    amountPaid?: number | null;
+    estimatedMonthlyRevenue?: number;
+  }) => {
+    eventRows.push({
+      stripeEventId: buildDevSeedId("event", stripeAccountId, suffix),
+      stripeSubscriptionId: buildDevSeedId("subscription", stripeAccountId, suffix),
+      stripeCustomerId: buildDevSeedId("customer", stripeAccountId, suffix),
+      type,
+      billingReason,
+      amountDue,
+      amountPaid,
+      estimatedMonthlyRevenue,
+      occurredAt,
+    });
+  };
+
+  const pushDailyEvents = ({
+    prefix,
+    type,
+    dayOffsets,
+    amountDue = null,
+    estimatedMonthlyRevenue = 0,
+    billingReason = null,
+  }: {
+    prefix: string;
+    type: string;
+    dayOffsets: Array<{ daysAgo: number; count: number }>;
+    amountDue?: number | null;
+    estimatedMonthlyRevenue?: number;
+    billingReason?: string | null;
+  }) => {
+    for (const bucket of dayOffsets) {
+      for (let index = 1; index <= bucket.count; index += 1) {
+        const occurredAt = new Date(now);
+        occurredAt.setUTCDate(occurredAt.getUTCDate() - bucket.daysAgo);
+        occurredAt.setUTCHours(10, index, 0, 0);
+        pushEvent({
+          suffix: `${prefix}-${bucket.daysAgo}-${index}`,
+          type,
+          occurredAt,
+          billingReason,
+          amountDue,
+          estimatedMonthlyRevenue,
+        });
+      }
+    }
   };
 
   if (scenario === "basic-active") {
@@ -1867,6 +2764,332 @@ export async function seedSubscriptionHealthTestState({
     });
   }
 
+  if (scenario === "smart-low-single-cancellation") {
+    for (let index = 1; index <= 5; index += 1) {
+      pushSubscription({ suffix: `active-${index}`, status: "active" });
+    }
+    pushSubscription({
+      suffix: "canceled-trigger",
+      status: "canceled",
+      canceledAt: now,
+    });
+    pushEvent({
+      suffix: "single-cancellation-today",
+      type: "customer.subscription.deleted",
+      occurredAt: now,
+    });
+
+    afterSyncActions.push(async (client) => {
+      await createSubscriptionCanceledAlert({
+        client,
+        stripeAccountId,
+        stripeSubscriptionId: buildDevSeedId(
+          "subscription",
+          stripeAccountId,
+          "canceled-trigger"
+        ),
+        stripeCustomerId: buildDevSeedId(
+          "customer",
+          stripeAccountId,
+          "canceled-trigger"
+        ),
+        status: "canceled",
+        estimatedMonthlyRevenue: 3900,
+        currency: "eur",
+        canceledAt: now,
+        source: "webhook",
+      });
+    });
+  }
+
+  if (scenario === "smart-high-normal-cancellations") {
+    for (let index = 1; index <= 120; index += 1) {
+      pushSubscription({ suffix: `active-${index}`, status: "active" });
+    }
+    pushSubscription({
+      suffix: "canceled-trigger",
+      status: "canceled",
+      canceledAt: now,
+    });
+
+    pushDailyEvents({
+      prefix: "baseline-cancel",
+      type: "customer.subscription.deleted",
+      dayOffsets: [
+        { daysAgo: 7, count: 8 },
+        { daysAgo: 6, count: 8 },
+        { daysAgo: 5, count: 7 },
+        { daysAgo: 4, count: 9 },
+        { daysAgo: 3, count: 8 },
+        { daysAgo: 2, count: 8 },
+        { daysAgo: 1, count: 8 },
+        { daysAgo: 0, count: 8 },
+      ],
+    });
+    pushDailyEvents({
+      prefix: "baseline-new",
+      type: "customer.subscription.created",
+      dayOffsets: [
+        { daysAgo: 7, count: 16 },
+        { daysAgo: 6, count: 17 },
+        { daysAgo: 5, count: 15 },
+        { daysAgo: 4, count: 18 },
+        { daysAgo: 3, count: 16 },
+        { daysAgo: 2, count: 17 },
+        { daysAgo: 1, count: 16 },
+        { daysAgo: 0, count: 15 },
+      ],
+    });
+
+    baselineSnapshots.push({
+      snapshotKey: `${DEV_SEED_PREFIX}:baseline-smart-high-normal:${stripeAccountId}`,
+      source: "dev",
+      counts: {
+        activeSubscriptions: 128,
+        trialingSubscriptions: 10,
+        pastDueSubscriptions: 2,
+        unpaidSubscriptions: 1,
+        canceledSubscriptions: 12,
+        newSubscriptions: 480,
+        cancellations: 240,
+        failedRenewalPayments: 18,
+        estimatedMonthlyRevenue: 499200,
+        netSubscriptionMovement: 240,
+        windowStart: baselineWindowStart,
+        windowEnd: baselineWindowEnd,
+      },
+    });
+
+    afterSyncActions.push(async (client) => {
+      await createSubscriptionCanceledAlert({
+        client,
+        stripeAccountId,
+        stripeSubscriptionId: buildDevSeedId(
+          "subscription",
+          stripeAccountId,
+          "canceled-trigger"
+        ),
+        stripeCustomerId: buildDevSeedId(
+          "customer",
+          stripeAccountId,
+          "canceled-trigger"
+        ),
+        status: "canceled",
+        estimatedMonthlyRevenue: 3900,
+        currency: "eur",
+        canceledAt: now,
+        source: "webhook",
+      });
+    });
+  }
+
+  if (scenario === "smart-high-cancellation-spike") {
+    for (let index = 1; index <= 180; index += 1) {
+      pushSubscription({ suffix: `active-${index}`, status: "active" });
+    }
+
+    pushDailyEvents({
+      prefix: "spike-cancel",
+      type: "customer.subscription.deleted",
+      dayOffsets: [
+        { daysAgo: 7, count: 8 },
+        { daysAgo: 6, count: 7 },
+        { daysAgo: 5, count: 8 },
+        { daysAgo: 4, count: 9 },
+        { daysAgo: 3, count: 8 },
+        { daysAgo: 2, count: 7 },
+        { daysAgo: 1, count: 8 },
+        { daysAgo: 0, count: 21 },
+      ],
+    });
+    pushDailyEvents({
+      prefix: "spike-new",
+      type: "customer.subscription.created",
+      dayOffsets: [
+        { daysAgo: 7, count: 18 },
+        { daysAgo: 6, count: 17 },
+        { daysAgo: 5, count: 19 },
+        { daysAgo: 4, count: 18 },
+        { daysAgo: 3, count: 17 },
+        { daysAgo: 2, count: 18 },
+        { daysAgo: 1, count: 18 },
+        { daysAgo: 0, count: 15 },
+      ],
+    });
+
+    baselineSnapshots.push({
+      snapshotKey: `${DEV_SEED_PREFIX}:baseline-smart-high-spike:${stripeAccountId}`,
+      source: "dev",
+      counts: {
+        activeSubscriptions: 196,
+        trialingSubscriptions: 14,
+        pastDueSubscriptions: 3,
+        unpaidSubscriptions: 1,
+        canceledSubscriptions: 15,
+        newSubscriptions: 540,
+        cancellations: 255,
+        failedRenewalPayments: 21,
+        estimatedMonthlyRevenue: 764400,
+        netSubscriptionMovement: 285,
+        windowStart: baselineWindowStart,
+        windowEnd: baselineWindowEnd,
+      },
+    });
+  }
+
+  if (scenario === "smart-high-positive-net-movement") {
+    for (let index = 1; index <= 220; index += 1) {
+      pushSubscription({ suffix: `active-${index}`, status: "active" });
+    }
+
+    pushDailyEvents({
+      prefix: "growth-cancel",
+      type: "customer.subscription.deleted",
+      dayOffsets: [
+        { daysAgo: 7, count: 15 },
+        { daysAgo: 6, count: 16 },
+        { daysAgo: 5, count: 15 },
+        { daysAgo: 4, count: 17 },
+        { daysAgo: 3, count: 16 },
+        { daysAgo: 2, count: 15 },
+        { daysAgo: 1, count: 16 },
+        { daysAgo: 0, count: 18 },
+      ],
+    });
+    pushDailyEvents({
+      prefix: "growth-new",
+      type: "customer.subscription.created",
+      dayOffsets: [
+        { daysAgo: 7, count: 28 },
+        { daysAgo: 6, count: 30 },
+        { daysAgo: 5, count: 29 },
+        { daysAgo: 4, count: 31 },
+        { daysAgo: 3, count: 30 },
+        { daysAgo: 2, count: 29 },
+        { daysAgo: 1, count: 30 },
+        { daysAgo: 0, count: 32 },
+      ],
+    });
+
+    baselineSnapshots.push({
+      snapshotKey: `${DEV_SEED_PREFIX}:baseline-smart-positive-net:${stripeAccountId}`,
+      source: "dev",
+      counts: {
+        activeSubscriptions: 230,
+        trialingSubscriptions: 20,
+        pastDueSubscriptions: 2,
+        unpaidSubscriptions: 1,
+        canceledSubscriptions: 20,
+        newSubscriptions: 840,
+        cancellations: 448,
+        failedRenewalPayments: 18,
+        estimatedMonthlyRevenue: 858000,
+        netSubscriptionMovement: 392,
+        windowStart: baselineWindowStart,
+        windowEnd: baselineWindowEnd,
+      },
+    });
+  }
+
+  if (scenario === "smart-failed-renewal-spike") {
+    for (let index = 1; index <= 88; index += 1) {
+      pushSubscription({ suffix: `active-${index}`, status: "active" });
+    }
+
+    pushDailyEvents({
+      prefix: "failed-renewal",
+      type: "invoice.payment_failed",
+      dayOffsets: [
+        { daysAgo: 7, count: 4 },
+        { daysAgo: 6, count: 5 },
+        { daysAgo: 5, count: 4 },
+        { daysAgo: 4, count: 4 },
+        { daysAgo: 3, count: 3 },
+        { daysAgo: 2, count: 4 },
+        { daysAgo: 1, count: 4 },
+        { daysAgo: 0, count: 13 },
+      ],
+      amountDue: 3900,
+      estimatedMonthlyRevenue: 3900,
+      billingReason: "subscription_cycle",
+    });
+
+    baselineSnapshots.push({
+      snapshotKey: `${DEV_SEED_PREFIX}:baseline-smart-failed-renewal:${stripeAccountId}`,
+      source: "dev",
+      counts: {
+        activeSubscriptions: 88,
+        trialingSubscriptions: 6,
+        pastDueSubscriptions: 2,
+        unpaidSubscriptions: 1,
+        canceledSubscriptions: 6,
+        newSubscriptions: 220,
+        cancellations: 110,
+        failedRenewalPayments: 30,
+        estimatedMonthlyRevenue: 343200,
+        netSubscriptionMovement: 110,
+        windowStart: baselineWindowStart,
+        windowEnd: baselineWindowEnd,
+      },
+    });
+  }
+
+  if (scenario === "smart-past-due-baseline-increase") {
+    for (let index = 1; index <= 58; index += 1) {
+      pushSubscription({ suffix: `active-${index}`, status: "active" });
+    }
+    for (let index = 1; index <= 6; index += 1) {
+      pushSubscription({ suffix: `past-due-${index}`, status: "past_due" });
+    }
+
+    baselineSnapshots.push({
+      snapshotKey: `${DEV_SEED_PREFIX}:baseline-smart-past-due:${stripeAccountId}`,
+      source: "dev",
+      counts: {
+        activeSubscriptions: 62,
+        trialingSubscriptions: 5,
+        pastDueSubscriptions: 2,
+        unpaidSubscriptions: 0,
+        canceledSubscriptions: 4,
+        newSubscriptions: 160,
+        cancellations: 84,
+        failedRenewalPayments: 9,
+        estimatedMonthlyRevenue: 241800,
+        netSubscriptionMovement: 76,
+        windowStart: baselineWindowStart,
+        windowEnd: baselineWindowEnd,
+      },
+    });
+  }
+
+  if (scenario === "smart-unpaid-baseline-increase") {
+    for (let index = 1; index <= 72; index += 1) {
+      pushSubscription({ suffix: `active-${index}`, status: "active" });
+    }
+    for (let index = 1; index <= 3; index += 1) {
+      pushSubscription({ suffix: `unpaid-${index}`, status: "unpaid" });
+    }
+
+    baselineSnapshots.push({
+      snapshotKey: `${DEV_SEED_PREFIX}:baseline-smart-unpaid:${stripeAccountId}`,
+      source: "dev",
+      counts: {
+        activeSubscriptions: 75,
+        trialingSubscriptions: 7,
+        pastDueSubscriptions: 1,
+        unpaidSubscriptions: 1,
+        canceledSubscriptions: 5,
+        newSubscriptions: 190,
+        cancellations: 102,
+        failedRenewalPayments: 11,
+        estimatedMonthlyRevenue: 292500,
+        netSubscriptionMovement: 88,
+        windowStart: baselineWindowStart,
+        windowEnd: baselineWindowEnd,
+      },
+    });
+  }
+
   await prisma.$transaction(async (tx) => {
     for (const row of subscriptionRows) {
       await tx.$executeRaw(Prisma.sql`
@@ -1950,11 +3173,17 @@ export async function seedSubscriptionHealthTestState({
     }
   });
 
-  return syncSubscriptionHealthSnapshot({
+  const snapshotCounts = await syncSubscriptionHealthSnapshot({
     client: prisma,
     stripeAccountId,
     snapshotKey: buildDevSeedSnapshotKey(stripeAccountId),
     source: "dev",
     windowEnd: now,
   });
+
+  for (const action of afterSyncActions) {
+    await action(prisma, snapshotCounts);
+  }
+
+  return snapshotCounts;
 }
