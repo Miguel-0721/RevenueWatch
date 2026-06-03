@@ -228,7 +228,31 @@ type MetricCardProps = {
   sparkline?: number[];
   compact?: boolean;
   tone?: "default" | "review" | "risk";
+  tooltip?: string;
 };
+
+function InfoTooltip({ text }: { text: string }) {
+  const tooltipId = `dashboard-tooltip-${text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")}`;
+
+  return (
+    <span className={styles.infoTooltipWrap}>
+      <button
+        type="button"
+        className={styles.infoTooltip}
+        aria-label={text}
+        aria-describedby={tooltipId}
+      >
+        i
+      </button>
+      <span id={tooltipId} role="tooltip" className={styles.infoTooltipBubble}>
+        {text}
+      </span>
+    </span>
+  );
+}
 
 function MetricCard({
   label,
@@ -238,6 +262,7 @@ function MetricCard({
   sparkline,
   compact = false,
   tone = "default",
+  tooltip,
 }: MetricCardProps) {
   const toneClass =
     tone === "review"
@@ -249,7 +274,10 @@ function MetricCard({
   return (
     <article className={`${styles.metricCard} ${compact ? styles.metricCardCompact : styles.metricCardLarge}`}>
       <div className={styles.metricCardHeader}>
-        <span className={styles.metricLabel}>{label}</span>
+        <span className={styles.metricLabelRow}>
+          <span className={styles.metricLabel}>{label}</span>
+          {tooltip ? <InfoTooltip text={tooltip} /> : null}
+        </span>
         {badgeLabel ? <span className={toneClass}>{badgeLabel}</span> : null}
       </div>
       <strong className={compact ? styles.metricValueSmall : styles.metricValue}>{value}</strong>
@@ -265,6 +293,7 @@ function MetricCard({
 
 type OverviewProps = {
   previewMode: boolean;
+  scopeCountLabel: string;
   primaryMetrics: {
     activeSubscriptions: number | string;
     estimatedMrr: string;
@@ -286,6 +315,7 @@ type OverviewProps = {
 
 function DashboardOverview({
   previewMode,
+  scopeCountLabel,
   primaryMetrics,
   secondaryMetrics,
   issues,
@@ -301,10 +331,14 @@ function DashboardOverview({
           {previewMode ? <span className={styles.previewBadge}>Preview data</span> : null}
         </div>
         <p>
-          Monitor active subscriptions, estimated MRR, failed renewals, past-due subscriptions,
-          unpaid subscriptions, cancellations, and subscription movement across connected Stripe
-          accounts.
+          Monitor active subscriptions, MRR, failed renewals, cancellations, and subscription
+          movement across your connected Stripe accounts.
         </p>
+        <div className={styles.scopeRow}>
+          <span className={styles.scopeChip}>All accounts</span>
+          <span className={styles.scopeChip}>{scopeCountLabel}</span>
+          <span className={styles.scopeHint}>Totals shown below</span>
+        </div>
       </header>
 
       <section className={styles.primaryMetrics}>
@@ -320,7 +354,8 @@ function DashboardOverview({
           value={primaryMetrics.estimatedMrr}
           badgeLabel="+1.8% this month"
           sparkline={[14, 15, 17, 16, 20, 22]}
-          helper="From active subscriptions only"
+          helper="Active subscriptions only"
+          tooltip="Estimated monthly recurring revenue from active subscriptions only. Trials, canceled, unpaid, and past-due subscriptions are not counted."
         />
         <div className={styles.metricStack}>
           <MetricCard
@@ -330,40 +365,56 @@ function DashboardOverview({
             compact
             badgeLabel="Inbox"
             tone="review"
+            tooltip="Active subscription-health issues waiting in the Inbox. These are alerts Parveil found, such as failed renewals, cancellations, or subscription drops."
           />
           <MetricCard
             label="Failed renewals"
             value={primaryMetrics.failedRenewals}
-            helper="Recent renewal payments at risk"
+            helper="Renewal payments at risk"
             compact
             badgeLabel="At risk"
             tone="risk"
+            tooltip="Renewal payments that failed recently. For example, a customer's monthly subscription tried to renew, but the payment did not go through."
           />
         </div>
       </section>
 
       <section className={styles.secondaryMetrics}>
         <article className={`${styles.secondaryCard} ${styles.secondaryNeutral}`}>
-          <span>Trials</span>
+          <span className={styles.secondaryLabelRow}>
+            <span>Trials</span>
+          </span>
           <strong>{secondaryMetrics.trialing}</strong>
           <small>Currently in trial</small>
         </article>
         <article className={`${styles.secondaryCard} ${styles.secondaryReview}`}>
-          <span>Past-due</span>
+          <span className={styles.secondaryLabelRow}>
+            <span>Past-due</span>
+            <InfoTooltip text="Subscriptions where Stripe could not collect the latest payment yet. For example, the customer's card failed or the payment still needs to be completed." />
+          </span>
           <strong>{secondaryMetrics.pastDue}</strong>
-          <small>Collection issues</small>
+          <small>Payment not collected yet</small>
         </article>
         <article className={`${styles.secondaryCard} ${styles.secondaryAttention}`}>
-          <span>Unpaid</span>
+          <span className={styles.secondaryLabelRow}>
+            <span>Unpaid</span>
+            <InfoTooltip text="Subscriptions Stripe has marked as unpaid after payment collection failed or was not completed. These usually need attention because the subscription may no longer be paying." />
+          </span>
           <strong>{secondaryMetrics.unpaid}</strong>
-          <small>Marked unpaid</small>
+          <small>Marked unpaid in Stripe</small>
         </article>
         <article className={`${styles.secondaryCard} ${styles.secondaryNeutral}`}>
-          <span>Canceled this week</span>
+          <span className={styles.secondaryLabelRow}>
+            <span>Canceled this week</span>
+          </span>
           <strong>{secondaryMetrics.canceled}</strong>
+          <small>Subscriptions ended this week</small>
         </article>
         <article className={`${styles.secondaryCard} ${styles.secondaryPositive}`}>
-          <span>Net subscriptions</span>
+          <span className={styles.secondaryLabelRow}>
+            <span>Net subscriptions</span>
+            <InfoTooltip text="New subscriptions minus canceled subscriptions for the selected period. For example, 20 new subscriptions and 2 cancellations means +18 net subscriptions." />
+          </span>
           <strong>{secondaryMetrics.netMovement}</strong>
           <small>New minus canceled</small>
         </article>
@@ -560,6 +611,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     return (
       <DashboardOverview
         previewMode
+        scopeCountLabel="3 connected Stripe accounts"
         primaryMetrics={{
           activeSubscriptions: subscriptionHealthPreview.overview.activeSubscriptions,
           estimatedMrr: subscriptionHealthPreview.overview.estimatedMrr,
@@ -705,6 +757,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     return (
       <DashboardOverview
         previewMode
+        scopeCountLabel="3 connected Stripe accounts"
         primaryMetrics={{
           activeSubscriptions: subscriptionHealthPreview.overview.activeSubscriptions,
           estimatedMrr: subscriptionHealthPreview.overview.estimatedMrr,
@@ -781,6 +834,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   return (
     <DashboardOverview
       previewMode={false}
+      scopeCountLabel={`${orderedAccounts.length} connected Stripe account${orderedAccounts.length === 1 ? "" : "s"}`}
       primaryMetrics={{
         activeSubscriptions: totals.activeSubscriptions,
         estimatedMrr: formatMoneyAmount(totals.estimatedMonthlyRevenue, displayCurrency),

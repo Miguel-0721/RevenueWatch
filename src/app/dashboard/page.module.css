@@ -32,6 +32,34 @@
   line-height: 20px;
 }
 
+.scopeRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.scopeChip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #475569;
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 600;
+}
+
+.scopeHint {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 17px;
+}
+
 .previewBadge {
   display: inline-flex;
   align-items: center;
@@ -84,6 +112,21 @@
   gap: 12px;
 }
 
+.metricLabelRow,
+.secondaryLabelRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.infoTooltipWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
 .metricLabel {
   color: #64748b;
   font-size: 11px;
@@ -91,6 +134,84 @@
   line-height: 16px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+}
+
+.infoTooltip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid #cfd8e6;
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 700;
+  cursor: help;
+  flex: 0 0 auto;
+  background: #ffffff;
+  appearance: none;
+}
+
+.infoTooltip:hover,
+.infoTooltip:focus-visible {
+  border-color: #94a3b8;
+  color: #1e293b;
+  background: #f8fafc;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 74, 198, 0.08);
+}
+
+.infoTooltipBubble {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 12px);
+  z-index: 20;
+  width: max-content;
+  max-width: 280px;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #1e293b;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-50%) translateY(4px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease,
+    visibility 120ms ease;
+  pointer-events: none;
+}
+
+.infoTooltipWrap:hover .infoTooltipBubble,
+.infoTooltipWrap:focus-within .infoTooltipBubble {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+.metricCardCompact .infoTooltipBubble,
+.secondaryCard:last-child .infoTooltipBubble {
+  left: auto;
+  right: 0;
+  transform: translateY(4px);
+}
+
+.metricCardCompact .infoTooltipWrap:hover .infoTooltipBubble,
+.metricCardCompact .infoTooltipWrap:focus-within .infoTooltipBubble,
+.secondaryCard:last-child .infoTooltipWrap:hover .infoTooltipBubble,
+.secondaryCard:last-child .infoTooltipWrap:focus-within .infoTooltipBubble {
+  transform: translateY(0);
 }
 
 .metricValue {
@@ -190,7 +311,7 @@
   background: #ffffff;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .secondaryCard span {
@@ -200,6 +321,25 @@
   line-height: 16px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+}
+
+.secondaryLabelRow > span {
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+.infoTooltipBubble,
+.metricCard .infoTooltipBubble,
+.secondaryCard .infoTooltipBubble {
+  color: #1e293b;
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+  font-family: inherit;
 }
 
 .secondaryCard strong {
