@@ -326,18 +326,25 @@ function DashboardOverview({
   return (
     <section className={styles.shell}>
       <header className={styles.header}>
-        <div className={styles.headerTitleRow}>
-          <h1>Subscription health overview</h1>
-          {previewMode ? <span className={styles.previewBadge}>Preview data</span> : null}
-        </div>
-        <p>
-          Monitor active subscriptions, MRR, failed renewals, cancellations, and subscription
-          movement across your connected Stripe accounts.
-        </p>
-        <div className={styles.scopeRow}>
-          <span className={styles.scopeChip}>All accounts</span>
-          <span className={styles.scopeChip}>{scopeCountLabel}</span>
-          <span className={styles.scopeHint}>Totals shown below</span>
+        <div className={styles.headerTop}>
+          <div className={styles.headerIntro}>
+            <div className={styles.headerTitleRow}>
+              <h1>Subscription health overview</h1>
+              {previewMode ? <span className={styles.previewBadge}>Preview data</span> : null}
+            </div>
+            <p>
+              Monitor active subscriptions, MRR, failed renewals, cancellations, and subscription
+              movement across your connected Stripe accounts.
+            </p>
+          </div>
+
+          <div className={styles.scopeSummary}>
+            <span className={styles.scopeChip}>All accounts</span>
+            <span className={styles.scopeDivider} aria-hidden="true">
+              ·
+            </span>
+            <span className={styles.scopeMeta}>{scopeCountLabel}</span>
+          </div>
         </div>
       </header>
 
@@ -426,15 +433,18 @@ function DashboardOverview({
             <div className={styles.sectionHeader}>
               <div>
                 <h2>Current issues summary</h2>
-                <p>Use Inbox for the full review workflow.</p>
+                <p>Top active subscription-health alerts. Open Inbox to review details.</p>
+                <span className={styles.sectionMetaPill}>
+                  {issues.length} active issue{issues.length === 1 ? "" : "s"}
+                </span>
               </div>
               <Link href={inboxHref} className={styles.sectionLink}>
                 Open Inbox
+                <span className={styles.sectionLinkArrow} aria-hidden="true">
+                  ›
+                </span>
               </Link>
             </div>
-            <p className={styles.summaryCallout}>
-              {issues.length} issue{issues.length === 1 ? "" : "s"} need review
-            </p>
 
             {issues.length === 0 ? (
               <p className={styles.emptyText}>No active alerts need review right now.</p>
@@ -466,6 +476,9 @@ function DashboardOverview({
               </div>
               <Link href="/dashboard/accounts" className={styles.sectionLink}>
                 View accounts
+                <span className={styles.sectionLinkArrow} aria-hidden="true">
+                  ›
+                </span>
               </Link>
             </div>
 
@@ -506,6 +519,9 @@ function DashboardOverview({
                         <td>{account.estimatedMrr}</td>
                         <td>{account.activeAlerts}</td>
                         <td>{account.lastActivity}</td>
+                        <td className={styles.accountChevronCell} aria-hidden="true">
+                          <span className={styles.accountChevron}>›</span>
+                        </td>
                       </tr>
                     ))
                   )}
@@ -520,10 +536,13 @@ function DashboardOverview({
             <div className={styles.sectionHeader}>
               <div>
                 <h2>Recent alert history</h2>
-                <p>Calmer recent activity from reviewed alerts.</p>
+                <p>Recent alerts that were reviewed or moved to history.</p>
               </div>
               <Link href="/dashboard/alerts" className={styles.sectionLink}>
-                Open Alerts
+                View history
+                <span className={styles.sectionLinkArrow} aria-hidden="true">
+                  ›
+                </span>
               </Link>
             </div>
 
