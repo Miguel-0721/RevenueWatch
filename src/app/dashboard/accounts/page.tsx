@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { AutoBackfillTrigger } from "./AutoBackfillTrigger";
 import { AccountStatusActions } from "./AccountStatusActions";
-import { subscriptionHealthPreview } from "../previewData";
+import { previewAccountDetails, subscriptionHealthPreview } from "../previewData";
 import { getActiveDemoAlerts, hasDemoAccount } from "@/lib/demoData";
 import { prisma } from "@/lib/prisma";
 import {
@@ -112,11 +112,20 @@ export default async function DashboardAccountsPage({
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "");
+      const topIssue =
+        previewAccountDetails[slug]?.currentIssue.type === "subscription_canceled"
+          ? "Subscription canceled"
+          : previewAccountDetails[slug]?.currentIssue.type === "failed_renewal"
+            ? "Failed renewal"
+            : previewAccountDetails[slug]?.currentIssue.type === "subscription_drop"
+              ? "Subscription drop"
+              : null;
 
       return {
         ...account,
         slug,
         href: `/dashboard/accounts/${slug}?preview=subscription-health`,
+        topIssue,
       };
     });
 
@@ -169,6 +178,7 @@ export default async function DashboardAccountsPage({
             <div className={styles.previewAccountsTableHeader}>
               <span>Account</span>
               <span>Status</span>
+              <span>Top issue</span>
               <span>Active subscriptions</span>
               <span>Estimated MRR</span>
               <span>Active alerts</span>
@@ -194,6 +204,7 @@ export default async function DashboardAccountsPage({
                   >
                     <span className={styles.previewAccountName}>{account.name}</span>
                     <span className={`${styles.previewStatusPill} ${statusClass}`}>{account.status}</span>
+                    <span className={styles.previewTopIssue}>{account.topIssue ?? "Monitoring active"}</span>
                     <span>{account.activeSubscriptions}</span>
                     <span>{account.estimatedMrr}</span>
                     <span>{account.activeAlerts}</span>

@@ -13,31 +13,32 @@ type BillingPageProps = {
     reason?: string;
     billing?: string;
     connected?: string;
+    preview?: string;
   }>;
 };
 
 const upgradePlans = [
   {
     key: "GROWTH" as const,
-    price: "€39",
+    price: "\u20AC39",
     upgradeHref: "/api/billing/checkout/growth",
     downgradeHref: "/api/billing/change-plan/growth",
     features: [
-      "Up to 10 connected Stripe accounts",
-      "Revenue and failure monitoring across a broader portfolio",
-      "Best when you only need up to 10 connected accounts.",
+      "Monitor up to 10 connected Stripe accounts",
+      "Subscription-health monitoring for cancellations, failed renewals, past-due subscriptions, and revenue changes",
+      "Best for smaller SaaS portfolios",
     ],
     upgradeCta: "Upgrade to Growth",
     downgradeCta: "Downgrade to Growth",
   },
   {
     key: "PRO" as const,
-    price: "€99",
+    price: "\u20AC99",
     upgradeHref: "/api/billing/checkout/pro",
     features: [
-      "Up to 25 connected Stripe accounts",
-      "More headroom for larger Stripe operations",
-      "Upgrade to monitor more Stripe accounts.",
+      "Monitor up to 25 connected Stripe accounts",
+      "More headroom for larger Stripe portfolios",
+      "Built for teams monitoring multiple subscription accounts",
     ],
     upgradeCta: "Upgrade to Pro",
   },
@@ -97,6 +98,7 @@ export default async function DashboardBillingPage({ searchParams }: BillingPage
   }
 
   const params = searchParams ? await searchParams : undefined;
+  const isPreviewMode = params?.preview === "subscription-health";
   const currentPlanLabel = getPlanLabel(user.plan);
   const connectedAccountCount = user.stripeAccounts.length;
   const planLimit = getPlanLimit(user.plan);
@@ -229,8 +231,11 @@ export default async function DashboardBillingPage({ searchParams }: BillingPage
       ) : null}
 
       <header className={styles.header}>
-        <h1>Billing</h1>
-        <p>Review your plan, account limit, and subscription settings.</p>
+        <div className={styles.headerTitleRow}>
+          <h1>Billing</h1>
+          {isPreviewMode ? <span className={styles.previewBadge}>Preview data</span> : null}
+        </div>
+        <p>Manage your Parveil plan, connected-account limit, and billing settings.</p>
       </header>
 
       <section className={styles.layoutGrid}>
@@ -258,10 +263,10 @@ export default async function DashboardBillingPage({ searchParams }: BillingPage
           </article>
 
           <article className={styles.planCard}>
-            <span className={styles.planLabel}>Billing management</span>
+            <span className={styles.planLabel}>Billing portal</span>
             <p className={styles.planSupportCopy}>
-              Manage payment method, view invoices, or cancel your subscription in
-              Stripe&apos;s secure billing portal.
+              Manage your Parveil payment method, invoices, and subscription in the
+              billing portal.
             </p>
             <Link
               href="/api/billing/portal"
@@ -378,8 +383,8 @@ export default async function DashboardBillingPage({ searchParams }: BillingPage
       </section>
 
       <p className={styles.trustLine}>
-        You can upgrade or cancel anytime. No changes are made to your Stripe
-        accounts.
+        Parveil monitors your connected Stripe accounts. No money movement or Stripe
+        account changes are made from this page.
       </p>
     </div>
   );
