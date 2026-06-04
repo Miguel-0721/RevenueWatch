@@ -7,10 +7,12 @@ import { formatMoneyAmount, normalizeCurrencyCode } from "@/lib/currency";
 import { getDemoAccountById, getDemoAlertHistory, getDemoSeverity } from "@/lib/demoData";
 import { prisma } from "@/lib/prisma";
 import {
+  getSubscriptionHealthKpiPeriodMetrics,
   getLatestSubscriptionHealthSummary,
   type SubscriptionHealthSummary,
 } from "@/lib/subscription-health-store";
 import { previewAccountDetails } from "@/app/dashboard/previewData";
+import PreviewAccountDetailClient from "./PreviewAccountDetailClient";
 import dashboardStyles from "@/app/dashboard/page.module.css";
 import { AccountStatusActions } from "../AccountStatusActions";
 import { markAlertReviewedAction } from "./actions";
@@ -2442,8 +2444,14 @@ function HistoryRow({ alert }: { alert: AlertLike }) {
 
 function SubscriptionHealthSection({
   summary,
+  periodMetrics,
 }: {
   summary: SubscriptionHealthSummary | null;
+  periodMetrics: {
+    failedRenewalsLast7Days: number;
+    cancellationsLast7Days: number;
+    netSubscriptionsThisMonth: number;
+  } | null;
 }) {
   const metrics = summary
     ? [
@@ -2453,42 +2461,42 @@ function SubscriptionHealthSection({
           help: "Currently active paid subscriptions.",
         },
         {
-          label: "Trialing",
+          label: "Trials",
           value: formatCount(summary.trialingSubscriptions),
-          help: "Subscriptions currently in trial.",
+          help: "Currently in trial",
         },
         {
-          label: "Past due",
+          label: "Past-due",
           value: formatCount(summary.pastDueSubscriptions),
-          help: "Subscriptions with payment collection issues.",
+          help: "Payment not collected yet",
         },
         {
           label: "Unpaid",
           value: formatCount(summary.unpaidSubscriptions),
-          help: "Subscriptions currently marked unpaid.",
+          help: "Marked unpaid in Stripe",
         },
         {
           label: "Canceled",
-          value: formatCount(summary.canceledSubscriptions),
-          help: "Canceled subscriptions tracked for this account.",
+          value: formatCount(periodMetrics?.cancellationsLast7Days ?? 0),
+          help: "Canceled · Last 7 days",
         },
         {
           label: "Failed renewals",
-          value: formatCount(summary.failedRenewalPayments),
-          help: "Renewal payments that failed in the current window.",
+          value: formatCount(periodMetrics?.failedRenewalsLast7Days ?? 0),
+          help: "Failed payments · Last 7 days",
         },
         {
           label: "Estimated MRR",
           value: formatMoneyAmount(summary.estimatedMonthlyRevenue, summary.currency),
-          help: "Estimated monthly recurring revenue from active subscriptions only.",
+          help: "Active subscriptions only",
         },
         {
-          label: "Net subscription movement",
+          label: "Net subscriptions",
           value:
-            summary.netSubscriptionMovement > 0
-              ? `+${formatCount(summary.netSubscriptionMovement)}`
-              : formatCount(summary.netSubscriptionMovement),
-          help: "Recent net subscription movement in the current monitoring window.",
+            (periodMetrics?.netSubscriptionsThisMonth ?? 0) > 0
+              ? `+${formatCount(periodMetrics?.netSubscriptionsThisMonth ?? 0)}`
+              : formatCount(periodMetrics?.netSubscriptionsThisMonth ?? 0),
+          help: "New minus canceled · This month",
         },
       ]
     : [];
@@ -2542,6 +2550,11 @@ export default async function AccountDetailPage({
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const isPreviewMode = resolvedSearchParams?.preview === "subscription-health";
   const previewAccount = isPreviewMode ? previewAccountDetails[accountId] : undefined;
+  const previewClientAccount = isPreviewMode ? previewAccountDetails[accountId] : undefined;
+
+  if (previewClientAccount) {
+    return <PreviewAccountDetailClient previewAccount={previewClientAccount} />;
+  }
 
   if (previewAccount) {
     const previewNetMovement = Number.parseInt(previewAccount.netSubscriptions, 10) || 0;
@@ -2592,14 +2605,12 @@ export default async function AccountDetailPage({
               <p className={styles.previewHeaderSubtitle}>
                 Subscription-health monitoring for this connected Stripe account.
               </p>
-              <div className={styles.previewHeaderMeta}>
-                <span className={styles.previewHeaderMetaPill}>Single account view</span>
-              </div>
+              
             </div>
 
             <div className={styles.previewHeaderActions}>
               <Link href="/dashboard?preview=subscription-health" className={styles.previewHeaderAction}>
-                ← Back to dashboard
+                Back to dashboard
               </Link>
             </div>
           </header>
@@ -2760,6 +2771,12 @@ export default async function AccountDetailPage({
   const subscriptionHealthSummary =
     account && !demoAccount
       ? await getLatestSubscriptionHealthSummary({
+          stripeAccountId: account.stripeAccountId,
+        })
+      : null;
+  const subscriptionHealthPeriodMetrics =
+    account && !demoAccount
+      ? await getSubscriptionHealthKpiPeriodMetrics({
           stripeAccountId: account.stripeAccountId,
         })
       : null;
@@ -2976,7 +2993,10 @@ export default async function AccountDetailPage({
           </div>
         </header>
 
-        <SubscriptionHealthSection summary={subscriptionHealthSummary} />
+        <SubscriptionHealthSection
+          summary={subscriptionHealthSummary}
+          periodMetrics={subscriptionHealthPeriodMetrics}
+        />
 
         <section className={styles.lowerGrid}>
           <div>
@@ -3075,3 +3095,4 @@ export default async function AccountDetailPage({
     </main>
   );
 }
+

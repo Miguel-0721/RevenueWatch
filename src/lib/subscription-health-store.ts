@@ -60,6 +60,12 @@ export type SubscriptionHealthSummary = SubscriptionHealthSnapshotCounts & {
   currency: string;
 };
 
+export type SubscriptionHealthKpiPeriodMetrics = {
+  failedRenewalsLast7Days: number;
+  cancellationsLast7Days: number;
+  netSubscriptionsThisMonth: number;
+};
+
 export type SubscriptionHealthTestScenario =
   | "basic-active"
   | "multiple-active"
@@ -262,6 +268,10 @@ function buildFailedRenewalAlertKey({
   }
 
   return `failed_renewal:${stripeSubscriptionId ?? "unknown_subscription"}`;
+}
+
+function startOfUtcMonth(date: Date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
 }
 
 function buildSubscriptionDropAlertKey({
@@ -668,7 +678,7 @@ async function createSubscriptionDropAlert({
     update: {},
     create: {
       type: "subscription_drop",
-      severity: "warning",
+      severity: "critical",
       status: "active",
       stripeAccountId,
       stripeEventId: buildSubscriptionDropAlertKey({
@@ -731,7 +741,7 @@ async function createCancellationSpikeAlert({
     update: {},
     create: {
       type: "cancellation_spike",
-      severity: "warning",
+      severity: "critical",
       status: "active",
       stripeAccountId,
       stripeEventId: buildCancellationSpikeAlertKey({
@@ -789,7 +799,7 @@ async function createPastDueIncreaseAlert({
     update: {},
     create: {
       type: "past_due_increase",
-      severity: "warning",
+      severity: "critical",
       status: "active",
       stripeAccountId,
       stripeEventId: buildPastDueIncreaseAlertKey({
@@ -886,7 +896,7 @@ async function createFailedRenewalSpikeAlert({
     update: {},
     create: {
       type: "failed_renewal_spike",
-      severity: "warning",
+      severity: "critical",
       status: "active",
       stripeAccountId,
       stripeEventId: buildFailedRenewalSpikeAlertKey({
@@ -939,7 +949,7 @@ async function createUnpaidIncreaseAlert({
     update: {},
     create: {
       type: "unpaid_increase",
-      severity: "warning",
+      severity: "critical",
       status: "active",
       stripeAccountId,
       stripeEventId: buildUnpaidIncreaseAlertKey({
@@ -987,7 +997,7 @@ async function createNegativeNetSubscriptionMovementAlert({
     update: {},
     create: {
       type: "negative_net_subscription_movement",
-      severity: "warning",
+      severity: "critical",
       status: "active",
       stripeAccountId,
       stripeEventId: buildNegativeNetSubscriptionMovementAlertKey({
@@ -1046,7 +1056,7 @@ async function createMeaningfulMrrDropAlert({
     update: {},
     create: {
       type: "meaningful_mrr_drop",
-      severity: "warning",
+      severity: "critical",
       status: "active",
       stripeAccountId,
       stripeEventId: buildMeaningfulMrrDropAlertKey({
@@ -2077,6 +2087,71 @@ export async function getLatestSubscriptionHealthSummary({
   return {
     ...counts,
     currency: normalizeCurrencyCode(fallbackCurrencyRows[0]?.currency ?? "EUR"),
+  };
+}
+
+export async function getSubscriptionHealthKpiPeriodMetrics({
+  client = prisma,
+  stripeAccountId,
+  now = new Date(),
+}: {
+  client?: QueryClient;
+  stripeAccountId: string;
+  now?: Date;
+}): Promise<SubscriptionHealthKpiPeriodMetrics> {
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const monthStart = startOfUtcMonth(now);
+
+  const [
+    failedRenewalsLast7Days,
+    cancellationsLast7Days,
+    newSubscriptionsThisMonth,
+    canceledSubscriptionsThisMonth,
+  ] = await Promise.all([
+    countSingleValue(
+      client,
+      Prisma.sql`SELECT COUNT(*) AS count
+                 FROM "SubscriptionHealthEvent"
+                 WHERE "stripeAccountId" = ${stripeAccountId}
+                   AND "type" = 'invoice.payment_failed'
+                   AND ("stripeSubscriptionId" IS NOT NULL OR COALESCE("billingReason",'') LIKE 'subscription%')
+                   AND "occurredAt" >= ${sevenDaysAgo}
+                   AND "occurredAt" <= ${now}`
+    ),
+    countSingleValue(
+      client,
+      Prisma.sql`SELECT COUNT(*) AS count
+                 FROM "SubscriptionHealthEvent"
+                 WHERE "stripeAccountId" = ${stripeAccountId}
+                   AND "type" = 'customer.subscription.deleted'
+                   AND "occurredAt" >= ${sevenDaysAgo}
+                   AND "occurredAt" <= ${now}`
+    ),
+    countSingleValue(
+      client,
+      Prisma.sql`SELECT COUNT(*) AS count
+                 FROM "SubscriptionHealthEvent"
+                 WHERE "stripeAccountId" = ${stripeAccountId}
+                   AND "type" = 'customer.subscription.created'
+                   AND "occurredAt" >= ${monthStart}
+                   AND "occurredAt" <= ${now}`
+    ),
+    countSingleValue(
+      client,
+      Prisma.sql`SELECT COUNT(*) AS count
+                 FROM "SubscriptionHealthEvent"
+                 WHERE "stripeAccountId" = ${stripeAccountId}
+                   AND "type" = 'customer.subscription.deleted'
+                   AND "occurredAt" >= ${monthStart}
+                   AND "occurredAt" <= ${now}`
+    ),
+  ]);
+
+  return {
+    failedRenewalsLast7Days,
+    cancellationsLast7Days,
+    netSubscriptionsThisMonth:
+      newSubscriptionsThisMonth - canceledSubscriptionsThisMonth,
   };
 }
 

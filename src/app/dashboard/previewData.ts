@@ -26,7 +26,7 @@ export const subscriptionHealthPreview = {
     {
       stripeAccountId: "preview-bluepeak",
       name: "BluePeak Studio",
-      status: "Monitoring active",
+      status: "Review needed",
       activeSubscriptions: 88,
       estimatedMrr: `${EURO}3,900`,
       activeAlerts: 1,
@@ -233,7 +233,7 @@ export const previewAccountDetails: Record<string, PreviewAccountDetail> = {
     slug: "bluepeak-studio",
     stripeAccountId: "preview-bluepeak",
     name: "BluePeak Studio",
-    status: "Monitoring active",
+    status: "Review needed",
     lastActivity: "45m ago",
     activeSubscriptions: 88,
     estimatedMrr: `${EURO}3,900`,

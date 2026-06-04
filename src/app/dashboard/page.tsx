@@ -2,7 +2,10 @@ import { auth } from "@/auth";
 import ConnectedAccountsTable from "@/components/dashboard/ConnectedAccountsTable";
 import { formatMoneyAmount } from "@/lib/currency";
 import { prisma } from "@/lib/prisma";
-import { getLatestSubscriptionHealthSummary } from "@/lib/subscription-health-store";
+import {
+  getSubscriptionHealthKpiPeriodMetrics,
+  getLatestSubscriptionHealthSummary,
+} from "@/lib/subscription-health-store";
 import { syncUserPlanFromStripe } from "@/lib/subscription-sync";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -715,11 +718,17 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   const accountIds = accounts.map((account) => account.stripeAccountId);
 
-  const [summaries, activeAlerts, recentHistory, lastEvents] = await Promise.all([
+  const [summaries, periodMetricsEntries, activeAlerts, recentHistory, lastEvents] = await Promise.all([
     Promise.all(
       accountIds.map(async (stripeAccountId) => [
         stripeAccountId,
         await getLatestSubscriptionHealthSummary({ stripeAccountId }),
+      ] as const),
+    ),
+    Promise.all(
+      accountIds.map(async (stripeAccountId) => [
+        stripeAccountId,
+        await getSubscriptionHealthKpiPeriodMetrics({ stripeAccountId }),
       ] as const),
     ),
     prisma.alert.findMany({
@@ -749,7 +758,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         createdAt: true,
       },
       orderBy: { createdAt: "desc" },
-      take: 6,
+      take: 3,
     }) as Promise<HistoryAlertRecord[]>,
     prisma.stripeEvent.groupBy({
       by: ["stripeAccountId"],
@@ -759,6 +768,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   ]);
 
   const summaryByAccount = new Map(summaries);
+  const periodMetricsByAccount = new Map(periodMetricsEntries);
   const lastEventByAccount = new Map(
     lastEvents.map((event) => [event.stripeAccountId, event._max.createdAt ?? null]),
   );
@@ -787,14 +797,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     (accumulator, entry) => {
       const summary = entry[1];
       if (!summary) return accumulator;
+      const periodMetrics = periodMetricsByAccount.get(entry[0]);
       accumulator.activeSubscriptions += summary.activeSubscriptions;
       accumulator.trialingSubscriptions += summary.trialingSubscriptions;
       accumulator.pastDueSubscriptions += summary.pastDueSubscriptions;
       accumulator.unpaidSubscriptions += summary.unpaidSubscriptions;
-      accumulator.canceledSubscriptions += summary.canceledSubscriptions;
-      accumulator.failedRenewalPayments += summary.failedRenewalPayments;
+      accumulator.cancellationsLast7Days += periodMetrics?.cancellationsLast7Days ?? 0;
+      accumulator.failedRenewalsLast7Days += periodMetrics?.failedRenewalsLast7Days ?? 0;
       accumulator.estimatedMonthlyRevenue += summary.estimatedMonthlyRevenue;
-      accumulator.netSubscriptionMovement += summary.netSubscriptionMovement;
+      accumulator.netSubscriptionsThisMonth += periodMetrics?.netSubscriptionsThisMonth ?? 0;
       return accumulator;
     },
     {
@@ -802,10 +813,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       trialingSubscriptions: 0,
       pastDueSubscriptions: 0,
       unpaidSubscriptions: 0,
-      canceledSubscriptions: 0,
-      failedRenewalPayments: 0,
+      cancellationsLast7Days: 0,
+      failedRenewalsLast7Days: 0,
       estimatedMonthlyRevenue: 0,
-      netSubscriptionMovement: 0,
+      netSubscriptionsThisMonth: 0,
     },
   );
 
@@ -815,10 +826,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     totals.trialingSubscriptions > 0 ||
     totals.pastDueSubscriptions > 0 ||
     totals.unpaidSubscriptions > 0 ||
-    totals.canceledSubscriptions > 0 ||
-    totals.failedRenewalPayments > 0 ||
+    totals.cancellationsLast7Days > 0 ||
+    totals.failedRenewalsLast7Days > 0 ||
     totals.estimatedMonthlyRevenue > 0 ||
-    totals.netSubscriptionMovement !== 0;
+    totals.netSubscriptionsThisMonth !== 0;
   const isRealDashboardEmpty =
     !hasMeaningfulSubscriptionData && sortedAlerts.length === 0 && recentHistory.length === 0;
   const shouldShowPreview = process.env.NODE_ENV === "development" && isRealDashboardEmpty;
@@ -920,14 +931,14 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         activeSubscriptions: totals.activeSubscriptions,
         estimatedMrr: formatMoneyAmount(totals.estimatedMonthlyRevenue, displayCurrency),
         needsReview: sortedAlerts.length,
-        failedRenewals: totals.failedRenewalPayments,
+        failedRenewals: totals.failedRenewalsLast7Days,
       }}
       secondaryMetrics={{
         trialing: totals.trialingSubscriptions,
         pastDue: totals.pastDueSubscriptions,
         unpaid: totals.unpaidSubscriptions,
-        canceled: totals.canceledSubscriptions,
-        netMovement: `${totals.netSubscriptionMovement >= 0 ? "+" : ""}${totals.netSubscriptionMovement}`,
+        canceled: totals.cancellationsLast7Days,
+        netMovement: `${totals.netSubscriptionsThisMonth >= 0 ? "+" : ""}${totals.netSubscriptionsThisMonth}`,
       }}
       issues={issueSummaries}
       accounts={overviewAccounts}

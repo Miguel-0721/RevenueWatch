@@ -150,7 +150,7 @@ export default async function DashboardInboxPage({ searchParams }: DashboardInbo
             <strong>{subscriptionHealthPreview.inboxSummary.needsReview}</strong>
           </article>
           <article className={styles.summaryCard}>
-            <span>Failed renewals</span>
+            <span>Failed renewal issues</span>
             <strong>{subscriptionHealthPreview.inboxSummary.failedRenewals}</strong>
           </article>
           <article className={styles.summaryCard}>
@@ -522,7 +522,7 @@ export default async function DashboardInboxPage({ searchParams }: DashboardInbo
           <strong>{railAlerts.length}</strong>
         </article>
         <article className={styles.summaryCard}>
-          <span>Failed renewals</span>
+          <span>Failed renewal issues</span>
           <strong>{failedRenewalsCount}</strong>
         </article>
         <article className={styles.summaryCard}>
