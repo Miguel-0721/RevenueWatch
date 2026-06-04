@@ -1,23 +1,22 @@
 import { auth } from "@/auth";
-import CurrentAlertsRail from "@/components/dashboard/CurrentAlertsRail";
+import InboxReviewClient, { type InboxHistoryItem, type InboxIssueItem } from "./InboxReviewClient";
 import { subscriptionHealthPreview } from "../previewData";
 import { formatMoneyAmount } from "@/lib/currency";
 import { prisma } from "@/lib/prisma";
-import { getLatestSubscriptionHealthSummary } from "@/lib/subscription-health-store";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import styles from "./page.module.css";
 
 type DashboardInboxPageProps = {
   searchParams?: Promise<{
     preview?: string;
+    alert?: string;
+    account?: string;
   }>;
 };
 
 type AccountRecord = {
   stripeAccountId: string;
   name: string | null;
-  status: string;
 };
 
 type ActiveAlertRecord = {
@@ -75,50 +74,43 @@ function severityRank(severity: string) {
   return 2;
 }
 
-function typeColor(type: string, severity: string) {
-  if (
-    type === "failed_renewal" ||
-    type === "failed_renewal_spike" ||
-    type === "past_due_increase" ||
-    type === "unpaid_subscription" ||
-    type === "unpaid_increase"
-  ) {
-    return "#9a6700";
-  }
+function previewAccountHref(accountName: string) {
+  const slug = accountName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 
-  if (
-    severity === "critical" ||
-    type === "subscription_drop" ||
-    type === "cancellation_spike" ||
-    type === "negative_net_subscription_movement" ||
-    type === "meaningful_mrr_drop"
-  ) {
-    return "#b42318";
-  }
-
-  return "#475569";
+  return `/dashboard/accounts/${slug}?preview=subscription-health`;
 }
 
-function statusRank(status: string, severity: string | null) {
-  if (status === "paused") return 3;
-  if (status !== "active") return 4;
-  if (severity === "critical") return 0;
-  if (severity === "warning") return 1;
-  return 2;
+function previewWhyFlagged(type: string) {
+  if (type === "subscription_canceled")
+    return "This account is low-activity, so a single cancellation is worth reviewing.";
+  if (type === "failed_renewal")
+    return "A subscription renewal payment failed and may affect recurring revenue if it is not recovered.";
+  if (type === "subscription_drop")
+    return "Active subscriptions dropped enough compared with this account’s recent baseline to need attention.";
+  return "Parveil detected subscription-health activity that should be reviewed.";
 }
 
-function getAccountStatusLabel(status: string, severity: string | null) {
-  if (status === "paused") return "Paused";
-  if (severity === "critical") return "Attention needed";
-  if (severity === "warning") return "Review needed";
-  return "Monitoring active";
-}
-
-function statusTone(status: string) {
-  if (status === "Attention needed") return styles.statusAttention;
-  if (status === "Review needed") return styles.statusReview;
-  if (status === "Monitoring active") return styles.statusMonitoring;
-  return styles.statusNeutral;
+function realWhyFlagged(type: string) {
+  if (type === "subscription_canceled") return "Single cancellation detected for this account.";
+  if (type === "failed_renewal") return "A renewal invoice payment failed for a subscription.";
+  if (type === "subscription_drop")
+    return "This passed the threshold for a meaningful active-subscription drop.";
+  if (type === "cancellation_spike")
+    return "Cancellations were meaningfully higher than the recent baseline.";
+  if (type === "failed_renewal_spike")
+    return "Failed renewals were meaningfully higher than the recent baseline.";
+  if (type === "past_due_increase")
+    return "Past-due subscriptions increased above the recent baseline.";
+  if (type === "unpaid_increase" || type === "unpaid_subscription")
+    return "Unpaid subscriptions increased and may need review.";
+  if (type === "negative_net_subscription_movement")
+    return "Subscription losses outweighed additions during the current monitoring period.";
+  if (type === "meaningful_mrr_drop")
+    return "Estimated recurring revenue dropped meaningfully versus the recent baseline.";
+  return "Parveil detected subscription-health activity that should be reviewed.";
 }
 
 export default async function DashboardInboxPage({ searchParams }: DashboardInboxPageProps) {
@@ -130,8 +122,41 @@ export default async function DashboardInboxPage({ searchParams }: DashboardInbo
 
   const params = searchParams ? await searchParams : undefined;
   const isPreviewQuery = params?.preview === "subscription-health";
+  const initialSelectedId = params?.alert ?? null;
 
   if (isPreviewQuery) {
+    const previewIssues: InboxIssueItem[] = subscriptionHealthPreview.issues.map((issue) => ({
+      id: issue.id,
+      type: issue.type,
+      title: issue.typeLabel,
+      accountName: issue.accountName,
+      severity: issue.severityKind,
+      severityLabel: issue.severityKind === "critical" ? "Attention needed" : "Review needed",
+      detectedLabel: issue.detectedLabel,
+      message:
+        issue.type === "subscription_canceled"
+          ? "A customer canceled a subscription."
+          : issue.type === "failed_renewal"
+            ? "A subscription renewal payment failed."
+            : "Active subscriptions dropped from 10 to 7.",
+      impact:
+        issue.type === "subscription_canceled"
+          ? `${formatMoneyAmount(3900, "EUR")} estimated monthly revenue impact.`
+          : issue.type === "failed_renewal"
+            ? `${formatMoneyAmount(3900, "EUR")} monthly amount at risk.`
+            : "10 → 7 active subscriptions.",
+      whyFlagged: previewWhyFlagged(issue.type),
+      accountHref: previewAccountHref(issue.accountName),
+    }));
+
+    const previewReviewed: InboxHistoryItem[] = subscriptionHealthPreview.history.map((alert) => ({
+      id: alert.id,
+      type: alert.type,
+      title: alertLabel(alert.type),
+      accountName: alert.accountName,
+      time: alert.time,
+    }));
+
     return (
       <section className={styles.shell}>
         <header className={styles.header}>
@@ -144,105 +169,12 @@ export default async function DashboardInboxPage({ searchParams }: DashboardInbo
           </div>
         </header>
 
-        <section className={styles.summaryStrip} aria-label="Inbox summary">
-          <article className={styles.summaryCard}>
-            <span>Needs review</span>
-            <strong>{subscriptionHealthPreview.inboxSummary.needsReview}</strong>
-          </article>
-          <article className={styles.summaryCard}>
-            <span>Failed renewal issues</span>
-            <strong>{subscriptionHealthPreview.inboxSummary.failedRenewals}</strong>
-          </article>
-          <article className={styles.summaryCard}>
-            <span>Attention needed</span>
-            <strong>{subscriptionHealthPreview.inboxSummary.attentionNeeded}</strong>
-          </article>
-          <article className={styles.summaryCard}>
-            <span>Reviewed recently</span>
-            <strong>{subscriptionHealthPreview.inboxSummary.reviewedRecently}</strong>
-          </article>
-        </section>
-
-        <CurrentAlertsRail
-          alerts={subscriptionHealthPreview.issues}
-          pendingLabel={String(subscriptionHealthPreview.inboxSummary.needsReview)}
-          detailPlaceholder={
-            <div className={styles.placeholder}>
-              <h3>Select an issue to review details.</h3>
-              <p>
-                Open an alert from Needs Review to see account context, current impact, and the
-                monitoring-only review actions for that issue.
-              </p>
-            </div>
-          }
+        <InboxReviewClient
+          issues={previewIssues}
+          recentReviewed={previewReviewed}
+          isPreview
+          initialSelectedId={initialSelectedId}
         />
-
-        <section className={styles.lowerSection}>
-          <div className={styles.sectionHeader}>
-            <div>
-              <h2>Monitored accounts</h2>
-              <p>A compact subscription-health snapshot for each connected Stripe account.</p>
-            </div>
-            <Link href="/dashboard/accounts" className={styles.sectionLink}>
-              View all accounts
-            </Link>
-          </div>
-
-          <div className={styles.tableWrap}>
-            <table className={styles.accountsTable}>
-              <thead>
-                <tr>
-                  <th>Account</th>
-                  <th>Status</th>
-                  <th>Active subscriptions</th>
-                  <th>Estimated MRR</th>
-                  <th>Active alerts</th>
-                </tr>
-              </thead>
-              <tbody>
-                {subscriptionHealthPreview.accounts.map((account) => (
-                  <tr key={account.stripeAccountId}>
-                    <td>
-                      <span className={styles.accountLink}>{account.name}</span>
-                    </td>
-                    <td>
-                      <span className={`${styles.statusPill} ${statusTone(account.status)}`}>
-                        {account.status}
-                      </span>
-                    </td>
-                    <td>{account.activeSubscriptions}</td>
-                    <td>{account.estimatedMrr}</td>
-                    <td>{account.activeAlerts}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section className={styles.lowerSection}>
-          <div className={styles.sectionHeader}>
-            <div>
-              <h2>Alert history</h2>
-              <p>Recent reviewed alerts stay visible here without competing with Needs Review.</p>
-            </div>
-            <Link href="/dashboard/alerts" className={styles.sectionLink}>
-              Open Alerts
-            </Link>
-          </div>
-
-          <div className={styles.historyCard}>
-            {subscriptionHealthPreview.history.map((alert) => (
-              <div key={alert.id} className={styles.historyItem}>
-                <div>
-                  <strong>{alertLabel(alert.type)}</strong>
-                  <span>{alert.accountName}</span>
-                </div>
-                <small>{alert.time}</small>
-              </div>
-            ))}
-          </div>
-        </section>
       </section>
     );
   }
@@ -252,7 +184,6 @@ export default async function DashboardInboxPage({ searchParams }: DashboardInbo
     select: {
       stripeAccountId: true,
       name: true,
-      status: true,
     },
     orderBy: { createdAt: "desc" },
   })) as AccountRecord[];
@@ -260,13 +191,7 @@ export default async function DashboardInboxPage({ searchParams }: DashboardInbo
   const accountIds = accounts.map((account) => account.stripeAccountId);
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-  const [summaries, alerts, recentReviewed, recentReviewedCount, lastEvents] = await Promise.all([
-    Promise.all(
-      accountIds.map(async (stripeAccountId) => [
-        stripeAccountId,
-        await getLatestSubscriptionHealthSummary({ stripeAccountId }),
-      ] as const)
-    ),
+  const [alerts, recentReviewed, recentReviewedCount] = await Promise.all([
     prisma.alert.findMany({
       where: {
         stripeAccountId: { in: accountIds },
@@ -304,17 +229,7 @@ export default async function DashboardInboxPage({ searchParams }: DashboardInbo
         createdAt: { gte: sevenDaysAgo },
       },
     }),
-    prisma.stripeEvent.groupBy({
-      by: ["stripeAccountId"],
-      where: { stripeAccountId: { in: accountIds } },
-      _max: { createdAt: true },
-    }),
   ]);
-
-  const summaryByAccount = new Map(summaries);
-  const lastEventByAccount = new Map(
-    lastEvents.map((event) => [event.stripeAccountId, event._max.createdAt ?? null])
-  );
 
   const sortedAlerts = [...alerts].sort((left, right) => {
     const severityDiff = severityRank(left.severity) - severityRank(right.severity);
@@ -322,72 +237,40 @@ export default async function DashboardInboxPage({ searchParams }: DashboardInbo
     return right.createdAt.getTime() - left.createdAt.getTime();
   });
 
-  const alertCountByAccount = new Map<string, number>();
-  const topAlertSeverityByAccount = new Map<string, string>();
-
-  for (const alert of sortedAlerts) {
-    if (!alert.stripeAccountId) continue;
-    alertCountByAccount.set(
-      alert.stripeAccountId,
-      (alertCountByAccount.get(alert.stripeAccountId) ?? 0) + 1
-    );
-    if (!topAlertSeverityByAccount.has(alert.stripeAccountId)) {
-      topAlertSeverityByAccount.set(alert.stripeAccountId, alert.severity);
-    }
-  }
-
-  const orderedAccounts = [...accounts]
-    .filter((account) => account.status !== "disconnected")
-    .sort((left, right) => {
-      const rankDiff =
-        statusRank(left.status, topAlertSeverityByAccount.get(left.stripeAccountId) ?? null) -
-        statusRank(right.status, topAlertSeverityByAccount.get(right.stripeAccountId) ?? null);
-      if (rankDiff !== 0) return rankDiff;
-      return accountDisplayName(left.name).localeCompare(accountDisplayName(right.name));
-    });
-
-  const failedRenewalsCount = sortedAlerts.filter(
-    (alert) => alert.type === "failed_renewal" || alert.type === "failed_renewal_spike"
-  ).length;
   const attentionCount = sortedAlerts.filter((alert) => alert.severity === "critical").length;
 
-  const railAlerts = sortedAlerts.map((alert) => ({
+  const inboxIssues: InboxIssueItem[] = sortedAlerts.map((alert) => ({
     id: alert.id,
     accountName: accountDisplayName(
       accounts.find((account) => account.stripeAccountId === alert.stripeAccountId)?.name ?? null
     ),
     type: alert.type,
-    typeLabel: alertLabel(alert.type),
+    title: alertLabel(alert.type),
     message: alert.message,
-    severityKind: alert.severity === "critical" ? ("critical" as const) : ("warning" as const),
+    severity: alert.severity === "critical" ? ("critical" as const) : ("warning" as const),
     severityLabel: alert.severity === "critical" ? "Attention needed" : "Review needed",
-    severityTextColor: alert.severity === "critical" ? "#b42318" : "#9a6700",
-    severityBgColor: alert.severity === "critical" ? "#FEF3F2" : "#FFF7E6",
-    typeColor: typeColor(alert.type, alert.severity),
     detectedLabel: formatDetectedLabel(alert.createdAt),
-    href: alert.stripeAccountId
+    impact:
+      alert.context && alert.context.includes("amountDue")
+        ? `${formatMoneyAmount(JSON.parse(alert.context).amountDue as number, typeof JSON.parse(alert.context).currency === "string" ? JSON.parse(alert.context).currency : "EUR")} monthly amount at risk.`
+        : alert.context && alert.context.includes("estimatedMonthlyRevenue")
+          ? `${formatMoneyAmount(JSON.parse(alert.context).estimatedMonthlyRevenue as number, typeof JSON.parse(alert.context).currency === "string" ? JSON.parse(alert.context).currency : "EUR")} estimated monthly revenue impact.`
+          : alert.context &&
+              alert.context.includes("previousActiveSubscriptions") &&
+              alert.context.includes("currentActiveSubscriptions")
+            ? `${JSON.parse(alert.context).previousActiveSubscriptions} → ${JSON.parse(alert.context).currentActiveSubscriptions} active subscriptions.`
+            : null,
+    whyFlagged: realWhyFlagged(alert.type),
+    accountHref: alert.stripeAccountId
       ? `/dashboard/accounts/${encodeURIComponent(alert.stripeAccountId)}`
       : "/dashboard/accounts",
-    context: alert.context,
-    createdAt: alert.createdAt.toISOString(),
+    stripeAccountId: alert.stripeAccountId,
   }));
   const hasMeaningfulInboxData =
-    railAlerts.length > 0 ||
-    orderedAccounts.length > 0 ||
+    inboxIssues.length > 0 ||
+    accounts.length > 0 ||
     recentReviewed.length > 0 ||
-    summaries.some((entry) => {
-      const summary = entry[1];
-      return summary
-        ? summary.activeSubscriptions > 0 ||
-            summary.trialingSubscriptions > 0 ||
-            summary.pastDueSubscriptions > 0 ||
-            summary.unpaidSubscriptions > 0 ||
-            summary.canceledSubscriptions > 0 ||
-            summary.failedRenewalPayments > 0 ||
-            summary.estimatedMonthlyRevenue > 0 ||
-            summary.netSubscriptionMovement !== 0
-        : false;
-    });
+    false;
   const shouldShowPreview =
     process.env.NODE_ENV === "development" && !hasMeaningfulInboxData;
 
@@ -410,10 +293,6 @@ export default async function DashboardInboxPage({ searchParams }: DashboardInbo
             <strong>{subscriptionHealthPreview.inboxSummary.needsReview}</strong>
           </article>
           <article className={styles.summaryCard}>
-            <span>Failed renewals</span>
-            <strong>{subscriptionHealthPreview.inboxSummary.failedRenewals}</strong>
-          </article>
-          <article className={styles.summaryCard}>
             <span>Attention needed</span>
             <strong>{subscriptionHealthPreview.inboxSummary.attentionNeeded}</strong>
           </article>
@@ -423,82 +302,40 @@ export default async function DashboardInboxPage({ searchParams }: DashboardInbo
           </article>
         </section>
 
-        <CurrentAlertsRail
-          alerts={subscriptionHealthPreview.issues}
-          pendingLabel={String(subscriptionHealthPreview.inboxSummary.needsReview)}
-          detailPlaceholder={
-            <div className={styles.placeholder}>
-              <h3>Select an issue to review details.</h3>
-              <p>
-                Open an alert from Needs Review to see account context, current impact, and the
-                monitoring-only review actions for that issue.
-              </p>
-            </div>
-          }
+        <InboxReviewClient
+          issues={subscriptionHealthPreview.issues.map((issue) => ({
+            id: issue.id,
+            type: issue.type,
+            title: issue.typeLabel,
+            accountName: issue.accountName,
+            severity: issue.severityKind,
+            severityLabel: issue.severityKind === "critical" ? "Attention needed" : "Review needed",
+            detectedLabel: issue.detectedLabel,
+            message:
+              issue.type === "subscription_canceled"
+                ? "A customer canceled a subscription."
+                : issue.type === "failed_renewal"
+                  ? "A subscription renewal payment failed."
+                  : "Active subscriptions dropped from 10 to 7.",
+            impact:
+              issue.type === "subscription_canceled"
+                ? `${formatMoneyAmount(3900, "EUR")} estimated monthly revenue impact.`
+                : issue.type === "failed_renewal"
+                  ? `${formatMoneyAmount(3900, "EUR")} monthly amount at risk.`
+                  : "10 → 7 active subscriptions.",
+            whyFlagged: previewWhyFlagged(issue.type),
+            accountHref: previewAccountHref(issue.accountName),
+          }))}
+          recentReviewed={subscriptionHealthPreview.history.map((alert) => ({
+            id: alert.id,
+            type: alert.type,
+            title: alertLabel(alert.type),
+            accountName: alert.accountName,
+            time: alert.time,
+          }))}
+          isPreview
+          initialSelectedId={initialSelectedId}
         />
-
-        <section className={styles.lowerSection}>
-          <div className={styles.sectionHeader}>
-            <div>
-              <h2>Monitored accounts</h2>
-              <p>A compact subscription-health snapshot for each connected Stripe account.</p>
-            </div>
-            <Link href="/dashboard/accounts" className={styles.sectionLink}>
-              View all accounts
-            </Link>
-          </div>
-
-          <div className={styles.tableWrap}>
-            <table className={styles.accountsTable}>
-              <thead>
-                <tr>
-                  <th>Account</th>
-                  <th>Status</th>
-                  <th>Active subscriptions</th>
-                  <th>Estimated MRR</th>
-                  <th>Active alerts</th>
-                </tr>
-              </thead>
-              <tbody>
-                {subscriptionHealthPreview.accounts.map((account) => (
-                  <tr key={account.stripeAccountId}>
-                    <td>
-                      <span className={styles.accountLink}>{account.name}</span>
-                    </td>
-                    <td>{account.status}</td>
-                    <td>{account.activeSubscriptions}</td>
-                    <td>{account.estimatedMrr}</td>
-                    <td>{account.activeAlerts}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section className={styles.lowerSection}>
-          <div className={styles.sectionHeader}>
-            <div>
-              <h2>Alert history</h2>
-              <p>Recent reviewed alerts stay visible here without competing with Needs Review.</p>
-            </div>
-            <Link href="/dashboard/alerts" className={styles.sectionLink}>
-              Open Alerts
-            </Link>
-          </div>
-
-          <div className={styles.historyCard}>
-            {subscriptionHealthPreview.history.map((alert) => (
-              <div key={alert.id} className={styles.historyItem}>
-                <div>
-                  <strong>{alertLabel(alert.type)}</strong>
-                  <span>{alert.accountName}</span>
-                </div>
-                <small>{alert.time}</small>
-              </div>
-            ))}
-          </div>
-        </section>
       </section>
     );
   }
@@ -509,145 +346,45 @@ export default async function DashboardInboxPage({ searchParams }: DashboardInbo
         <div>
           <h1>Monitoring Inbox</h1>
           <p>
-            {railAlerts.length > 0
-              ? `Reviewing ${railAlerts.length} item${railAlerts.length === 1 ? "" : "s"} requiring attention across connected accounts.`
+            {inboxIssues.length > 0
+              ? `Reviewing ${inboxIssues.length} item${inboxIssues.length === 1 ? "" : "s"} requiring attention across connected accounts.`
               : "No active alerts need review right now. Parveil is monitoring subscription health across your connected Stripe accounts."}
           </p>
         </div>
       </header>
 
-      <section className={styles.summaryStrip} aria-label="Inbox summary">
-        <article className={styles.summaryCard}>
-          <span>Needs review</span>
-          <strong>{railAlerts.length}</strong>
-        </article>
-        <article className={styles.summaryCard}>
-          <span>Failed renewal issues</span>
-          <strong>{failedRenewalsCount}</strong>
-        </article>
-        <article className={styles.summaryCard}>
-          <span>Attention needed</span>
-          <strong>{attentionCount}</strong>
-        </article>
-        <article className={styles.summaryCard}>
-          <span>Reviewed recently</span>
-          <strong>{recentReviewedCount}</strong>
-        </article>
-      </section>
+        <section className={styles.summaryStrip} aria-label="Inbox summary">
+          <article className={styles.summaryCard}>
+            <span>Needs review</span>
+            <strong>{inboxIssues.length}</strong>
+          </article>
+          <article className={styles.summaryCard}>
+            <span>Attention needed</span>
+            <strong>{attentionCount}</strong>
+          </article>
+          <article className={styles.summaryCard}>
+            <div className={styles.summaryCardHeader}>
+              <span>Reviewed recently</span>
+              <small className={styles.summaryMeta}>Last 7 days</small>
+            </div>
+            <strong>{recentReviewedCount}</strong>
+          </article>
+        </section>
 
-      <CurrentAlertsRail
-        alerts={railAlerts}
-        pendingLabel={String(railAlerts.length)}
-        detailPlaceholder={
-          <div className={styles.placeholder}>
-            <h3>Select an issue to review details.</h3>
-            <p>
-              Open an alert from Needs Review to see account context, current impact, and the
-              monitoring-only review actions for that issue.
-            </p>
-          </div>
-        }
+      <InboxReviewClient
+        issues={inboxIssues}
+        recentReviewed={recentReviewed.slice(0, 3).map((alert) => ({
+          id: alert.id,
+          type: alert.type,
+          title: alertLabel(alert.type),
+          accountName: accountDisplayName(
+            accounts.find((account) => account.stripeAccountId === alert.stripeAccountId)?.name ?? null
+          ),
+          time: formatLastActivity(alert.createdAt),
+        }))}
+        isPreview={false}
+        initialSelectedId={initialSelectedId}
       />
-
-      <section className={styles.lowerSection}>
-        <div className={styles.sectionHeader}>
-          <div>
-            <h2>Monitored accounts</h2>
-            <p>A compact subscription-health snapshot for each connected Stripe account.</p>
-          </div>
-          <Link href="/dashboard/accounts" className={styles.sectionLink}>
-            View all accounts
-          </Link>
-        </div>
-
-        <div className={styles.tableWrap}>
-          <table className={styles.accountsTable}>
-            <thead>
-              <tr>
-                <th>Account</th>
-                <th>Status</th>
-                <th>Active subscriptions</th>
-                <th>Estimated MRR</th>
-                <th>Active alerts</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orderedAccounts.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className={styles.emptyRow}>
-                    No connected Stripe accounts yet.
-                  </td>
-                </tr>
-              ) : (
-                orderedAccounts.slice(0, 5).map((account) => {
-                  const summary = summaryByAccount.get(account.stripeAccountId);
-                  const severity = topAlertSeverityByAccount.get(account.stripeAccountId) ?? null;
-                  const statusLabel =
-                    getAccountStatusLabel(account.status, severity);
-
-                  return (
-                    <tr key={account.stripeAccountId}>
-                      <td>
-                        <Link
-                          href={`/dashboard/accounts/${encodeURIComponent(account.stripeAccountId)}`}
-                          className={styles.accountLink}
-                        >
-                          {accountDisplayName(account.name)}
-                        </Link>
-                      </td>
-                      <td>
-                        <span className={`${styles.statusPill} ${statusTone(statusLabel)}`}>
-                          {statusLabel}
-                        </span>
-                      </td>
-                      <td>{summary?.activeSubscriptions ?? 0}</td>
-                      <td>
-                        {summary
-                          ? formatMoneyAmount(summary.estimatedMonthlyRevenue, summary.currency)
-                          : "\u2014"}
-                      </td>
-                      <td>{alertCountByAccount.get(account.stripeAccountId) ?? 0}</td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section className={styles.lowerSection}>
-        <div className={styles.sectionHeader}>
-          <div>
-            <h2>Alert history</h2>
-            <p>Recent reviewed alerts stay visible here without competing with Needs Review.</p>
-          </div>
-          <Link href="/dashboard/alerts" className={styles.sectionLink}>
-            Open Alerts
-          </Link>
-        </div>
-
-        <div className={styles.historyCard}>
-          {recentReviewed.length === 0 ? (
-            <p className={styles.emptyText}>No reviewed alerts yet.</p>
-          ) : (
-            recentReviewed.map((alert) => (
-              <div key={alert.id} className={styles.historyItem}>
-                <div>
-                  <strong>{alertLabel(alert.type)}</strong>
-                  <span>
-                    {accountDisplayName(
-                      accounts.find((account) => account.stripeAccountId === alert.stripeAccountId)?.name ??
-                        null
-                    )}
-                  </span>
-                </div>
-                <small>{formatLastActivity(alert.createdAt)}</small>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
     </section>
   );
 }

@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { AutoBackfillTrigger } from "./AutoBackfillTrigger";
 import { AccountStatusActions } from "./AccountStatusActions";
+import { subscriptionHealthPreview } from "../previewData";
 import { getActiveDemoAlerts, hasDemoAccount } from "@/lib/demoData";
 import { prisma } from "@/lib/prisma";
 import {
@@ -93,7 +94,7 @@ function isManagedStatus(status: string): status is "active" | "paused" | "disco
 export default async function DashboardAccountsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ connect?: string }>;
+  searchParams?: Promise<{ connect?: string; preview?: string }>;
 }) {
   const session = await auth();
 
@@ -103,6 +104,110 @@ export default async function DashboardAccountsPage({
 
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const connectStatus = resolvedSearchParams?.connect;
+  const isPreviewMode = resolvedSearchParams?.preview === "subscription-health";
+
+  if (isPreviewMode) {
+    const previewAccounts = subscriptionHealthPreview.accounts.map((account) => {
+      const slug = account.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+      return {
+        ...account,
+        slug,
+        href: `/dashboard/accounts/${slug}?preview=subscription-health`,
+      };
+    });
+
+    return (
+      <section className={styles.previewShell}>
+        <header className={styles.previewHeader}>
+          <div className={styles.previewHeaderCopy}>
+            <div className={styles.previewHeaderTitleRow}>
+              <h1>Monitored accounts</h1>
+              <span className={styles.previewBadge}>Preview data</span>
+            </div>
+            <p>
+              Review subscription health, monitoring status, and current issues for each connected
+              Stripe account.
+            </p>
+          </div>
+          <Link href="/api/stripe/connect" className={styles.previewAddAccountLink}>
+            Add account
+          </Link>
+        </header>
+
+        <section className={styles.previewSummaryStrip} aria-label="Accounts summary">
+          <article className={styles.previewSummaryCard}>
+            <span>Connected accounts</span>
+            <strong>3</strong>
+          </article>
+          <article className={styles.previewSummaryCard}>
+            <span>Needs review</span>
+            <strong>2</strong>
+          </article>
+          <article className={styles.previewSummaryCard}>
+            <span>Attention needed</span>
+            <strong>1</strong>
+          </article>
+          <article className={styles.previewSummaryCard}>
+            <span>Estimated MRR</span>
+            <strong>{subscriptionHealthPreview.overview.estimatedMrr}</strong>
+          </article>
+        </section>
+
+        <section className={styles.previewAccountsSection}>
+          <div className={styles.previewSectionHeader}>
+            <div>
+              <h2>Accounts overview</h2>
+              <p>Accounts with active issues appear first. Healthy monitored accounts stay visible below.</p>
+            </div>
+          </div>
+
+          <div className={styles.previewAccountsTable}>
+            <div className={styles.previewAccountsTableHeader}>
+              <span>Account</span>
+              <span>Status</span>
+              <span>Active subscriptions</span>
+              <span>Estimated MRR</span>
+              <span>Active alerts</span>
+              <span>Last activity</span>
+              <span>Action</span>
+            </div>
+
+            <div className={styles.previewAccountsRows}>
+              {previewAccounts.map((account) => {
+                const statusClass =
+                  account.status === "Attention needed"
+                    ? styles.previewStatusAttention
+                    : account.status === "Review needed"
+                      ? styles.previewStatusReview
+                      : styles.previewStatusMonitoring;
+
+                return (
+                  <Link
+                    key={account.stripeAccountId}
+                    href={account.href}
+                    className={styles.previewAccountRow}
+                    aria-label={`Open details for ${account.name}`}
+                  >
+                    <span className={styles.previewAccountName}>{account.name}</span>
+                    <span className={`${styles.previewStatusPill} ${statusClass}`}>{account.status}</span>
+                    <span>{account.activeSubscriptions}</span>
+                    <span>{account.estimatedMrr}</span>
+                    <span>{account.activeAlerts}</span>
+                    <span className={styles.previewLastActivity}>{account.lastActivity}</span>
+                    <span className={styles.previewDetailsButton}>View details</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      </section>
+    );
+  }
 
   const accounts = (await (prisma as any).stripeAccount.findMany({
     where: { userId: session.user.id },

@@ -49,7 +49,7 @@
 
 .summaryStrip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 24px;
 }
@@ -63,6 +63,13 @@
   border-radius: 12px;
   background: #ffffff;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.summaryCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .summaryCard span {
@@ -82,59 +89,19 @@
   letter-spacing: -0.02em;
 }
 
-.placeholder {
-  width: 100%;
-  align-self: stretch;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-height: 260px;
-  padding: 24px 30px;
-  color: #64748b;
-}
-
-.placeholder h3 {
-  margin: 0 0 8px;
-  color: #191c1d;
-  font-size: 15px;
-  line-height: 22px;
+.summaryMeta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #94a3b8;
+  font-size: 10px;
+  line-height: 14px;
   font-weight: 600;
-}
-
-.placeholder p {
-  margin: 0;
-  max-width: 320px;
-  font-size: 13px;
-  line-height: 19px;
-}
-
-.lowerSection {
-  margin-top: 28px;
-  padding-top: 18px;
-  border-top: 1px solid #e2e8f0;
-}
-
-.sectionHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.sectionHeader h2 {
-  margin: 0;
-  color: #131b2e;
-  font-size: 18px;
-  line-height: 28px;
-  font-weight: 600;
-}
-
-.sectionHeader p {
-  margin: 4px 0 0;
-  color: #64748b;
-  font-size: 13px;
-  line-height: 18px;
+  white-space: nowrap;
 }
 
 .sectionLink {
@@ -149,6 +116,7 @@
   color: #004ac6;
   font-size: 13px;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
   transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease,
     box-shadow 140ms ease;
@@ -163,110 +131,323 @@
   outline: none;
 }
 
-.tableWrap,
-.historyCard {
+.reviewLayout {
+  margin-top: 2px;
+}
+
+.reviewGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.02fr) minmax(360px, 0.78fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.issueListPanel,
+.emptyStateCard,
+.reviewedPanel,
+.issueDetailsCard {
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  border-radius: 16px;
   background: #ffffff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-  overflow: hidden;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.045);
 }
 
-.accountsTable {
-  width: 100%;
-  border-collapse: collapse;
+.issueListPanel {
+  padding: 18px;
 }
 
-.accountsTable thead tr {
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.accountsTable th,
-.accountsTable td {
-  padding: 14px 16px;
-  text-align: left;
-}
-
-.accountsTable th {
-  color: #64748b;
-  font-size: 11px;
+.issueListHeader h2,
+.reviewedHeader h3,
+.issueSectionTitle {
+  margin: 0;
+  color: #131b2e;
+  font-size: 18px;
+  line-height: 28px;
   font-weight: 600;
-  line-height: 16px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
 }
 
-.accountsTable tbody tr + tr td {
-  border-top: 1px solid #eef2f7;
+.issueListHeader p,
+.reviewedHeader p,
+.emptyStateCopy p,
+.detailAccount,
+.detailDetected,
+.detailBlock p {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 18px;
 }
 
-.accountsTable td {
+.issueList {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.issueCardButton {
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 14px;
+}
+
+.issueCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 118px;
+  padding: 18px;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.issueCardButton:hover .issueCard,
+.issueCardButton:focus-visible .issueCard {
+  transform: translateY(-1px);
+  border-color: #cbd5e1;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+}
+
+.issueCardSelected {
+  background: linear-gradient(180deg, #f2f8ff 0%, #ffffff 100%);
+  border-color: #bcd4fb;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.07);
+}
+
+.issueCardSelected::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 4px;
+  border-radius: 0 999px 999px 0;
+  background: #0f56d9;
+}
+
+.issueCardCritical.issueCardSelected,
+.issueCardWarning.issueCardSelected {
+  border-color: #bcd4fb;
+}
+
+.issueCardTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.issueCardTop h3 {
+  margin: 0;
+  color: #131b2e;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.issueCardTop p {
+  margin: 6px 0 0;
   color: #475569;
   font-size: 13px;
   line-height: 18px;
 }
 
-.accountLink {
-  color: #131b2e;
-  font-weight: 600;
+.issueCardTop small {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
 }
 
-.statusPill {
+.issueCardMeta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.impactPill,
+.severityPill {
   display: inline-flex;
   align-items: center;
   min-height: 28px;
   padding: 0 10px;
-  border-radius: 9px;
-  border: 1px solid transparent;
-  font-size: 12px;
-  line-height: 17px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 16px;
   font-weight: 600;
 }
 
-.statusMonitoring {
-  background: #eff6ff;
-  color: #004ac6;
-  border-color: #dbe7ff;
-}
-
-.statusReview {
-  background: #fff7e6;
-  color: #9a6700;
-  border-color: #f6d58f;
-}
-
-.statusAttention {
-  background: #fef3f2;
-  color: #b42318;
-  border-color: #f6c7c2;
-}
-
-.statusNeutral {
+.impactPill {
+  border: 1px solid #e2e8f0;
   background: #f8fafc;
   color: #475569;
-  border-color: #e2e8f0;
 }
 
-.emptyRow,
-.emptyText {
+.severityPill {
+  border: 1px solid transparent;
+}
+
+.issueSeverityWarning {
+  background: #fff7e6;
+  border-color: #f5e6c4;
+  color: #9a6700;
+}
+
+.issueSeverityCritical {
+  background: #fef3f2;
+  border-color: #f6c7c2;
+  color: #b42318;
+}
+
+.issueDetailPanel {
+  display: grid;
+  gap: 24px;
+}
+
+.issueDetailHeader {
+  margin-bottom: 16px;
+}
+
+.detailTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: nowrap;
+  margin-top: 12px;
+}
+
+.detailTitleRow h3 {
+  margin: 0;
+  color: #131b2e;
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.detailMetaRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.detailAccount {
+  margin-top: 0;
+  color: #475569;
+}
+
+.detailDetected {
+  margin-top: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.issueDetailsCard {
+  padding: 18px;
+}
+
+.issueDetailCard {
+  padding: 16px;
+  border: 1px solid #eef2f7;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.detailBlock + .detailBlock {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.detailLabel {
+  display: inline-flex;
   color: #64748b;
-  font-size: 13px;
-  line-height: 18px;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
-.historyItem {
+.detailBlock p {
+  color: #475569;
+  line-height: 19px;
+}
+
+.issueActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.primaryAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid #004ac6;
+  background: #004ac6;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.primaryAction:hover,
+.primaryAction:focus-visible {
+  background: #003da3;
+  border-color: #003da3;
+  box-shadow: 0 6px 16px rgba(0, 74, 198, 0.18);
+  outline: none;
+}
+
+.reviewedPanel {
+  padding: 18px;
+}
+
+.reviewedHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.reviewedList {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.reviewedItem {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 14px 16px;
+  padding-top: 12px;
 }
 
-.historyItem + .historyItem {
+.reviewedItem + .reviewedItem {
   border-top: 1px solid #eef2f7;
 }
 
-.historyItem strong {
+.reviewedItem strong {
   display: block;
   color: #131b2e;
   font-size: 13px;
@@ -274,7 +455,7 @@
   font-weight: 600;
 }
 
-.historyItem span {
+.reviewedItem span {
   display: block;
   margin-top: 3px;
   color: #64748b;
@@ -282,16 +463,42 @@
   line-height: 17px;
 }
 
-.historyItem small {
+.reviewedItem small {
   color: #64748b;
   font-size: 12px;
   line-height: 17px;
   white-space: nowrap;
 }
 
+.emptyStateCard {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+}
+
+.emptyStateCopy h2 {
+  margin: 0;
+  color: #131b2e;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+}
+
+.previewReviewNote {
+  display: block;
+  margin-top: 10px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 17px;
+}
+
 @media (max-width: 1080px) {
   .summaryStrip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .reviewGrid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -304,14 +511,16 @@
     grid-template-columns: 1fr;
   }
 
-  .sectionHeader,
-  .historyItem {
+  .reviewedHeader,
+  .reviewedItem,
+  .detailTitleRow,
+  .detailMetaRow {
     flex-direction: column;
     align-items: flex-start;
   }
 
-  .accountsTable {
-    display: block;
-    overflow-x: auto;
+  .detailDetected {
+    text-align: left;
+    white-space: normal;
   }
 }
