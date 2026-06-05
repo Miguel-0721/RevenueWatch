@@ -19,6 +19,7 @@ type DashboardAlertsPageProps = {
     status?: string;
     type?: string;
     date?: string;
+    page?: string;
   }>;
 };
 
@@ -37,6 +38,8 @@ type AlertRow = {
   href: string;
   previewDateBucket?: "today" | "last7" | "last30" | "thisMonth" | "thisYear";
 };
+
+const PAST_ALERTS_PAGE_SIZE = 10;
 
 function alertLabel(type: string) {
   if (type === "revenue_drop") return "Revenue drop";
@@ -127,7 +130,7 @@ function buildImpact(type: string, context?: string | null) {
 
   if (type === "subscription_canceled" && typeof parsed.estimatedMonthlyRevenue === "number") {
     const amount = Math.round(parsed.estimatedMonthlyRevenue / 100);
-    return `€${amount} impact`;
+    return `€${amount} MRR impact`;
   }
 
   if (type === "failed_renewal" && typeof parsed.amountDue === "number") {
@@ -148,11 +151,11 @@ function buildImpact(type: string, context?: string | null) {
     typeof parsed.previousPastDueSubscriptions === "number" &&
     typeof parsed.currentPastDueSubscriptions === "number"
   ) {
-    return `${parsed.previousPastDueSubscriptions} → ${parsed.currentPastDueSubscriptions} past-due`;
+    return `${parsed.previousPastDueSubscriptions} → ${parsed.currentPastDueSubscriptions} subscriptions`;
   }
 
   if (type === "unpaid_subscription" && typeof parsed.unpaidSubscriptions === "number") {
-    return `${parsed.unpaidSubscriptions} unpaid`;
+    return `${parsed.unpaidSubscriptions} subscriptions`;
   }
 
   return "Monitoring active";
@@ -178,14 +181,59 @@ function typeLabel(type: string) {
   return alertLabel(type);
 }
 
+function typeFilterValues(type: string) {
+  if (type === "all") return null;
+  if (type === "Cancellation") return ["subscription_canceled"];
+  if (type === "Failed renewal") return ["failed_renewal", "failed_renewal_spike"];
+  if (type === "Subscription trend") return ["subscription_drop"];
+  if (type === "Past-due") return ["past_due_increase"];
+  if (type === "Unpaid") return ["unpaid_subscription", "unpaid_increase"];
+  if (type === "Cancellation trend") return ["cancellation_spike"];
+  if (type === "Revenue trend") return ["meaningful_mrr_drop"];
+  return null;
+}
+
+function dateFilterStart(date: string) {
+  const now = new Date();
+
+  if (date === "today") {
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+
+  if (date === "last-7-days") {
+    return new Date(now.getTime() - 7 * 86400000);
+  }
+
+  if (date === "last-30-days") {
+    return new Date(now.getTime() - 30 * 86400000);
+  }
+
+  if (date === "this-month") {
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+
+  if (date === "this-year") {
+    return new Date(now.getFullYear(), 0, 1);
+  }
+
+  return null;
+}
+
+function dateFilterLabel(date: string) {
+  if (date === "today") return "Today";
+  if (date === "last-7-days") return "Last 7 days";
+  if (date === "last-30-days") return "Last 30 days";
+  if (date === "this-month") return "This month";
+  if (date === "this-year") return "This year";
+  return "All time";
+}
+
 function renderCurrentRow(row: AlertRow) {
   return (
     <article key={row.id} className={`${styles.feedRow} ${styles.currentFeedRow}`}>
       <div className={styles.feedCellPrimary}>
         <h3 className={styles.feedTitle}>{row.title}</h3>
-        <p className={styles.feedMeta}>
-          {row.accountName} <span aria-hidden="true">·</span> {row.typeLabel}
-        </p>
+        <p className={styles.feedMeta}>{row.accountName}</p>
       </div>
       <div className={styles.feedCellImpact}>
         <span className={styles.impactTag}>{row.impact}</span>
@@ -210,9 +258,7 @@ function renderHistoryRow(row: AlertRow) {
     <article key={row.id} className={`${styles.feedRow} ${styles.historyFeedRow}`}>
       <div className={styles.feedCellPrimary}>
         <h3 className={styles.feedTitle}>{row.title}</h3>
-        <p className={styles.feedMeta}>
-          {row.accountName} <span aria-hidden="true">·</span> {row.typeLabel}
-        </p>
+        <p className={styles.feedMeta}>{row.accountName}</p>
       </div>
       <div className={styles.feedCellImpact}>
         <span className={styles.impactTag}>{row.impact}</span>
@@ -242,16 +288,21 @@ export default async function DashboardAlertsPage({
 
   const params = searchParams ? await searchParams : undefined;
   const isPreviewMode = params?.preview === "subscription-health";
-
-  let activeRows: AlertRow[] = [];
-  let reviewedRows: AlertRow[] = [];
-  let totalAlertCount = 0;
-  let compactSummaryLine = "Showing alert history across connected accounts";
   const selectedAccount = params?.account ?? "all";
   const selectedType = params?.type ?? "all";
   const selectedDate = params?.date ?? "all-time";
+  const selectedPage = Math.max(1, Number.parseInt(params?.page ?? "1", 10) || 1);
+
+  let activeRows: AlertRow[] = [];
+  let reviewedRows: AlertRow[] = [];
+  let totalPastAlerts = 0;
+  let currentPastPage = 1;
+  let compactSummaryLine = "Showing alert history across connected accounts";
+  let accountOptions: string[] = [];
 
   if (isPreviewMode) {
+    accountOptions = ["Northstar Commerce", "BluePeak Studio", "Cedar Labs"];
+
     activeRows = [
       {
         id: "preview-subscription-canceled",
@@ -260,7 +311,7 @@ export default async function DashboardAlertsPage({
         typeLabel: "Cancellation",
         severity: "warning",
         severityLabel: "Review needed",
-        impact: "€39 impact",
+        impact: "€39 MRR impact",
         statusLabel: "Active",
         detectedLabel: "12m ago",
         reviewedLabel: "—",
@@ -300,7 +351,7 @@ export default async function DashboardAlertsPage({
       },
     ];
 
-    reviewedRows = [
+    const previewHistoryRows: AlertRow[] = [
       {
         id: "preview-history-past-due",
         title: "Past-due increase",
@@ -308,7 +359,7 @@ export default async function DashboardAlertsPage({
         typeLabel: "Past-due",
         severity: "critical",
         severityLabel: "Attention needed",
-        impact: "2 → 4 past-due",
+        impact: "2 → 4 subscriptions",
         statusLabel: "Reviewed",
         detectedLabel: "Yesterday, 16:20",
         reviewedLabel: "Yesterday, 16:35",
@@ -323,7 +374,7 @@ export default async function DashboardAlertsPage({
         typeLabel: "Unpaid",
         severity: "warning",
         severityLabel: "Review needed",
-        impact: "2 unpaid",
+        impact: "2 subscriptions",
         statusLabel: "Reviewed",
         detectedLabel: "Yesterday, 09:45",
         reviewedLabel: "Yesterday, 10:02",
@@ -338,7 +389,7 @@ export default async function DashboardAlertsPage({
         typeLabel: "Cancellation",
         severity: "warning",
         severityLabel: "Review needed",
-        impact: "€39 impact",
+        impact: "€39 MRR impact",
         statusLabel: "Reviewed",
         detectedLabel: "May 21, 4:34 PM",
         reviewedLabel: "May 21, 4:48 PM",
@@ -393,35 +444,56 @@ export default async function DashboardAlertsPage({
       },
     ];
 
-    reviewedRows = reviewedRows.filter((row) => {
+    const filteredReviewedRows = previewHistoryRows.filter((row) => {
       if (selectedAccount !== "all" && row.accountName !== selectedAccount) return false;
       if (selectedType !== "all" && row.typeLabel !== selectedType) return false;
       if (selectedDate !== "all-time") {
         if (selectedDate === "today" && row.previewDateBucket !== "today") return false;
-        if (selectedDate === "last-7-days" && !["today", "last7"].includes(row.previewDateBucket ?? "")) return false;
-        if (selectedDate === "last-30-days" && !["today", "last7", "last30"].includes(row.previewDateBucket ?? "")) return false;
-        if (selectedDate === "this-month" && !["today", "last7"].includes(row.previewDateBucket ?? "")) return false;
-        if (selectedDate === "this-year" && !["today", "last7", "last30", "thisMonth", "thisYear"].includes(row.previewDateBucket ?? "")) return false;
+        if (
+          selectedDate === "last-7-days" &&
+          !["today", "last7"].includes(row.previewDateBucket ?? "")
+        ) {
+          return false;
+        }
+        if (
+          selectedDate === "last-30-days" &&
+          !["today", "last7", "last30"].includes(row.previewDateBucket ?? "")
+        ) {
+          return false;
+        }
+        if (
+          selectedDate === "this-month" &&
+          !["today", "last7"].includes(row.previewDateBucket ?? "")
+        ) {
+          return false;
+        }
+        if (
+          selectedDate === "this-year" &&
+          !["today", "last7", "last30", "thisMonth", "thisYear"].includes(
+            row.previewDateBucket ?? ""
+          )
+        ) {
+          return false;
+        }
       }
+
       return true;
     });
 
-    const dateLabel =
-      selectedDate === "today"
-        ? "Today"
-        : selectedDate === "last-7-days"
-          ? "Last 7 days"
-          : selectedDate === "last-30-days"
-            ? "Last 30 days"
-            : selectedDate === "this-month"
-              ? "This month"
-              : selectedDate === "this-year"
-                ? "This year"
-                : "All time";
-    totalAlertCount = activeRows.length + reviewedRows.length;
+    totalPastAlerts = filteredReviewedRows.length;
+    currentPastPage = Math.min(
+      selectedPage,
+      Math.max(1, Math.ceil(totalPastAlerts / PAST_ALERTS_PAGE_SIZE))
+    );
+    reviewedRows = filteredReviewedRows.slice(
+      (currentPastPage - 1) * PAST_ALERTS_PAGE_SIZE,
+      currentPastPage * PAST_ALERTS_PAGE_SIZE
+    );
     compactSummaryLine = `${activeRows.length} current alert${
       activeRows.length === 1 ? "" : "s"
-    } · ${reviewedRows.length} past alert${reviewedRows.length === 1 ? "" : "s"} · ${dateLabel}`;
+    } · ${totalPastAlerts} past alert${totalPastAlerts === 1 ? "" : "s"} · ${dateFilterLabel(
+      selectedDate
+    )}`;
   } else {
     const stripeAccounts = await prisma.stripeAccount.findMany({
       where: { userId: session.user.id },
@@ -439,6 +511,15 @@ export default async function DashboardAlertsPage({
           "Stripe account",
       ])
     );
+
+    accountOptions = stripeAccounts
+      .map(
+        (account) =>
+          account.name?.trim() ||
+          getDemoAccountById(account.stripeAccountId)?.name ||
+          "Stripe account"
+      )
+      .filter((value, index, values) => values.indexOf(value) === index);
 
     if (demoMode) {
       activeRows = getActiveDemoAlerts()
@@ -459,7 +540,7 @@ export default async function DashboardAlertsPage({
         }))
         .sort((left, right) => severityRank(left.severity) - severityRank(right.severity));
 
-      reviewedRows = getDemoAlertHistory().slice(0, 3).map((entry, index) => {
+      const filteredReviewedRows = getDemoAlertHistory().map((entry, index) => {
         const severity =
           entry.type === "revenue_drop" || entry.type === "payment_failed"
             ? ("critical" as const)
@@ -488,51 +569,96 @@ export default async function DashboardAlertsPage({
         };
       });
 
-      totalAlertCount = activeRows.length + reviewedRows.length;
+      totalPastAlerts = filteredReviewedRows.length;
+      currentPastPage = Math.min(
+        selectedPage,
+        Math.max(1, Math.ceil(totalPastAlerts / PAST_ALERTS_PAGE_SIZE))
+      );
+      reviewedRows = filteredReviewedRows.slice(
+        (currentPastPage - 1) * PAST_ALERTS_PAGE_SIZE,
+        currentPastPage * PAST_ALERTS_PAGE_SIZE
+      );
       compactSummaryLine = `${activeRows.length} current alert${
         activeRows.length === 1 ? "" : "s"
-      } · ${reviewedRows.length} past alert${reviewedRows.length === 1 ? "" : "s"} · All time`;
+      } · ${totalPastAlerts} past alert${totalPastAlerts === 1 ? "" : "s"} · All time`;
     } else {
-      const alerts = await prisma.alert.findMany({
+      const activeAlerts = await prisma.alert.findMany({
         where: {
           stripeAccountId: {
             in: accountIds,
           },
+          status: "active",
         },
         orderBy: { createdAt: "desc" },
         take: 100,
       });
 
-      const activeAlerts = alerts
-        .filter((alert) => alert.status === "active")
+      const selectedAccountIds =
+        selectedAccount === "all"
+          ? accountIds
+          : stripeAccounts
+              .filter((account) => {
+                const name =
+                  account.name?.trim() ||
+                  getDemoAccountById(account.stripeAccountId)?.name ||
+                  "Stripe account";
+                return name === selectedAccount;
+              })
+              .map((account) => account.stripeAccountId);
+      const reviewedTypeValues = typeFilterValues(selectedType);
+      const reviewedDateStart = dateFilterStart(selectedDate);
+
+      const reviewedWhere = {
+        stripeAccountId: {
+          in: selectedAccountIds,
+        },
+        status: {
+          not: "active" as const,
+        },
+        ...(reviewedTypeValues ? { type: { in: reviewedTypeValues } } : {}),
+        ...(reviewedDateStart ? { createdAt: { gte: reviewedDateStart } } : {}),
+      };
+
+      totalPastAlerts = await prisma.alert.count({
+        where: reviewedWhere,
+      });
+
+      currentPastPage = Math.min(
+        selectedPage,
+        Math.max(1, Math.ceil(totalPastAlerts / PAST_ALERTS_PAGE_SIZE))
+      );
+
+      const reviewedAlerts = await prisma.alert.findMany({
+        where: reviewedWhere,
+        orderBy: { createdAt: "desc" },
+        skip: (currentPastPage - 1) * PAST_ALERTS_PAGE_SIZE,
+        take: PAST_ALERTS_PAGE_SIZE,
+      });
+
+      activeRows = activeAlerts
         .sort((left, right) => {
           const severityDiff = severityRank(left.severity) - severityRank(right.severity);
           if (severityDiff !== 0) return severityDiff;
           return right.createdAt.getTime() - left.createdAt.getTime();
-        });
+        })
+        .map((alert) => ({
+          id: alert.id,
+          title: alertLabel(alert.type),
+          accountName: alert.stripeAccountId
+            ? accountNameById.get(alert.stripeAccountId) ?? "Stripe account"
+            : "Stripe account",
+          typeLabel: typeLabel(alert.type),
+          severity: alert.severity === "critical" ? "critical" : "warning",
+          severityLabel: severityLabel(alert.severity),
+          impact: buildImpact(alert.type, alert.context),
+          statusLabel: "Active",
+          detectedLabel: formatDetectedLabel(alert.createdAt),
+          reviewedLabel: "—",
+          actionLabel: "Review in Inbox",
+          href: "/dashboard/inbox",
+        }));
 
-      const reviewedAlerts = alerts
-        .filter((alert) => alert.status !== "active")
-        .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
-
-      activeRows = activeAlerts.map((alert) => ({
-        id: alert.id,
-        title: alertLabel(alert.type),
-        accountName: alert.stripeAccountId
-          ? accountNameById.get(alert.stripeAccountId) ?? "Stripe account"
-          : "Stripe account",
-        typeLabel: typeLabel(alert.type),
-        severity: alert.severity === "critical" ? "critical" : "warning",
-        severityLabel: severityLabel(alert.severity),
-        impact: buildImpact(alert.type, alert.context),
-        statusLabel: "Active",
-        detectedLabel: formatDetectedLabel(alert.createdAt),
-        reviewedLabel: "—",
-        actionLabel: "Review in Inbox",
-        href: "/dashboard/inbox",
-      }));
-
-      reviewedRows = reviewedAlerts.slice(0, 6).map((alert) => ({
+      reviewedRows = reviewedAlerts.map((alert) => ({
         id: alert.id,
         title: alertLabel(alert.type),
         accountName: alert.stripeAccountId
@@ -551,12 +677,32 @@ export default async function DashboardAlertsPage({
           : "/dashboard/accounts",
       }));
 
-      totalAlertCount = activeRows.length + reviewedRows.length;
-      compactSummaryLine = totalAlertCount
-        ? `${activeRows.length} current alert${activeRows.length === 1 ? "" : "s"} · ${reviewedRows.length} past alert${reviewedRows.length === 1 ? "" : "s"} · All time`
+      compactSummaryLine = activeRows.length + totalPastAlerts
+        ? `${activeRows.length} current alert${activeRows.length === 1 ? "" : "s"} · ${totalPastAlerts} past alert${totalPastAlerts === 1 ? "" : "s"} · ${dateFilterLabel(selectedDate)}`
         : "Showing alert history across connected accounts";
     }
   }
+
+  const totalPastPages = Math.max(1, Math.ceil(totalPastAlerts / PAST_ALERTS_PAGE_SIZE));
+  const pastStart = totalPastAlerts === 0 ? 0 : (currentPastPage - 1) * PAST_ALERTS_PAGE_SIZE + 1;
+  const pastEnd =
+    totalPastAlerts === 0
+      ? 0
+      : Math.min(totalPastAlerts, currentPastPage * PAST_ALERTS_PAGE_SIZE);
+  const pageNumbers = Array.from({ length: totalPastPages }, (_, index) => index + 1).slice(
+    Math.max(0, currentPastPage - 3),
+    Math.min(totalPastPages, currentPastPage + 2)
+  );
+  const buildPastAlertsHref = (page: number) => {
+    const query = new URLSearchParams();
+    if (isPreviewMode) query.set("preview", "subscription-health");
+    if (selectedAccount !== "all") query.set("account", selectedAccount);
+    if (selectedType !== "all") query.set("type", selectedType);
+    if (selectedDate !== "all-time") query.set("date", selectedDate);
+    if (page > 1) query.set("page", String(page));
+    const queryString = query.toString();
+    return queryString ? `/dashboard/alerts?${queryString}` : "/dashboard/alerts";
+  };
 
   return (
     <div className={styles.shell}>
@@ -613,9 +759,11 @@ export default async function DashboardAlertsPage({
               <span className={styles.filterLabel}>Account</span>
               <select name="account" defaultValue={selectedAccount} className={styles.filterSelect}>
                 <option value="all">All accounts</option>
-                <option value="Northstar Commerce">Northstar Commerce</option>
-                <option value="BluePeak Studio">BluePeak Studio</option>
-                <option value="Cedar Labs">Cedar Labs</option>
+                {accountOptions.map((accountName) => (
+                  <option key={accountName} value={accountName}>
+                    {accountName}
+                  </option>
+                ))}
               </select>
             </label>
             <label className={styles.filterSelectWrap}>
@@ -662,7 +810,7 @@ export default async function DashboardAlertsPage({
             <div className={styles.feedSections}>
               <div className={styles.feedHeaderRow}>
                 <span>Alert</span>
-                <span>Impact</span>
+                <span>Impact / Change</span>
                 <span>Status</span>
                 <span>Detected / Reviewed</span>
                 <span>Action</span>
@@ -670,7 +818,52 @@ export default async function DashboardAlertsPage({
               <div className={styles.feedList}>{reviewedRows.map((row) => renderHistoryRow(row))}</div>
             </div>
             <div className={styles.feedFooter}>
-              Showing {reviewedRows.length === 0 ? 0 : 1}–{reviewedRows.length} of {reviewedRows.length} past alerts
+              <span>
+                Showing {pastStart}–{pastEnd} of {totalPastAlerts} past alerts
+              </span>
+              {totalPastPages > 1 ? (
+                <nav className={styles.pagination} aria-label="Past alerts pagination">
+                  {currentPastPage > 1 ? (
+                    <Link href={buildPastAlertsHref(currentPastPage - 1)} className={styles.paginationButton}>
+                      Previous
+                    </Link>
+                  ) : (
+                    <span className={`${styles.paginationButton} ${styles.paginationButtonDisabled}`}>
+                      Previous
+                    </span>
+                  )}
+                  <div className={styles.paginationPages}>
+                    {pageNumbers.map((pageNumber) =>
+                      pageNumber === currentPastPage ? (
+                        <span
+                          key={pageNumber}
+                          className={`${styles.paginationButton} ${styles.paginationButtonActive}`}
+                          aria-current="page"
+                        >
+                          {pageNumber}
+                        </span>
+                      ) : (
+                        <Link
+                          key={pageNumber}
+                          href={buildPastAlertsHref(pageNumber)}
+                          className={styles.paginationButton}
+                        >
+                          {pageNumber}
+                        </Link>
+                      )
+                    )}
+                  </div>
+                  {currentPastPage < totalPastPages ? (
+                    <Link href={buildPastAlertsHref(currentPastPage + 1)} className={styles.paginationButton}>
+                      Next
+                    </Link>
+                  ) : (
+                    <span className={`${styles.paginationButton} ${styles.paginationButtonDisabled}`}>
+                      Next
+                    </span>
+                  )}
+                </nav>
+              ) : null}
             </div>
           </>
         )}

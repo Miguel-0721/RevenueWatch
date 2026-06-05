@@ -303,7 +303,7 @@
 
 .feedHeaderRow {
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) 150px 130px 210px 140px;
+  grid-template-columns: minmax(280px, 1fr) 150px 140px 220px 140px;
   gap: 14px;
   align-items: center;
   padding: 14px 20px;
@@ -318,7 +318,7 @@
 
 .feedHeaderRowCurrent {
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) 140px 160px 150px 150px;
+  grid-template-columns: minmax(280px, 1fr) 150px 140px 220px 140px;
   gap: 14px;
   align-items: center;
   padding: 14px 20px;
@@ -363,11 +363,11 @@
 }
 
 .currentFeedRow {
-  grid-template-columns: minmax(280px, 1fr) 140px 160px 150px 150px;
+  grid-template-columns: minmax(280px, 1fr) 150px 140px 220px 140px;
 }
 
 .historyFeedRow {
-  grid-template-columns: minmax(280px, 1fr) 150px 130px 210px 140px;
+  grid-template-columns: minmax(280px, 1fr) 150px 140px 220px 140px;
 }
 
 .feedList > .feedRow:first-child {
@@ -434,6 +434,7 @@
   color: #64748b;
   font-size: 12px;
   line-height: 16px;
+  white-space: nowrap;
 }
 
 .emptyState {
@@ -459,12 +460,73 @@
 .feedFooter {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
   padding: 14px 20px 18px;
   border-top: 1px solid #eef2f7;
   color: #64748b;
   font-size: 12px;
   line-height: 17px;
+}
+
+.pagination {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.paginationPages {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.paginationButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid #d8e0f0;
+  background: #ffffff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 17px;
+  white-space: nowrap;
+  text-decoration: none;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    color 140ms ease;
+}
+
+.paginationButton:hover,
+.paginationButton:focus-visible {
+  background: #f8fbff;
+  border-color: #c9d9f5;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.06);
+  color: #004ac6;
+  outline: none;
+}
+
+.paginationButtonActive {
+  background: #eff6ff;
+  border-color: #dbe7ff;
+  color: #004ac6;
+}
+
+.paginationButtonDisabled {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #94a3b8;
+  box-shadow: none;
+  cursor: default;
 }
 
 @media (max-width: 860px) {
@@ -489,6 +551,15 @@
 
   .rowAction {
     margin-top: 2px;
+  }
+
+  .feedFooter {
+    align-items: flex-start;
+  }
+
+  .pagination {
+    margin-left: 0;
+    flex-wrap: wrap;
   }
 }
 
