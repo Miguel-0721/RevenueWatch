@@ -4465,3 +4465,320 @@ Recommended intended Checkout outcome after exclusive prices:
   - subtotal `€99.00`
   - VAT `€20.79`
   - total `€119.79`
+## Memory Update - 2026-06-05 Monitoring Inbox / Alerts / Preview UX
+
+This section records the newer subscription-health app work completed after the May 31, 2026 memory refresh. Keep older sections above, but treat this section as the current override for the monitoring workflow UI, preview behavior, and Alerts page archive behavior on the `feature-monitoring-inbox-ui` branch.
+
+### Current Working Branch
+
+- current active branch:
+  - `feature-monitoring-inbox-ui`
+- current latest pushed commit on this branch:
+  - `f021850`
+  - `Polish alerts preview history UX`
+
+### Recent Pushed Commits On This Branch
+
+- `f021850`
+  - `Polish alerts preview history UX`
+- `f32dcf0`
+  - `Add alerts history pagination`
+- `049f26d`
+  - `Refine alerts history layout and filters`
+- `affa56d`
+  - `Polish accounts preview and billing copy`
+- `f526107`
+  - `Polish inbox workflow and accounts preview UI`
+- `0fb0f6d`
+  - `Polish preview account flow and dashboard actions`
+- `ce10db4`
+  - `Add smart subscription alerting foundation`
+- `031714a`
+  - `Polish dashboard header and sidebar details`
+- `86968be`
+  - `Polish dashboard KPI hierarchy and scope copy`
+- `372362e`
+  - `Refine dashboard monitoring inbox UI`
+
+### Current Product Direction
+
+- Parveil is now clearly positioned as:
+  - subscription-health monitoring for connected Stripe accounts
+- current trust rule remains unchanged:
+  - monitoring-only
+  - no money movement
+  - no Stripe writes
+  - no payment retries
+  - no customer emails
+
+### Subscription-Health App Surface Direction
+
+Current app surface separation is now:
+- Dashboard = top-level subscription-health overview
+- Inbox = active review workflow
+- Alerts = longer alert history / archive
+- Accounts = per-account monitored overview
+- Account detail = per-account subscription-health drilldown
+
+Current product language now intentionally separates:
+- active issues that need review
+- reviewed historical alerts
+- current-state metrics vs period metrics
+
+### Dashboard Current State
+
+Current dashboard work now includes:
+- refined subscription-health KPI hierarchy and helper copy
+- current issues summary instead of a full Inbox-style workflow on the dashboard
+- dashboard current issues limited to top active alerts rather than all alert details
+- recent alert history kept lightweight on dashboard
+- dashboard history limited to the most recent reviewed/resolved items
+- `Open Inbox` remains the primary action for active issues
+- `View history` routes users to the Alerts page for broader history
+
+Current dashboard KPI presentation rules:
+- period-based KPI cards use cleaner helper text rather than loud repeated timeframe labels
+- current-state cards stay focused on current monitored state
+- helper text and tooltips were tightened so cards stay readable and less noisy
+
+### Smart Alerting Foundation Added
+
+The smart alerting foundation is now part of the project history on this branch.
+
+Current smart alerting behavior includes:
+- 30-day recent baseline calculations per connected account where available
+- lower internal confidence when less history exists
+- internal account activity classification:
+  - `low`
+  - `medium`
+  - `high`
+- low-activity accounts can still receive calmer single-event alerts
+- medium/high-activity accounts suppress noisy individual event alerts and rely more on grouped trend/spike alerts
+
+Current baseline values referenced by the monitoring engine:
+- average daily cancellations
+- average daily failed renewals
+- average daily new subscriptions
+- average daily net subscription movement
+- average past-due subscriptions
+- average unpaid subscriptions
+- average active subscriptions
+- estimated MRR baseline / trend
+
+Current grouped/trend alert types now present in the app history:
+- `failed_renewal_spike`
+- `unpaid_increase`
+- `negative_net_subscription_movement`
+- `meaningful_mrr_drop`
+
+### Current Severity Policy
+
+Current subscription-health severity policy on this branch:
+
+Warning / `Review needed`:
+- `subscription_canceled`
+- `failed_renewal`
+- `unpaid_subscription`
+
+Critical / `Attention needed`:
+- `subscription_drop`
+- `cancellation_spike`
+- `past_due_increase`
+- `failed_renewal_spike`
+- `unpaid_increase`
+- `negative_net_subscription_movement`
+- `meaningful_mrr_drop`
+
+Important current UI rule:
+- do NOT show a visible `Critical` label
+- use:
+  - `Review needed`
+  - `Attention needed`
+
+### Inbox Workflow Direction Now In Place
+
+Current Inbox direction:
+- top summary cards
+- two-column review workflow
+- left side = active issues list
+- right side = selected issue details
+- separate `Recently reviewed` card on the right
+
+Current Inbox UX behavior:
+- first active issue is selected by default
+- `?alert=` can guide selection when available
+- `Mark as reviewed` in real mode keeps existing persisted review behavior
+- `Mark as reviewed` in preview mode is local UI-only and non-persistent
+- preview review updates:
+  - active issue list
+  - selected issue details
+  - recently reviewed panel
+  - top summary counts
+
+Current Inbox issue detail content includes:
+- `Issue`
+- `Impact`
+- `Why flagged`
+- `What to check next`
+- `Monitoring note`
+
+Current Inbox review copy keeps monitoring-only language and avoids action language that implies Stripe writes or recovery actions.
+
+### Alerts Page Direction Now In Place
+
+The Alerts page is now the fuller archive/history surface.
+
+Current Alerts page direction:
+- `Current alerts` are separated from `Past alerts`
+- `Current alerts` remain small and review-oriented
+- `Past alerts` act as the historical archive
+- `Past alerts` keep filters above the archive list
+
+Current Alerts page structure:
+- header
+- compact summary line
+- `Current alerts` card
+- `Past alerts` card
+- filters inside the `Past alerts` card
+
+Current Past alerts behavior:
+- filtered separately from Current alerts
+- supports pagination
+- footer shows archive range, for example:
+  - `Showing 1–10 of X past alerts`
+- `Previous` / `Next` / page numbers are available when needed
+- pagination preserves existing query params
+- pagination links scroll back to the `Past alerts` section rather than the page top
+
+Current Past alerts preview/testing behavior:
+- preview mode now includes a larger reviewed-history sample set
+- enough reviewed preview rows exist to visibly exercise pagination
+- preview archive rows span multiple accounts, alert types, and dates across recent weeks/months
+
+Current Alerts filter direction:
+- filter Past alerts only
+- current visible filters:
+  - `Account`
+  - `Type`
+  - `Date`
+- preview filtering is interactive and local to preview data
+- real mode filtering is safely applied to reviewed alert history
+
+### Preview Mode Direction Now In Place
+
+Current preview surfaces supported in this product direction:
+- `/dashboard?preview=subscription-health`
+- `/dashboard/inbox?preview=subscription-health`
+- `/dashboard/accounts?preview=subscription-health`
+- `/dashboard/accounts/northstar-commerce?preview=subscription-health`
+- `/dashboard/accounts/bluepeak-studio?preview=subscription-health`
+- `/dashboard/accounts/cedar-labs?preview=subscription-health`
+- `/dashboard/alerts?preview=subscription-health`
+
+Current preview behavior rules:
+- preview is UI/demo only
+- no DB writes for preview interactions
+- no Stripe writes
+- no Stripe payment or subscription mutations
+- preview review actions are allowed visually but are not persisted
+
+Current account preview sample set:
+- `Northstar Commerce`
+  - status: `Review needed`
+- `BluePeak Studio`
+  - status: `Review needed`
+- `Cedar Labs`
+  - status: `Attention needed`
+
+Important preview consistency rule now in place:
+- account status must match active issue state
+- do not show `Monitoring active` when active issues exist
+
+### Accounts Page / Account Detail Direction Now In Place
+
+Current Accounts page direction:
+- preview Accounts page now uses the same three subscription-health sample accounts
+- preview Accounts page now follows the same design system as Dashboard / Inbox / account detail
+- preview Accounts table includes:
+  - account
+  - status
+  - top issue
+  - active subscriptions
+  - estimated MRR
+  - active alerts
+  - last activity
+  - action
+- rows are clickable and `View details` also works
+
+Current account detail direction:
+- header and KPI card styling were aligned closely with Dashboard styling
+- status pill reflects active issue severity state
+- `Needs review` reflects active alert count for the account
+- `Current issue` and `Alert history` are clearly separated
+- preview `Mark as reviewed` updates local account UI only
+- preview empty state after review is intentionally calm and explains reset behavior
+
+Current preview account flow behavior:
+- `Review in Inbox` replaces vague `View details` wording
+- preview account issue review can remove the current issue locally
+- reviewed preview issue moves into account history
+- account status changes to `Monitoring active` if no active preview issues remain
+
+### Sidebar / Navigation Direction
+
+Current sidebar order now includes:
+- Inbox
+- Dashboard
+- Accounts
+- Alerts
+- Billing
+- Settings
+
+Important navigation rule now in place:
+- preserve `?preview=subscription-health` for internal preview navigation where applicable
+
+### Billing Page Current Truth
+
+Billing work went through multiple redesign attempts and then was intentionally rolled back to the safer stable version.
+
+Current billing truth:
+- keep the stable older Billing layout intact
+- do not aggressively redesign Billing without explicit approval
+- `Alerts` remains added in the sidebar
+- safer Billing copy updates were preserved where they did not destabilize the page
+- Billing is still for Parveil’s own billing, not for modifying customer subscriptions in Stripe
+
+### Design / UX Lessons Now Recorded
+
+Important repeated UX lessons from this work:
+- do not overload the dashboard with the full review workflow
+- keep `Inbox` for active review
+- keep `Alerts` for history/archive
+- use calmer helper text and fewer loud pills
+- preview interactions should feel testable but must not imply persistence
+- avoid redesigning stable Billing structure unless the user explicitly wants a new direction
+- keep account detail cards, tooltip styles, and KPI structure consistent with the dashboard system
+- current alerts and past alerts should be visually distinct but structurally consistent
+
+### Current Verification Pattern
+
+The primary regression check used repeatedly during this branch work:
+- `npx.cmd tsc --noEmit`
+
+### Current Local State At Time Of This Memory Update
+
+At the time this section was written:
+- latest pushed branch state includes the Inbox / Alerts / Accounts / preview UX work listed above
+- current local change is this memory-file update only unless additional uncommitted work is made later
+
+### Important Rule Going Forward
+
+When continuing this branch or merging its ideas elsewhere:
+- preserve the monitoring-only trust model
+- preserve the separation:
+  - Dashboard = overview
+  - Inbox = active review
+  - Alerts = history
+- keep preview-mode interactions explicitly non-persistent unless the user asks for broader session persistence
+- keep Billing changes conservative unless a full redesign is explicitly requested
+- update `PROJECT_MEMORY.md` again whenever a substantial accepted product/UX direction changes
