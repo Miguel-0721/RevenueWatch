@@ -1,3 +1,7 @@
+:global(html) {
+  scroll-behavior: smooth;
+}
+
 .shell {
   width: 100%;
   max-width: 1180px;
@@ -68,6 +72,10 @@
   background: #ffffff;
   box-shadow: 0 10px 26px rgba(15, 23, 42, 0.05);
   overflow: hidden;
+}
+
+.logCard {
+  scroll-margin-top: 20px;
 }
 
 .currentCard {
