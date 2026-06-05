@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+
 import { auth } from "@/auth";
 import {
   getActiveDemoAlerts,
@@ -6,28 +9,33 @@ import {
   hasDemoAccount,
 } from "@/lib/demoData";
 import { prisma } from "@/lib/prisma";
-import Link from "next/link";
-import { redirect } from "next/navigation";
+
 import styles from "./page.module.css";
 
-type AlertRecord = {
-  id: string;
-  type: string;
-  severity: string;
-  status?: string;
-  message: string;
-  stripeAccountId: string | null;
-  createdAt?: Date;
-  context?: string | null;
-  detectedLabel?: string;
-  cta?: string;
+type DashboardAlertsPageProps = {
+  searchParams?: Promise<{
+    preview?: string;
+    account?: string;
+    status?: string;
+    type?: string;
+    date?: string;
+  }>;
 };
 
-type HistoryRecord = {
+type AlertRow = {
   id: string;
-  message: string;
-  timestamp: string;
-  group: string;
+  title: string;
+  accountName: string;
+  typeLabel: string;
+  severity: "warning" | "critical";
+  severityLabel: string;
+  impact: string;
+  statusLabel: "Active" | "Reviewed";
+  detectedLabel: string;
+  reviewedLabel: string;
+  actionLabel: string;
+  href: string;
+  previewDateBucket?: "today" | "last7" | "last30" | "thisMonth" | "thisYear";
 };
 
 function alertLabel(type: string) {
@@ -52,91 +60,25 @@ function severityRank(severity: string) {
   return 2;
 }
 
-function severityMeta(severity: string) {
-  if (severity === "critical") {
-    return {
-      label: "High Severity",
-      badgeClass: styles.severityCritical,
-      cardClass: styles.cardCritical,
-    };
-  }
+function previewAccountHref(accountName: string) {
+  const slug = accountName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 
-  return {
-    label: "Review Needed",
-    badgeClass: styles.severityWarning,
-    cardClass: styles.cardWarning,
-  };
+  return `/dashboard/accounts/${slug}?preview=subscription-health`;
 }
 
-function safeParseContext(input?: string | null) {
-  if (!input) return null;
-
-  try {
-    return JSON.parse(input) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-function buildReadableAlertMessage(alert: Pick<AlertRecord, "type" | "message" | "context">) {
-  const parsed = safeParseContext(alert.context);
-
-  if (!parsed) return alert.message;
-
-  if (typeof parsed.displayMessage === "string") {
-    return parsed.displayMessage;
-  }
-
-  if (
-    alert.type === "payment_failed" &&
-    typeof parsed.failedPayments === "number" &&
-    typeof parsed.baseline === "number"
-  ) {
-    return `Payment failures are significantly higher than usual compared to recent activity (${parsed.failedPayments} vs ${parsed.baseline}).`;
-  }
-
-  if (
-    alert.type === "revenue_drop" &&
-    typeof parsed.currentRevenue === "number" &&
-    typeof parsed.expectedRevenue === "number" &&
-    parsed.expectedRevenue > 0
-  ) {
-    const dropPercent = Math.round(
-      ((parsed.expectedRevenue - parsed.currentRevenue) / parsed.expectedRevenue) * 100
-    );
-
-    return `Sales are ${dropPercent}% lower than usual compared to your recent performance over the past week.`;
-  }
-
-  return alert.message;
-}
-
-function formatActiveDuration(date: Date) {
-  const diffMs = Date.now() - new Date(date).getTime();
-  const diffMinutes = Math.max(1, Math.round(diffMs / 60000));
-
-  if (diffMinutes < 60) {
-    return `${diffMinutes} minute${diffMinutes === 1 ? "" : "s"}`;
-  }
-
+function formatDetectedLabel(date: Date) {
+  const diffMinutes = Math.max(1, Math.round((Date.now() - date.getTime()) / 60000));
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
   const diffHours = Math.round(diffMinutes / 60);
-  if (diffHours < 24) {
-    return `${diffHours} hour${diffHours === 1 ? "" : "s"}`;
-  }
-
+  if (diffHours < 24) return `${diffHours}h ago`;
   const diffDays = Math.round(diffHours / 24);
-  return `${diffDays} day${diffDays === 1 ? "" : "s"}`;
+  return `${diffDays}d ago`;
 }
 
-function buildAlertAction(alert: AlertRecord) {
-  const href = alert.stripeAccountId
-    ? `/dashboard/accounts/${encodeURIComponent(alert.stripeAccountId)}`
-    : "/dashboard";
-
-  return { label: "View details", href };
-}
-
-function formatResolvedTime(date: Date) {
+function formatHistoryTime(date: Date) {
   const target = new Date(date);
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -168,234 +110,571 @@ function formatResolvedTime(date: Date) {
   });
 }
 
-function groupHistoryLabel(date: Date) {
-  const target = new Date(date);
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startOfTarget = new Date(
-    target.getFullYear(),
-    target.getMonth(),
-    target.getDate()
-  );
-  const diffDays = Math.round(
-    (startOfToday.getTime() - startOfTarget.getTime()) / 86400000
-  );
-
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays <= 7) return "This week";
-  return "Older";
+function safeParseContext(input?: string | null) {
+  if (!input) return null;
+  try {
+    return JSON.parse(input) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
 }
 
-export default async function DashboardAlertsPage() {
+function buildImpact(type: string, context?: string | null) {
+  const parsed = safeParseContext(context);
+  if (!parsed) return "Monitoring active";
+
+  if (typeof parsed.impactLabel === "string") return parsed.impactLabel;
+
+  if (type === "subscription_canceled" && typeof parsed.estimatedMonthlyRevenue === "number") {
+    const amount = Math.round(parsed.estimatedMonthlyRevenue / 100);
+    return `€${amount} impact`;
+  }
+
+  if (type === "failed_renewal" && typeof parsed.amountDue === "number") {
+    const amount = Math.round(parsed.amountDue / 100);
+    return `€${amount} at risk`;
+  }
+
+  if (
+    type === "subscription_drop" &&
+    typeof parsed.previousActiveSubscriptions === "number" &&
+    typeof parsed.currentActiveSubscriptions === "number"
+  ) {
+    return `${parsed.previousActiveSubscriptions} → ${parsed.currentActiveSubscriptions} active`;
+  }
+
+  if (
+    type === "past_due_increase" &&
+    typeof parsed.previousPastDueSubscriptions === "number" &&
+    typeof parsed.currentPastDueSubscriptions === "number"
+  ) {
+    return `${parsed.previousPastDueSubscriptions} → ${parsed.currentPastDueSubscriptions} past-due`;
+  }
+
+  if (type === "unpaid_subscription" && typeof parsed.unpaidSubscriptions === "number") {
+    return `${parsed.unpaidSubscriptions} unpaid`;
+  }
+
+  return "Monitoring active";
+}
+
+function severityLabel(severity: string) {
+  return severity === "critical" ? "Attention needed" : "Review needed";
+}
+
+function severityClassName(severity: "warning" | "critical") {
+  return severity === "critical" ? styles.attentionPill : styles.reviewPill;
+}
+
+function typeLabel(type: string) {
+  if (type === "subscription_canceled") return "Cancellation";
+  if (type === "failed_renewal" || type === "failed_renewal_spike") return "Failed renewal";
+  if (type === "subscription_drop") return "Subscription trend";
+  if (type === "cancellation_spike") return "Cancellation trend";
+  if (type === "past_due_increase") return "Past-due";
+  if (type === "unpaid_subscription" || type === "unpaid_increase") return "Unpaid";
+  if (type === "meaningful_mrr_drop") return "Revenue trend";
+  if (type === "negative_net_subscription_movement") return "Net movement";
+  return alertLabel(type);
+}
+
+function renderCurrentRow(row: AlertRow) {
+  return (
+    <article key={row.id} className={`${styles.feedRow} ${styles.currentFeedRow}`}>
+      <div className={styles.feedCellPrimary}>
+        <h3 className={styles.feedTitle}>{row.title}</h3>
+        <p className={styles.feedMeta}>
+          {row.accountName} <span aria-hidden="true">·</span> {row.typeLabel}
+        </p>
+      </div>
+      <div className={styles.feedCellImpact}>
+        <span className={styles.impactTag}>{row.impact}</span>
+      </div>
+      <div className={styles.feedCellStatus}>
+        <span className={`${styles.inlinePill} ${severityClassName(row.severity)}`}>
+          {row.severityLabel}
+        </span>
+      </div>
+      <div className={styles.feedCellTime}>
+        <span className={styles.feedTimeValue}>Detected {row.detectedLabel}</span>
+      </div>
+      <Link href={row.href} className={styles.rowAction}>
+        {row.actionLabel}
+      </Link>
+    </article>
+  );
+}
+
+function renderHistoryRow(row: AlertRow) {
+  return (
+    <article key={row.id} className={`${styles.feedRow} ${styles.historyFeedRow}`}>
+      <div className={styles.feedCellPrimary}>
+        <h3 className={styles.feedTitle}>{row.title}</h3>
+        <p className={styles.feedMeta}>
+          {row.accountName} <span aria-hidden="true">·</span> {row.typeLabel}
+        </p>
+      </div>
+      <div className={styles.feedCellImpact}>
+        <span className={styles.impactTag}>{row.impact}</span>
+      </div>
+      <div className={styles.feedCellStatus}>
+        <span className={`${styles.inlinePill} ${styles.reviewedStatusPill}`}>Reviewed</span>
+      </div>
+      <div className={styles.feedCellTime}>
+        <span className={styles.feedTimeValue}>Detected {row.detectedLabel}</span>
+        <span className={styles.feedTimeValue}>Reviewed {row.reviewedLabel}</span>
+      </div>
+      <Link href={row.href} className={styles.rowAction}>
+        {row.actionLabel}
+      </Link>
+    </article>
+  );
+}
+
+export default async function DashboardAlertsPage({
+  searchParams,
+}: DashboardAlertsPageProps) {
   const session = await auth();
 
   if (!session?.user?.id) {
     redirect("/login");
   }
 
-  const stripeAccounts = await prisma.stripeAccount.findMany({
-    where: { userId: session.user.id },
-    select: { stripeAccountId: true, name: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const params = searchParams ? await searchParams : undefined;
+  const isPreviewMode = params?.preview === "subscription-health";
 
-  const accountIds = stripeAccounts.map((account) => account.stripeAccountId);
-  const demoMode = hasDemoAccount(accountIds);
-  const accountNameById = new Map(
-    stripeAccounts.map((account) => [
-      account.stripeAccountId,
-      account.name?.trim() || getDemoAccountById(account.stripeAccountId)?.name || "Stripe account",
-    ])
-  );
+  let activeRows: AlertRow[] = [];
+  let reviewedRows: AlertRow[] = [];
+  let totalAlertCount = 0;
+  let compactSummaryLine = "Showing alert history across connected accounts";
+  const selectedAccount = params?.account ?? "all";
+  const selectedType = params?.type ?? "all";
+  const selectedDate = params?.date ?? "all-time";
 
-  let activeAlerts: AlertRecord[] = [];
-  let groupedHistoryRecords: Record<string, HistoryRecord[]> = {};
-  let historyOrder: string[] = [];
-
-  if (demoMode) {
-    activeAlerts = getActiveDemoAlerts()
-      .filter((account) => accountIds.some((id) => getDemoAccountById(id)?.id === account.id))
-      .map((account) => ({
-        id: `demo-alert-${account.id}`,
-        type: account.alertType,
-        severity: account.severity === "high" ? "critical" : "warning",
-        message: account.message,
-        stripeAccountId: account.id,
-        detectedLabel: account.detectedAt,
-        cta: account.cta,
-      }));
-
-    const historyRecords = getDemoAlertHistory().map((entry, index) => ({
-      id: `demo-history-${index}`,
-      message: entry.message,
-      timestamp: entry.timestamp,
-      group:
-        entry.timestamp.includes("minute") || entry.timestamp.includes("hour")
-          ? "Today"
-          : entry.timestamp.includes("Yesterday")
-            ? "Yesterday"
-            : "This week",
-    }));
-
-    groupedHistoryRecords = historyRecords.reduce<Record<string, HistoryRecord[]>>((groups, entry) => {
-      if (!groups[entry.group]) {
-        groups[entry.group] = [];
-      }
-      groups[entry.group].push(entry);
-      return groups;
-    }, {});
-
-    historyOrder = ["Today", "Yesterday", "This week"].filter(
-      (label) => groupedHistoryRecords[label]?.length
-    );
-  } else {
-    const alerts = await prisma.alert.findMany({
-      where: {
-        stripeAccountId: {
-          in: accountIds,
-        },
+  if (isPreviewMode) {
+    activeRows = [
+      {
+        id: "preview-subscription-canceled",
+        title: "Subscription canceled",
+        accountName: "Northstar Commerce",
+        typeLabel: "Cancellation",
+        severity: "warning",
+        severityLabel: "Review needed",
+        impact: "€39 impact",
+        statusLabel: "Active",
+        detectedLabel: "12m ago",
+        reviewedLabel: "—",
+        actionLabel: "Review in Inbox",
+        href: "/dashboard/inbox?preview=subscription-health",
+        previewDateBucket: "today",
       },
-      orderBy: { createdAt: "desc" },
-      take: 100,
+      {
+        id: "preview-failed-renewal",
+        title: "Failed renewal",
+        accountName: "BluePeak Studio",
+        typeLabel: "Failed renewal",
+        severity: "warning",
+        severityLabel: "Review needed",
+        impact: "€39 at risk",
+        statusLabel: "Active",
+        detectedLabel: "45m ago",
+        reviewedLabel: "—",
+        actionLabel: "Review in Inbox",
+        href: "/dashboard/inbox?preview=subscription-health",
+        previewDateBucket: "today",
+      },
+      {
+        id: "preview-subscription-drop",
+        title: "Subscription drop",
+        accountName: "Cedar Labs",
+        typeLabel: "Subscription trend",
+        severity: "critical",
+        severityLabel: "Attention needed",
+        impact: "10 → 7 active",
+        statusLabel: "Active",
+        detectedLabel: "2h ago",
+        reviewedLabel: "—",
+        actionLabel: "Review in Inbox",
+        href: "/dashboard/inbox?preview=subscription-health",
+        previewDateBucket: "today",
+      },
+    ];
+
+    reviewedRows = [
+      {
+        id: "preview-history-past-due",
+        title: "Past-due increase",
+        accountName: "BluePeak Studio",
+        typeLabel: "Past-due",
+        severity: "critical",
+        severityLabel: "Attention needed",
+        impact: "2 → 4 past-due",
+        statusLabel: "Reviewed",
+        detectedLabel: "Yesterday, 16:20",
+        reviewedLabel: "Yesterday, 16:35",
+        actionLabel: "View account",
+        href: previewAccountHref("BluePeak Studio"),
+        previewDateBucket: "last7",
+      },
+      {
+        id: "preview-history-unpaid",
+        title: "Unpaid subscription",
+        accountName: "Cedar Labs",
+        typeLabel: "Unpaid",
+        severity: "warning",
+        severityLabel: "Review needed",
+        impact: "2 unpaid",
+        statusLabel: "Reviewed",
+        detectedLabel: "Yesterday, 09:45",
+        reviewedLabel: "Yesterday, 10:02",
+        actionLabel: "View account",
+        href: previewAccountHref("Cedar Labs"),
+        previewDateBucket: "last7",
+      },
+      {
+        id: "preview-history-canceled",
+        title: "Subscription canceled",
+        accountName: "Northstar Commerce",
+        typeLabel: "Cancellation",
+        severity: "warning",
+        severityLabel: "Review needed",
+        impact: "€39 impact",
+        statusLabel: "Reviewed",
+        detectedLabel: "May 21, 4:34 PM",
+        reviewedLabel: "May 21, 4:48 PM",
+        actionLabel: "View account",
+        href: previewAccountHref("Northstar Commerce"),
+        previewDateBucket: "last30",
+      },
+      {
+        id: "preview-history-failed-renewal-spike",
+        title: "Failed renewal spike",
+        accountName: "BluePeak Studio",
+        typeLabel: "Failed renewal",
+        severity: "critical",
+        severityLabel: "Attention needed",
+        impact: "8 failed renewals",
+        statusLabel: "Reviewed",
+        detectedLabel: "May 20, 11:15 AM",
+        reviewedLabel: "May 20, 11:42 AM",
+        actionLabel: "View account",
+        href: previewAccountHref("BluePeak Studio"),
+        previewDateBucket: "last30",
+      },
+      {
+        id: "preview-history-cancellation-spike",
+        title: "Cancellation spike",
+        accountName: "Cedar Labs",
+        typeLabel: "Cancellation trend",
+        severity: "critical",
+        severityLabel: "Attention needed",
+        impact: "5 cancellations",
+        statusLabel: "Reviewed",
+        detectedLabel: "May 19, 3:20 PM",
+        reviewedLabel: "May 19, 3:55 PM",
+        actionLabel: "View account",
+        href: previewAccountHref("Cedar Labs"),
+        previewDateBucket: "last30",
+      },
+      {
+        id: "preview-history-mrr-drop",
+        title: "Meaningful MRR drop",
+        accountName: "Northstar Commerce",
+        typeLabel: "Revenue trend",
+        severity: "critical",
+        severityLabel: "Attention needed",
+        impact: "€420 MRR drop",
+        statusLabel: "Reviewed",
+        detectedLabel: "May 18, 9:10 AM",
+        reviewedLabel: "May 18, 9:38 AM",
+        actionLabel: "View account",
+        href: previewAccountHref("Northstar Commerce"),
+        previewDateBucket: "last30",
+      },
+    ];
+
+    reviewedRows = reviewedRows.filter((row) => {
+      if (selectedAccount !== "all" && row.accountName !== selectedAccount) return false;
+      if (selectedType !== "all" && row.typeLabel !== selectedType) return false;
+      if (selectedDate !== "all-time") {
+        if (selectedDate === "today" && row.previewDateBucket !== "today") return false;
+        if (selectedDate === "last-7-days" && !["today", "last7"].includes(row.previewDateBucket ?? "")) return false;
+        if (selectedDate === "last-30-days" && !["today", "last7", "last30"].includes(row.previewDateBucket ?? "")) return false;
+        if (selectedDate === "this-month" && !["today", "last7"].includes(row.previewDateBucket ?? "")) return false;
+        if (selectedDate === "this-year" && !["today", "last7", "last30", "thisMonth", "thisYear"].includes(row.previewDateBucket ?? "")) return false;
+      }
+      return true;
     });
 
-    activeAlerts = alerts
-      .filter((alert) => alert.status === "active")
-      .map((alert) => ({
-        id: alert.id,
-        type: alert.type,
-        severity: alert.severity,
-        status: alert.status,
-        message: alert.message,
-        stripeAccountId: alert.stripeAccountId,
-        createdAt: alert.createdAt,
-        context: alert.context,
-      }))
-      .sort((left, right) => severityRank(left.severity) - severityRank(right.severity));
+    const dateLabel =
+      selectedDate === "today"
+        ? "Today"
+        : selectedDate === "last-7-days"
+          ? "Last 7 days"
+          : selectedDate === "last-30-days"
+            ? "Last 30 days"
+            : selectedDate === "this-month"
+              ? "This month"
+              : selectedDate === "this-year"
+                ? "This year"
+                : "All time";
+    totalAlertCount = activeRows.length + reviewedRows.length;
+    compactSummaryLine = `${activeRows.length} current alert${
+      activeRows.length === 1 ? "" : "s"
+    } · ${reviewedRows.length} past alert${reviewedRows.length === 1 ? "" : "s"} · ${dateLabel}`;
+  } else {
+    const stripeAccounts = await prisma.stripeAccount.findMany({
+      where: { userId: session.user.id },
+      select: { stripeAccountId: true, name: true },
+      orderBy: { createdAt: "desc" },
+    });
 
-    const historyRecords = alerts
-      .filter((alert) => alert.status !== "active")
-      .map((alert) => ({
+    const accountIds = stripeAccounts.map((account) => account.stripeAccountId);
+    const demoMode = hasDemoAccount(accountIds);
+    const accountNameById = new Map(
+      stripeAccounts.map((account) => [
+        account.stripeAccountId,
+        account.name?.trim() ||
+          getDemoAccountById(account.stripeAccountId)?.name ||
+          "Stripe account",
+      ])
+    );
+
+    if (demoMode) {
+      activeRows = getActiveDemoAlerts()
+        .filter((account) => accountIds.some((id) => getDemoAccountById(id)?.id === account.id))
+        .map((account) => ({
+          id: `demo-alert-${account.id}`,
+          title: alertLabel(account.alertType),
+          accountName: getDemoAccountById(account.id)?.name ?? "Stripe account",
+          typeLabel: typeLabel(account.alertType),
+          severity: account.severity === "high" ? ("critical" as const) : ("warning" as const),
+          severityLabel: account.severity === "high" ? "Attention needed" : "Review needed",
+          impact: "Monitoring active",
+          statusLabel: "Active" as const,
+          detectedLabel: account.detectedAt ?? account.lastEvent,
+          reviewedLabel: "—",
+          actionLabel: "Review in Inbox",
+          href: "/dashboard/inbox",
+        }))
+        .sort((left, right) => severityRank(left.severity) - severityRank(right.severity));
+
+      reviewedRows = getDemoAlertHistory().slice(0, 3).map((entry, index) => {
+        const severity =
+          entry.type === "revenue_drop" || entry.type === "payment_failed"
+            ? ("critical" as const)
+            : ("warning" as const);
+
+        const impact =
+          entry.type === "revenue_drop"
+            ? "Revenue drop detected"
+            : entry.type === "payment_failed"
+              ? "Failed payments elevated"
+              : "Monitoring active";
+
+        return {
+          id: `demo-history-${index}`,
+          title: alertLabel(entry.type),
+          accountName: entry.accountName,
+          typeLabel: typeLabel(entry.type),
+          severity,
+          severityLabel: severityLabel(severity),
+          impact,
+          statusLabel: "Reviewed" as const,
+          detectedLabel: entry.timestamp,
+          reviewedLabel: entry.timestamp,
+          actionLabel: "View account",
+          href: "/dashboard/accounts",
+        };
+      });
+
+      totalAlertCount = activeRows.length + reviewedRows.length;
+      compactSummaryLine = `${activeRows.length} current alert${
+        activeRows.length === 1 ? "" : "s"
+      } · ${reviewedRows.length} past alert${reviewedRows.length === 1 ? "" : "s"} · All time`;
+    } else {
+      const alerts = await prisma.alert.findMany({
+        where: {
+          stripeAccountId: {
+            in: accountIds,
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      });
+
+      const activeAlerts = alerts
+        .filter((alert) => alert.status === "active")
+        .sort((left, right) => {
+          const severityDiff = severityRank(left.severity) - severityRank(right.severity);
+          if (severityDiff !== 0) return severityDiff;
+          return right.createdAt.getTime() - left.createdAt.getTime();
+        });
+
+      const reviewedAlerts = alerts
+        .filter((alert) => alert.status !== "active")
+        .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+
+      activeRows = activeAlerts.map((alert) => ({
         id: alert.id,
-        message: `${alertLabel(alert.type)} for ${alert.stripeAccountId ? accountNameById.get(alert.stripeAccountId) ?? "Stripe account" : "Stripe account"}`,
-        timestamp: formatResolvedTime(alert.createdAt),
-        group: groupHistoryLabel(alert.createdAt),
+        title: alertLabel(alert.type),
+        accountName: alert.stripeAccountId
+          ? accountNameById.get(alert.stripeAccountId) ?? "Stripe account"
+          : "Stripe account",
+        typeLabel: typeLabel(alert.type),
+        severity: alert.severity === "critical" ? "critical" : "warning",
+        severityLabel: severityLabel(alert.severity),
+        impact: buildImpact(alert.type, alert.context),
+        statusLabel: "Active",
+        detectedLabel: formatDetectedLabel(alert.createdAt),
+        reviewedLabel: "—",
+        actionLabel: "Review in Inbox",
+        href: "/dashboard/inbox",
       }));
 
-    groupedHistoryRecords = historyRecords.reduce<Record<string, HistoryRecord[]>>((groups, entry) => {
-      if (!groups[entry.group]) {
-        groups[entry.group] = [];
-      }
-      groups[entry.group].push(entry);
-      return groups;
-    }, {});
+      reviewedRows = reviewedAlerts.slice(0, 6).map((alert) => ({
+        id: alert.id,
+        title: alertLabel(alert.type),
+        accountName: alert.stripeAccountId
+          ? accountNameById.get(alert.stripeAccountId) ?? "Stripe account"
+          : "Stripe account",
+        typeLabel: typeLabel(alert.type),
+        severity: alert.severity === "critical" ? "critical" : "warning",
+        severityLabel: severityLabel(alert.severity),
+        impact: buildImpact(alert.type, alert.context),
+        statusLabel: "Reviewed",
+        detectedLabel: formatHistoryTime(alert.createdAt),
+        reviewedLabel: formatHistoryTime(alert.createdAt),
+        actionLabel: "View account",
+        href: alert.stripeAccountId
+          ? `/dashboard/accounts/${encodeURIComponent(alert.stripeAccountId)}`
+          : "/dashboard/accounts",
+      }));
 
-    historyOrder = ["Today", "Yesterday", "This week", "Older"].filter(
-      (label) => groupedHistoryRecords[label]?.length
-    );
+      totalAlertCount = activeRows.length + reviewedRows.length;
+      compactSummaryLine = totalAlertCount
+        ? `${activeRows.length} current alert${activeRows.length === 1 ? "" : "s"} · ${reviewedRows.length} past alert${reviewedRows.length === 1 ? "" : "s"} · All time`
+        : "Showing alert history across connected accounts";
+    }
   }
-
-  const historyCount = Object.values(groupedHistoryRecords).reduce(
-    (count, entries) => count + entries.length,
-    0
-  );
 
   return (
     <div className={styles.shell}>
-      <div className={styles.stickyIntro}>
-        <div className={styles.header}>
-          <div>
+      <header className={styles.header}>
+        <div className={styles.headerCopy}>
+          <div className={styles.headerTitleRow}>
             <h1>Alerts</h1>
+            {isPreviewMode ? <span className={styles.previewBadge}>PREVIEW DATA</span> : null}
+          </div>
+          <p>Browse subscription-health alert history across connected Stripe accounts.</p>
+          <p className={styles.compactSummaryLine}>{compactSummaryLine}</p>
+        </div>
+      </header>
+
+      <section className={styles.currentCard}>
+        <div className={styles.logHeader}>
+          <div>
+            <h2>Current alerts</h2>
+            <p>These alerts are still open and can be reviewed in Inbox.</p>
+          </div>
+        </div>
+
+        {activeRows.length === 0 ? (
+          <div className={styles.emptyState}>
+            <strong>No current alerts</strong>
+            <p>Parveil is monitoring subscription health across your connected Stripe accounts.</p>
+          </div>
+        ) : (
+          <div className={styles.feedSections}>
+            <div className={styles.feedHeaderRowCurrent}>
+              <span>Alert</span>
+              <span>Impact</span>
+              <span>Status</span>
+              <span>Detected</span>
+              <span>Action</span>
+            </div>
+            <div className={styles.feedList}>{activeRows.map((row) => renderCurrentRow(row))}</div>
+          </div>
+        )}
+      </section>
+
+      <section className={styles.logCard}>
+        <div className={styles.logHeader}>
+          <div>
+            <h2>Past alerts</h2>
+            <p>Reviewed alerts are kept here for history.</p>
+          </div>
+        </div>
+
+        <section className={styles.filterBarCard} aria-label="Past alert filters">
+          <form className={styles.filterBar} method="get">
+            {isPreviewMode ? <input type="hidden" name="preview" value="subscription-health" /> : null}
+            <label className={styles.filterSelectWrap}>
+              <span className={styles.filterLabel}>Account</span>
+              <select name="account" defaultValue={selectedAccount} className={styles.filterSelect}>
+                <option value="all">All accounts</option>
+                <option value="Northstar Commerce">Northstar Commerce</option>
+                <option value="BluePeak Studio">BluePeak Studio</option>
+                <option value="Cedar Labs">Cedar Labs</option>
+              </select>
+            </label>
+            <label className={styles.filterSelectWrap}>
+              <span className={styles.filterLabel}>Type</span>
+              <select name="type" defaultValue={selectedType} className={styles.filterSelect}>
+                <option value="all">All alert types</option>
+                <option value="Cancellation">Cancellation</option>
+                <option value="Failed renewal">Failed renewal</option>
+                <option value="Subscription trend">Subscription trend</option>
+                <option value="Past-due">Past-due</option>
+                <option value="Unpaid">Unpaid</option>
+                <option value="Cancellation trend">Cancellation trend</option>
+                <option value="Revenue trend">Revenue trend</option>
+              </select>
+            </label>
+            <label className={styles.filterSelectWrap}>
+              <span className={styles.filterLabel}>Date</span>
+              <select name="date" defaultValue={selectedDate} className={styles.filterSelect}>
+                <option value="all-time">All time</option>
+                <option value="today">Today</option>
+                <option value="last-7-days">Last 7 days</option>
+                <option value="last-30-days">Last 30 days</option>
+                <option value="this-month">This month</option>
+                <option value="this-year">This year</option>
+              </select>
+            </label>
+            <button type="submit" className={`${styles.filterControl} ${styles.filterApply}`}>
+              Apply
+            </button>
+          </form>
+        </section>
+
+        {reviewedRows.length === 0 ? (
+          <div className={styles.emptyState}>
+            <strong>{isPreviewMode ? "No alerts found" : "No past alerts"}</strong>
             <p>
-              Review current subscription-health issues first, then scan calmer alert
-              history across your connected accounts. Parveil only monitors these issues. No
-              Stripe changes are made.
+              {isPreviewMode
+                ? "Try changing the account, type, or date filter."
+                : "Parveil is monitoring subscription health across your connected Stripe accounts."}
             </p>
           </div>
-        </div>
-
-        <div className={`${styles.sectionHeader} ${styles.stickySectionHeader}`}>
-          <h2>Needs review</h2>
-          <span className={styles.sectionCount}>{activeAlerts.length}</span>
-        </div>
-      </div>
-
-      <div className={styles.content}>
-        <section className={styles.section}>
-          {activeAlerts.length === 0 ? (
-            <div className={styles.emptyState}>
-              No active alerts need review right now.
+        ) : (
+          <>
+            <div className={styles.feedSections}>
+              <div className={styles.feedHeaderRow}>
+                <span>Alert</span>
+                <span>Impact</span>
+                <span>Status</span>
+                <span>Detected / Reviewed</span>
+                <span>Action</span>
+              </div>
+              <div className={styles.feedList}>{reviewedRows.map((row) => renderHistoryRow(row))}</div>
             </div>
-          ) : (
-            <div className={styles.list}>
-              {activeAlerts.map((alert) => {
-                const severity = severityMeta(alert.severity);
-                const accountName = alert.stripeAccountId
-                  ? accountNameById.get(alert.stripeAccountId) ?? "Stripe account"
-                  : "Stripe account";
-                const action = buildAlertAction(alert);
-
-                return (
-                  <article key={alert.id} className={`${styles.card} ${severity.cardClass}`}>
-                    <div className={styles.cardHeader}>
-                      <div>
-                        <h3>{accountName}</h3>
-                        <p className={styles.cardType}>{alertLabel(alert.type)}</p>
-                      </div>
-                      <span className={`${styles.severityBadge} ${severity.badgeClass}`}>
-                        {severity.label}
-                      </span>
-                    </div>
-
-                    <p className={styles.cardBody}>{buildReadableAlertMessage(alert)}</p>
-
-                    <div className={styles.cardFooter}>
-                      <span>
-                        {alert.detectedLabel
-                          ? `Detected ${alert.detectedLabel}`
-                          : `Active for ${formatActiveDuration(alert.createdAt as Date)}`}
-                      </span>
-                      <Link href={action.href} className={styles.cardAction}>
-                        {action.label}
-                      </Link>
-                    </div>
-                  </article>
-                );
-              })}
+            <div className={styles.feedFooter}>
+              Showing {reviewedRows.length === 0 ? 0 : 1}–{reviewedRows.length} of {reviewedRows.length} past alerts
             </div>
-          )}
-        </section>
-
-        <section className={styles.section}>
-          <div className={styles.sectionHeader}>
-            <h2>Alert History</h2>
-            <span className={styles.sectionCount}>{historyCount}</span>
-          </div>
-
-          {historyCount === 0 ? (
-            <div className={styles.emptyState}>No alert history yet.</div>
-          ) : (
-            <div className={styles.historyGroups}>
-              {historyOrder.map((groupLabel) => (
-                <div key={groupLabel} className={styles.historyGroup}>
-                  <h3 className={styles.historyGroupTitle}>{groupLabel}</h3>
-                  <div className={styles.historyList}>
-                    {groupedHistoryRecords[groupLabel].map((entry) => (
-                      <article key={entry.id} className={styles.historyItem}>
-                        <div className={styles.historyCopy}>
-                          <p className={styles.historyText}>{entry.message}</p>
-                        </div>
-                        <span className={styles.historyMeta}>{entry.timestamp}</span>
-                      </article>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
+          </>
+        )}
+      </section>
     </div>
   );
 }
