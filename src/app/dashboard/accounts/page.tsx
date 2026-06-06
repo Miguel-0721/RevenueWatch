@@ -1,6 +1,5 @@
 import { auth } from "@/auth";
 import { AutoBackfillTrigger } from "./AutoBackfillTrigger";
-import { AccountStatusActions } from "./AccountStatusActions";
 import { previewAccountDetails, subscriptionHealthPreview } from "../previewData";
 import { getActiveDemoAlerts, hasDemoAccount } from "@/lib/demoData";
 import { prisma } from "@/lib/prisma";
@@ -29,6 +28,28 @@ type AccountListItem = {
   backfillStatus: AccountBackfillStatus;
   backfillStartedAt: Date | null;
   lastBackfilledAt: Date | null;
+};
+
+type AccountsOverviewRow = {
+  key: string;
+  name: string;
+  status: string;
+  statusClassName: string;
+  topIssue: string;
+  activeSubscriptions: string | number;
+  estimatedMrr: string;
+  activeAlerts: string | number;
+  lastActivity: string;
+  href: string;
+};
+
+type AccountsOverviewViewModel = {
+  showPreviewBadge: boolean;
+  addAccountHref: string;
+  summary: Array<{ label: string; value: string | number }>;
+  rows: AccountsOverviewRow[];
+  emptyState: string | null;
+  connectNotice: string | null;
 };
 
 function formatRelativeTime(date: Date | null | undefined) {
@@ -73,10 +94,7 @@ function severityRank(severity: "critical" | "warning" | string) {
   return 2;
 }
 
-function statusRank(
-  accountStatus: string,
-  topAlert: AccountAlertSummary | null
-) {
+function statusRank(accountStatus: string, topAlert: AccountAlertSummary | null) {
   if (accountStatus !== "active") return 3;
   if (topAlert?.severity === "critical") return 0;
   if (topAlert?.severity === "warning") return 1;
@@ -87,8 +105,108 @@ function accountDisplayName(name: string | null) {
   return name?.trim() || "Stripe account";
 }
 
-function isManagedStatus(status: string): status is "active" | "paused" | "disconnected" {
-  return status === "active" || status === "paused" || status === "disconnected";
+function realAccountStatusLabel(account: AccountListItem, topAlert: AccountAlertSummary | null) {
+  if (account.status === "paused") return "Paused";
+  if (topAlert?.severity === "critical") return "Attention needed";
+  if (topAlert?.severity === "warning") return "Review needed";
+  if (account.backfillStatus === "pending" || account.backfillStatus === "running") {
+    return "Importing history";
+  }
+  return "Monitoring active";
+}
+
+function realAccountTopIssue(account: AccountListItem, topAlert: AccountAlertSummary | null) {
+  if (topAlert) return alertLabel(topAlert.type);
+  if (account.status === "paused") return "Monitoring paused";
+  if (account.backfillStatus === "pending" || account.backfillStatus === "running") {
+    return "Importing history";
+  }
+  return "Monitoring active";
+}
+
+function renderAccountsOverview(viewModel: AccountsOverviewViewModel) {
+  return (
+    <section className={styles.previewShell}>
+      <header className={styles.previewHeader}>
+        <div className={styles.previewHeaderCopy}>
+          <div className={styles.previewHeaderTitleRow}>
+            <h1>Monitored accounts</h1>
+            {viewModel.showPreviewBadge ? (
+              <span className={styles.previewBadge}>Preview data</span>
+            ) : null}
+          </div>
+          <p>
+            Review subscription health, monitoring status, and current issues for each connected
+            Stripe account.
+          </p>
+        </div>
+        <Link href={viewModel.addAccountHref} className={styles.previewAddAccountLink}>
+          Add account
+        </Link>
+      </header>
+
+      <section className={styles.previewSummaryStrip} aria-label="Accounts summary">
+        {viewModel.summary.map((item) => (
+          <article key={item.label} className={styles.previewSummaryCard}>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+          </article>
+        ))}
+      </section>
+
+      <section className={styles.previewAccountsSection}>
+        <div className={styles.previewSectionHeader}>
+          <div>
+            <h2>Accounts overview</h2>
+            <p>Accounts with active issues appear first. Healthy monitored accounts stay visible below.</p>
+          </div>
+        </div>
+
+        {viewModel.connectNotice ? (
+          <div className={styles.connectNotice}>{viewModel.connectNotice}</div>
+        ) : null}
+
+        {viewModel.emptyState ? (
+          <div className={styles.emptyState}>{viewModel.emptyState}</div>
+        ) : (
+          <div className={styles.previewAccountsTable}>
+            <div className={styles.previewAccountsTableHeader}>
+              <span>Account</span>
+              <span>Status</span>
+              <span>Top issue</span>
+              <span>Active subscriptions</span>
+              <span>Estimated MRR</span>
+              <span>Active alerts</span>
+              <span>Last activity</span>
+              <span>Action</span>
+            </div>
+
+            <div className={styles.previewAccountsRows}>
+              {viewModel.rows.map((account) => (
+                <Link
+                  key={account.key}
+                  href={account.href}
+                  className={styles.previewAccountRow}
+                  aria-label={`Open details for ${account.name}`}
+                >
+                  <span className={styles.previewAccountName}>{account.name}</span>
+                  <span className={`${styles.previewStatusPill} ${account.statusClassName}`}>
+                    {account.status}
+                  </span>
+                  <span className={styles.previewTopIssue}>{account.topIssue}</span>
+                  <span>{account.activeSubscriptions}</span>
+                  <span>{account.estimatedMrr}</span>
+                  <span>{account.activeAlerts}</span>
+                  <span className={styles.previewLastActivity}>{account.lastActivity}</span>
+                  <span className={styles.previewDetailsButton}>View details</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+    </section>
+  );
 }
 
 export default async function DashboardAccountsPage({
@@ -107,7 +225,7 @@ export default async function DashboardAccountsPage({
   const isPreviewMode = resolvedSearchParams?.preview === "subscription-health";
 
   if (isPreviewMode) {
-    const previewAccounts = subscriptionHealthPreview.accounts.map((account) => {
+    const previewRows: AccountsOverviewRow[] = subscriptionHealthPreview.accounts.map((account) => {
       const slug = account.name
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
@@ -119,105 +237,40 @@ export default async function DashboardAccountsPage({
             ? "Failed renewal"
             : previewAccountDetails[slug]?.currentIssue.type === "subscription_drop"
               ? "Subscription drop"
-              : null;
+              : "Monitoring active";
 
       return {
-        ...account,
-        slug,
-        href: `/dashboard/accounts/${slug}?preview=subscription-health`,
+        key: account.stripeAccountId,
+        name: account.name,
+        status: account.status,
+        statusClassName:
+          account.status === "Attention needed"
+            ? styles.previewStatusAttention
+            : account.status === "Review needed"
+              ? styles.previewStatusReview
+              : styles.previewStatusMonitoring,
         topIssue,
+        activeSubscriptions: account.activeSubscriptions,
+        estimatedMrr: account.estimatedMrr,
+        activeAlerts: account.activeAlerts,
+        lastActivity: account.lastActivity,
+        href: `/dashboard/accounts/${slug}?preview=subscription-health`,
       };
     });
 
-    return (
-      <section className={styles.previewShell}>
-        <header className={styles.previewHeader}>
-          <div className={styles.previewHeaderCopy}>
-            <div className={styles.previewHeaderTitleRow}>
-              <h1>Monitored accounts</h1>
-              <span className={styles.previewBadge}>Preview data</span>
-            </div>
-            <p>
-              Review subscription health, monitoring status, and current issues for each connected
-              Stripe account.
-            </p>
-          </div>
-          <Link href="/api/stripe/connect" className={styles.previewAddAccountLink}>
-            Add account
-          </Link>
-        </header>
-
-        <section className={styles.previewSummaryStrip} aria-label="Accounts summary">
-          <article className={styles.previewSummaryCard}>
-            <span>Connected accounts</span>
-            <strong>3</strong>
-          </article>
-          <article className={styles.previewSummaryCard}>
-            <span>Needs review</span>
-            <strong>2</strong>
-          </article>
-          <article className={styles.previewSummaryCard}>
-            <span>Attention needed</span>
-            <strong>1</strong>
-          </article>
-          <article className={styles.previewSummaryCard}>
-            <span>Estimated MRR</span>
-            <strong>{subscriptionHealthPreview.overview.estimatedMrr}</strong>
-          </article>
-        </section>
-
-        <section className={styles.previewAccountsSection}>
-          <div className={styles.previewSectionHeader}>
-            <div>
-              <h2>Accounts overview</h2>
-              <p>Accounts with active issues appear first. Healthy monitored accounts stay visible below.</p>
-            </div>
-          </div>
-
-          <div className={styles.previewAccountsTable}>
-            <div className={styles.previewAccountsTableHeader}>
-              <span>Account</span>
-              <span>Status</span>
-              <span>Top issue</span>
-              <span>Active subscriptions</span>
-              <span>Estimated MRR</span>
-              <span>Active alerts</span>
-              <span>Last activity</span>
-              <span>Action</span>
-            </div>
-
-            <div className={styles.previewAccountsRows}>
-              {previewAccounts.map((account) => {
-                const statusClass =
-                  account.status === "Attention needed"
-                    ? styles.previewStatusAttention
-                    : account.status === "Review needed"
-                      ? styles.previewStatusReview
-                      : styles.previewStatusMonitoring;
-
-                return (
-                  <Link
-                    key={account.stripeAccountId}
-                    href={account.href}
-                    className={styles.previewAccountRow}
-                    aria-label={`Open details for ${account.name}`}
-                  >
-                    <span className={styles.previewAccountName}>{account.name}</span>
-                    <span className={`${styles.previewStatusPill} ${statusClass}`}>{account.status}</span>
-                    <span className={styles.previewTopIssue}>{account.topIssue ?? "Monitoring active"}</span>
-                    <span>{account.activeSubscriptions}</span>
-                    <span>{account.estimatedMrr}</span>
-                    <span>{account.activeAlerts}</span>
-                    <span className={styles.previewLastActivity}>{account.lastActivity}</span>
-                    <span className={styles.previewDetailsButton}>View details</span>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-      </section>
-    );
+    return renderAccountsOverview({
+      showPreviewBadge: true,
+      addAccountHref: "/api/stripe/connect",
+      summary: [
+        { label: "Connected accounts", value: 3 },
+        { label: "Needs review", value: 2 },
+        { label: "Attention needed", value: 1 },
+        { label: "Estimated MRR", value: subscriptionHealthPreview.overview.estimatedMrr },
+      ],
+      rows: previewRows,
+      emptyState: null,
+      connectNotice: null,
+    });
   }
 
   const accounts = (await (prisma as any).stripeAccount.findMany({
@@ -260,7 +313,7 @@ export default async function DashboardAccountsPage({
   ]);
 
   const lastEventByAccount = new Map(
-    lastEvents.map((event) => [event.stripeAccountId, event._max.createdAt ?? null])
+    lastEvents.map((event) => [event.stripeAccountId, event._max.createdAt ?? null]),
   );
   const demoAccountIds = new Set(accountIds.filter((id) => hasDemoAccount([id])));
   const topAlertByAccount = new Map<string, AccountAlertSummary>();
@@ -294,7 +347,8 @@ export default async function DashboardAccountsPage({
   }
 
   const sortedAccounts = [...accounts].sort((left, right) => {
-    const leftAlert = left.status === "active" ? topAlertByAccount.get(left.stripeAccountId) ?? null : null;
+    const leftAlert =
+      left.status === "active" ? topAlertByAccount.get(left.stripeAccountId) ?? null : null;
     const rightAlert =
       right.status === "active" ? topAlertByAccount.get(right.stripeAccountId) ?? null : null;
 
@@ -313,207 +367,103 @@ export default async function DashboardAccountsPage({
 
     return accountDisplayName(left.name).localeCompare(accountDisplayName(right.name));
   });
+
   const visibleAccounts = sortedAccounts.filter((account) => account.status !== "disconnected");
   const summaryEntries = await Promise.all(
     visibleAccounts.map(
-      async (
-        account
-      ): Promise<[string, SubscriptionHealthSummary | null]> => [
+      async (account): Promise<[string, SubscriptionHealthSummary | null]> => [
         account.stripeAccountId,
         await getLatestSubscriptionHealthSummary({
           stripeAccountId: account.stripeAccountId,
         }),
-      ]
-    )
+      ],
+    ),
   );
-  const summaryByAccount = new Map<string, SubscriptionHealthSummary | null>(
-    summaryEntries
-  );
+  const summaryByAccount = new Map<string, SubscriptionHealthSummary | null>(summaryEntries);
   const activeAlertCountByAccount = new Map<string, number>();
 
   for (const alert of activeAlertRecords) {
     if (!alert.stripeAccountId) continue;
     activeAlertCountByAccount.set(
       alert.stripeAccountId,
-      (activeAlertCountByAccount.get(alert.stripeAccountId) ?? 0) + 1
+      (activeAlertCountByAccount.get(alert.stripeAccountId) ?? 0) + 1,
     );
   }
 
+  const totalEstimatedMrr = summaryEntries.reduce((total, [, summary]) => {
+    return total + (summary?.estimatedMonthlyRevenue ?? 0);
+  }, 0);
+  const displayCurrency =
+    summaryEntries.find(([, summary]) => summary?.currency)?.[1]?.currency ?? "EUR";
+  const needsReviewCount = visibleAccounts.filter((account) => {
+    const topAlert =
+      account.status === "active" ? topAlertByAccount.get(account.stripeAccountId) ?? null : null;
+    return topAlert?.severity === "warning";
+  }).length;
+  const attentionNeededCount = visibleAccounts.filter((account) => {
+    const topAlert =
+      account.status === "active" ? topAlertByAccount.get(account.stripeAccountId) ?? null : null;
+    return topAlert?.severity === "critical";
+  }).length;
+
+  const realRows: AccountsOverviewRow[] = visibleAccounts.map((account) => {
+    const topAlert =
+      account.status === "active" ? topAlertByAccount.get(account.stripeAccountId) ?? null : null;
+    const summary = summaryByAccount.get(account.stripeAccountId) ?? null;
+    const activeAlertCount = activeAlertCountByAccount.get(account.stripeAccountId) ?? 0;
+    const statusLabel = realAccountStatusLabel(account, topAlert);
+    const topIssue = realAccountTopIssue(account, topAlert);
+    const statusClassName =
+      statusLabel === "Attention needed"
+        ? styles.previewStatusAttention
+        : statusLabel === "Review needed"
+          ? styles.previewStatusReview
+          : statusLabel === "Paused" || statusLabel === "Importing history"
+            ? styles.previewStatusPaused
+            : styles.previewStatusMonitoring;
+
+    return {
+      key: account.id,
+      name: accountDisplayName(account.name),
+      status: statusLabel,
+      statusClassName,
+      topIssue,
+      activeSubscriptions: summary ? summary.activeSubscriptions : "—",
+      estimatedMrr: summary
+        ? formatMoneyAmount(summary.estimatedMonthlyRevenue, summary.currency)
+        : "—",
+      activeAlerts: activeAlertCount,
+      lastActivity: formatRelativeTime(lastEventByAccount.get(account.stripeAccountId)),
+      href: `/dashboard/accounts/${encodeURIComponent(account.stripeAccountId)}`,
+    };
+  });
+
   return (
-    <section className={styles.shell}>
+    <>
       <AutoBackfillTrigger
         stripeAccountIds={visibleAccounts
-          .filter(
-            (account) =>
-              account.status === "active" &&
-              account.backfillStatus === "pending"
-          )
+          .filter((account) => account.status === "active" && account.backfillStatus === "pending")
           .map((account) => account.stripeAccountId)}
       />
-      <div className={styles.stickyIntro}>
-        <header className={styles.header}>
-          <div>
-            <h1>Monitored accounts</h1>
-            <p>Review subscription health, monitoring status, and current issues for each connected Stripe account.</p>
-          </div>
-          <Link href="/api/stripe/connect" className={styles.addAccountLink}>
-            Add account
-          </Link>
-        </header>
-
-        <div className={`${styles.sectionHeader} ${styles.stickySectionHeader}`}>
-          <h2>Monitoring active</h2>
-          <span className={styles.sectionMeta}>{visibleAccounts.length} total</span>
-        </div>
-      </div>
-
-      <div className={styles.content}>
-        <section className={styles.section}>
-          {connectStatus === "cancelled" ? (
-            <div className={styles.connectNotice}>
-              Stripe connection cancelled. No account was connected.
-            </div>
-          ) : null}
-          <p className={styles.helperText}>
-            Accounts that need review appear first. Healthy subscription-health monitoring stays visible without crowding the list.
-          </p>
-          {visibleAccounts.length === 0 ? (
-            <div className={styles.emptyState}>
-              No active or paused Stripe accounts to manage right now.
-            </div>
-          ) : (
-            <div className={styles.list}>
-              {visibleAccounts.map((account) => {
-                const active = account.status === "active";
-                const disconnected = account.status === "disconnected";
-                const topAlert = active
-                  ? topAlertByAccount.get(account.stripeAccountId) ?? null
-                  : null;
-                const summary = summaryByAccount.get(account.stripeAccountId) ?? null;
-                const activeAlertCount =
-                  activeAlertCountByAccount.get(account.stripeAccountId) ?? 0;
-                const highlightVariant = disconnected
-                  ? "disconnected"
-                  : !active
-                    ? "paused"
-                    : topAlert?.severity === "critical"
-                      ? "attention"
-                      : topAlert?.severity === "warning"
-                        ? "review"
-                        : "active";
-                const statusLabel =
-                  account.status === "disconnected"
-                    ? "Disconnected"
-                    : account.status === "paused"
-                      ? "Paused"
-                      : topAlert?.severity === "critical"
-                        ? "Attention needed"
-                        : topAlert?.severity === "warning"
-                          ? "Review needed"
-                      : account.backfillStatus === "pending" || account.backfillStatus === "running"
-                        ? "Importing history"
-                        : "Monitoring active";
-                const cardVariantClass =
-                  highlightVariant === "attention"
-                    ? styles.cardAttention
-                    : highlightVariant === "review"
-                      ? styles.cardReview
-                      : highlightVariant === "paused" || highlightVariant === "disconnected"
-                        ? styles.cardPaused
-                        : "";
-                const statusClass =
-                  highlightVariant === "attention"
-                    ? styles.statusAttention
-                    : highlightVariant === "review"
-                      ? styles.statusReview
-                      : highlightVariant === "paused" || highlightVariant === "disconnected"
-                        ? styles.statusPaused
-                        : styles.statusActive;
-
-                return (
-                  <article
-                    key={account.id}
-                    className={`${styles.card}${cardVariantClass ? ` ${cardVariantClass}` : ""}`}
-                  >
-                    <Link
-                      href={`/dashboard/accounts/${encodeURIComponent(account.stripeAccountId)}`}
-                      className={styles.cardLink}
-                      aria-label={`Open details for ${accountDisplayName(account.name)}`}
-                    >
-                    <div className={styles.cardMain}>
-                      <div className={styles.cardTitleRow}>
-                        <div className={styles.cardTitle}>
-                          {accountDisplayName(account.name)}
-                        </div>
-                        <span className={`${styles.status} ${statusClass}`}>
-                          <span className={styles.statusDot} />
-                          {statusLabel}
-                        </span>
-                      </div>
-                      <div className={styles.cardMeta}>
-                        {formatRelativeTime(lastEventByAccount.get(account.stripeAccountId))}
-                      </div>
-                      {account.backfillStatus === "pending" ||
-                      account.backfillStatus === "running" ? (
-                        <div className={styles.cardHint}>
-                          Importing recent Stripe activity. Parveil is building baseline history for this account.
-                        </div>
-                      ) : null}
-                      {account.backfillStatus === "failed" ? (
-                        <div className={styles.cardHint}>
-                          Recent activity import failed. Monitoring continues from new Stripe activity.
-                        </div>
-                      ) : null}
-                      {topAlert ? (
-                        <div className={styles.cardSignal}>{alertLabel(topAlert.type)}</div>
-                      ) : null}
-                      {summary ? (
-                        <div className={styles.cardStats}>
-                          <span className={styles.cardStat}>
-                            <strong>{summary.activeSubscriptions}</strong>
-                            <small>Active subscriptions</small>
-                          </span>
-                          <span className={styles.cardStat}>
-                            <strong>
-                              {formatMoneyAmount(
-                                summary.estimatedMonthlyRevenue,
-                                summary.currency
-                              )}
-                            </strong>
-                            <small>Estimated MRR</small>
-                          </span>
-                          <span className={styles.cardStat}>
-                            <strong>
-                              {activeAlertCount > 0 ? activeAlertCount : "None"}
-                            </strong>
-                            <small>{activeAlertCount > 0 ? "Active alerts" : "Active alerts"}</small>
-                          </span>
-                        </div>
-                      ) : null}
-                    </div>
-                    </Link>
-
-                    <div className={styles.cardActions}>
-                      <Link
-                        href={`/dashboard/accounts/${encodeURIComponent(account.stripeAccountId)}`}
-                        className={styles.detailsLink}
-                      >
-                        View details
-                      </Link>
-                      {isManagedStatus(account.status) ? (
-                        <AccountStatusActions
-                          stripeAccountId={account.stripeAccountId}
-                          status={account.status}
-                        />
-                      ) : null}
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      </div>
-    </section>
+      {renderAccountsOverview({
+        showPreviewBadge: false,
+        addAccountHref: "/api/stripe/connect",
+        summary: [
+          { label: "Connected accounts", value: visibleAccounts.length },
+          { label: "Needs review", value: needsReviewCount },
+          { label: "Attention needed", value: attentionNeededCount },
+          { label: "Estimated MRR", value: formatMoneyAmount(totalEstimatedMrr, displayCurrency) },
+        ],
+        rows: realRows,
+        emptyState:
+          visibleAccounts.length === 0
+            ? "No active or paused Stripe accounts to manage right now."
+            : null,
+        connectNotice:
+          connectStatus === "cancelled"
+            ? "Stripe connection cancelled. No account was connected."
+            : null,
+      })}
+    </>
   );
 }

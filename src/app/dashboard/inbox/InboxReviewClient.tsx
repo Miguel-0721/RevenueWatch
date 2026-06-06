@@ -61,11 +61,13 @@ function nextCheckCopy(type: InboxIssueItem["type"]) {
 export default function InboxReviewClient({
   issues,
   recentReviewed,
+  reviewedRecentlyCount,
   isPreview,
   initialSelectedId,
 }: {
   issues: InboxIssueItem[];
   recentReviewed: InboxHistoryItem[];
+  reviewedRecentlyCount: number;
   isPreview: boolean;
   initialSelectedId?: string | null;
 }) {
@@ -78,6 +80,7 @@ export default function InboxReviewClient({
 
   const [previewIssues, setPreviewIssues] = useState(issues);
   const [previewReviewed, setPreviewReviewed] = useState(recentReviewed);
+  const [previewReviewedCount, setPreviewReviewedCount] = useState(reviewedRecentlyCount);
   const [selectedIndex, setSelectedIndex] = useState(initialIndex);
   const [showPreviewReviewNote, setShowPreviewReviewNote] = useState(false);
 
@@ -85,7 +88,7 @@ export default function InboxReviewClient({
   const currentReviewed = isPreview ? previewReviewed : recentReviewed;
   const reviewNeededCount = currentIssues.length;
   const attentionNeededCount = currentIssues.filter((issue) => issue.severity === "critical").length;
-  const reviewedRecentlyCount = currentReviewed.length;
+  const currentReviewedRecentlyCount = isPreview ? previewReviewedCount : reviewedRecentlyCount;
 
   const safeSelectedIndex =
     currentIssues.length === 0 ? -1 : Math.min(Math.max(selectedIndex, 0), currentIssues.length - 1);
@@ -111,31 +114,30 @@ export default function InboxReviewClient({
       },
       ...current,
     ]);
+    setPreviewReviewedCount((current) => current + 1);
 
     setShowPreviewReviewNote(true);
   };
 
   return (
     <section className={styles.reviewLayout}>
-      {isPreview ? (
-        <section className={styles.summaryStrip} aria-label="Inbox summary">
-          <article className={styles.summaryCard}>
-            <span>Needs review</span>
-            <strong>{reviewNeededCount}</strong>
-          </article>
-          <article className={styles.summaryCard}>
-            <span>Attention needed</span>
-            <strong>{attentionNeededCount}</strong>
-          </article>
-          <article className={styles.summaryCard}>
-            <div className={styles.summaryCardHeader}>
-              <span>Reviewed recently</span>
-              <small className={styles.summaryMeta}>Last 7 days</small>
-            </div>
-            <strong>{reviewedRecentlyCount}</strong>
-          </article>
-        </section>
-      ) : null}
+      <section className={styles.summaryStrip} aria-label="Inbox summary">
+        <article className={styles.summaryCard}>
+          <span>Needs review</span>
+          <strong>{reviewNeededCount}</strong>
+        </article>
+        <article className={styles.summaryCard}>
+          <span>Attention needed</span>
+          <strong>{attentionNeededCount}</strong>
+        </article>
+        <article className={styles.summaryCard}>
+          <div className={styles.summaryCardHeader}>
+            <span>Reviewed recently</span>
+            <small className={styles.summaryMeta}>Last 7 days</small>
+          </div>
+          <strong>{currentReviewedRecentlyCount}</strong>
+        </article>
+      </section>
 
       {currentIssues.length === 0 ? (
         <div className={styles.emptyStateCard}>

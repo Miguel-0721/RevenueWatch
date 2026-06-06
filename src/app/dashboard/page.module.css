@@ -110,6 +110,7 @@
   border-radius: 18px;
   background: #ffffff;
   box-shadow: 0 8px 22px rgba(15, 23, 42, 0.045);
+  position: relative;
 }
 
 .metricCardLarge {
@@ -145,6 +146,7 @@
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
+  z-index: 2;
 }
 
 .metricLabel {
@@ -357,6 +359,54 @@
   box-shadow: 0 6px 16px rgba(15, 23, 42, 0.035);
   position: relative;
   overflow: visible;
+}
+
+.clickableCard:hover,
+.clickableCard:has(.cardOverlayLink):hover,
+.clickableCard:has(.cardOverlayLink):focus-within,
+.secondaryCard:hover:has(.cardOverlayLink),
+.secondaryCard:focus-within:has(.cardOverlayLink) {
+  border-color: #abc4ec;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 9px 22px rgba(15, 23, 42, 0.055);
+  cursor: pointer;
+}
+
+.cardOverlayLink {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+}
+
+.cardOverlayLink:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 3px;
+}
+
+.clickableCard::after {
+  content: "\203A";
+  position: absolute;
+  right: 16px;
+  bottom: 14px;
+  z-index: 0;
+  color: #94a3b8;
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 600;
+  opacity: 0.82;
+  transition:
+    color 140ms ease,
+    opacity 140ms ease,
+    transform 140ms ease;
+  pointer-events: none;
+}
+
+.clickableCard:hover::after,
+.clickableCard:focus-within::after {
+  color: #2563eb;
+  opacity: 1;
+  transform: translateX(1px);
 }
 
 .secondaryCard span {

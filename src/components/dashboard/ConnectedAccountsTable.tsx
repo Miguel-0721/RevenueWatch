@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useRouter } from "next/navigation";
 import styles from "@/app/dashboard/page.module.css";
@@ -92,7 +92,7 @@ export default function ConnectedAccountsTable({
                   <td>{account.activeAlerts}</td>
                   <td>{account.lastActivity}</td>
                   <td className={styles.accountChevronCell} aria-hidden="true">
-                    <span className={styles.accountChevron}>›</span>
+                    <span className={styles.accountChevron}>{"\u203a"}</span>
                   </td>
                 </tr>
               );

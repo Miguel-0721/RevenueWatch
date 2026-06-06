@@ -39,6 +39,19 @@ type AlertRow = {
   previewDateBucket?: "today" | "last7" | "last30" | "thisMonth" | "thisYear";
 };
 
+type AlertsPageViewModel = {
+  isPreviewMode: boolean;
+  selectedAccount: string;
+  selectedType: string;
+  selectedDate: string;
+  accountOptions: string[];
+  activeRows: AlertRow[];
+  reviewedRows: AlertRow[];
+  totalPastAlerts: number;
+  currentPastPage: number;
+  compactSummaryLine: string;
+};
+
 const PAST_ALERTS_PAGE_SIZE = 10;
 
 function alertLabel(type: string) {
@@ -191,6 +204,202 @@ function typeFilterValues(type: string) {
   if (type === "Cancellation trend") return ["cancellation_spike"];
   if (type === "Revenue trend") return ["meaningful_mrr_drop"];
   return null;
+}
+
+function renderAlertsPage({
+  viewModel,
+  totalPastPages,
+  pastStart,
+  pastEnd,
+  pageNumbers,
+  buildPastAlertsHref,
+}: {
+  viewModel: AlertsPageViewModel;
+  totalPastPages: number;
+  pastStart: number;
+  pastEnd: number;
+  pageNumbers: number[];
+  buildPastAlertsHref: (page: number) => string;
+}) {
+  const {
+    isPreviewMode,
+    selectedAccount,
+    selectedType,
+    selectedDate,
+    accountOptions,
+    activeRows,
+    reviewedRows,
+    totalPastAlerts,
+    currentPastPage,
+    compactSummaryLine,
+  } = viewModel;
+
+  return (
+    <div className={styles.shell}>
+      <header className={styles.header}>
+        <div className={styles.headerCopy}>
+          <div className={styles.headerTitleRow}>
+            <h1>Alerts</h1>
+            {isPreviewMode ? <span className={styles.previewBadge}>PREVIEW DATA</span> : null}
+          </div>
+          <p>Browse subscription-health alert history across connected Stripe accounts.</p>
+          <p className={styles.compactSummaryLine}>{compactSummaryLine}</p>
+        </div>
+      </header>
+
+      <section className={styles.currentCard}>
+        <div className={styles.logHeader}>
+          <div>
+            <h2>Current alerts</h2>
+            <p>These alerts are still open and can be reviewed in Inbox.</p>
+          </div>
+        </div>
+
+        {activeRows.length === 0 ? (
+          <div className={styles.emptyState}>
+            <strong>No current alerts</strong>
+            <p>Parveil is monitoring subscription health across your connected Stripe accounts.</p>
+          </div>
+        ) : (
+          <div className={styles.feedSections}>
+            <div className={styles.feedHeaderRowCurrent}>
+              <span>Alert</span>
+              <span>Impact</span>
+              <span>Status</span>
+              <span>Detected</span>
+              <span>Action</span>
+            </div>
+            <div className={styles.feedList}>{activeRows.map((row) => renderCurrentRow(row))}</div>
+          </div>
+        )}
+      </section>
+
+      <section id="past-alerts" className={styles.logCard}>
+        <div className={styles.logHeader}>
+          <div>
+            <h2>Past alerts</h2>
+            <p>Reviewed alerts are kept here for history.</p>
+          </div>
+        </div>
+
+        <section className={styles.filterBarCard} aria-label="Past alert filters">
+          <form className={styles.filterBar} method="get">
+            {isPreviewMode ? <input type="hidden" name="preview" value="subscription-health" /> : null}
+            <label className={styles.filterSelectWrap}>
+              <span className={styles.filterLabel}>Account</span>
+              <select name="account" defaultValue={selectedAccount} className={styles.filterSelect}>
+                <option value="all">All accounts</option>
+                {accountOptions.map((accountName) => (
+                  <option key={accountName} value={accountName}>
+                    {accountName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className={styles.filterSelectWrap}>
+              <span className={styles.filterLabel}>Type</span>
+              <select name="type" defaultValue={selectedType} className={styles.filterSelect}>
+                <option value="all">All alert types</option>
+                <option value="Cancellation">Cancellation</option>
+                <option value="Failed renewal">Failed renewal</option>
+                <option value="Subscription trend">Subscription trend</option>
+                <option value="Past-due">Past-due</option>
+                <option value="Unpaid">Unpaid</option>
+                <option value="Cancellation trend">Cancellation trend</option>
+                <option value="Revenue trend">Revenue trend</option>
+              </select>
+            </label>
+            <label className={styles.filterSelectWrap}>
+              <span className={styles.filterLabel}>Date</span>
+              <select name="date" defaultValue={selectedDate} className={styles.filterSelect}>
+                <option value="all-time">All time</option>
+                <option value="today">Today</option>
+                <option value="last-7-days">Last 7 days</option>
+                <option value="last-30-days">Last 30 days</option>
+                <option value="this-month">This month</option>
+                <option value="this-year">This year</option>
+              </select>
+            </label>
+            <button type="submit" className={`${styles.filterControl} ${styles.filterApply}`}>
+              Apply
+            </button>
+          </form>
+        </section>
+
+        {reviewedRows.length === 0 ? (
+          <div className={styles.emptyState}>
+            <strong>{isPreviewMode ? "No alerts found" : "No past alerts yet"}</strong>
+            <p>
+              {isPreviewMode
+                ? "Try changing the account, type, or date filter."
+                : "Parveil is monitoring subscription health across your connected Stripe accounts."}
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className={styles.feedSections}>
+              <div className={styles.feedHeaderRow}>
+                <span>Alert</span>
+                <span>Impact / Change</span>
+                <span>Status</span>
+                <span>Detected / Reviewed</span>
+                <span>Action</span>
+              </div>
+              <div className={styles.feedList}>{reviewedRows.map((row) => renderHistoryRow(row))}</div>
+            </div>
+            <div className={styles.feedFooter}>
+              <span>
+                Showing {pastStart}–{pastEnd} of {totalPastAlerts} past alerts
+              </span>
+              {totalPastPages > 1 ? (
+                <nav className={styles.pagination} aria-label="Past alerts pagination">
+                  {currentPastPage > 1 ? (
+                    <Link href={buildPastAlertsHref(currentPastPage - 1)} className={styles.paginationButton}>
+                      Previous
+                    </Link>
+                  ) : (
+                    <span className={`${styles.paginationButton} ${styles.paginationButtonDisabled}`}>
+                      Previous
+                    </span>
+                  )}
+                  <div className={styles.paginationPages}>
+                    {pageNumbers.map((pageNumber) =>
+                      pageNumber === currentPastPage ? (
+                        <span
+                          key={pageNumber}
+                          className={`${styles.paginationButton} ${styles.paginationButtonActive}`}
+                          aria-current="page"
+                        >
+                          {pageNumber}
+                        </span>
+                      ) : (
+                        <Link
+                          key={pageNumber}
+                          href={buildPastAlertsHref(pageNumber)}
+                          className={styles.paginationButton}
+                        >
+                          {pageNumber}
+                        </Link>
+                      ),
+                    )}
+                  </div>
+                  {currentPastPage < totalPastPages ? (
+                    <Link href={buildPastAlertsHref(currentPastPage + 1)} className={styles.paginationButton}>
+                      Next
+                    </Link>
+                  ) : (
+                    <span className={`${styles.paginationButton} ${styles.paginationButtonDisabled}`}>
+                      Next
+                    </span>
+                  )}
+                </nav>
+              ) : null}
+            </div>
+          </>
+        )}
+      </section>
+    </div>
+  );
 }
 
 function dateFilterStart(date: string) {

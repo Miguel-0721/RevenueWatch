@@ -12,11 +12,13 @@ import {
   type SubscriptionHealthSummary,
 } from "@/lib/subscription-health-store";
 import { previewAccountDetails } from "@/app/dashboard/previewData";
+import AccountDetailView, {
+  type AccountDetailStatus,
+  type AccountDetailViewModel,
+} from "./AccountDetailView";
 import PreviewAccountDetailClient from "./PreviewAccountDetailClient";
 import dashboardStyles from "@/app/dashboard/page.module.css";
-import { AccountStatusActions } from "../AccountStatusActions";
 import { markAlertReviewedAction } from "./actions";
-import RenameAccountControl from "./RenameAccountControl";
 import styles from "./page.module.css";
 
 export const dynamic = "force-dynamic";
@@ -2208,6 +2210,12 @@ function previewSecondaryTone(label: string) {
   return dashboardStyles.secondaryNeutral;
 }
 
+function formatIssueCountLabel(count: number) {
+  if (count === 0) return "No active issues";
+  if (count === 1) return "1 issue needs review";
+  return `${count} issues need review`;
+}
+
 function PreviewMetricSparkline({
   points,
 }: {
@@ -2345,6 +2353,241 @@ function PreviewSupportingMetricCard({
       </span>
       <strong>{value}</strong>
       <small>{helper}</small>
+    </article>
+  );
+}
+
+function AccountDetailLargeMetricCard({
+  label,
+  value,
+  helper,
+  badge,
+  tooltip,
+}: {
+  label: string;
+  value: string | number;
+  helper: string;
+  badge?: string;
+  tooltip?: string;
+}) {
+  return (
+    <article className={`${dashboardStyles.metricCard} ${dashboardStyles.metricCardLarge}`}>
+      <div className={dashboardStyles.metricCardHeader}>
+        <span className={dashboardStyles.metricLabelRow}>
+          <span className={dashboardStyles.metricLabel}>{label}</span>
+          {tooltip ? <PreviewInfoTooltip text={tooltip} /> : null}
+        </span>
+        {badge ? <span className={dashboardStyles.metricTrendPill}>{badge}</span> : null}
+      </div>
+      <strong className={dashboardStyles.metricValue}>{value}</strong>
+      <small className={dashboardStyles.metricHelper}>{helper}</small>
+    </article>
+  );
+}
+
+function AccountDetailCompactMetricCard({
+  label,
+  value,
+  helper,
+  pill,
+  tone,
+  periodLabel,
+  tooltip,
+}: {
+  label: string;
+  value: string | number;
+  helper: string;
+  pill?: string;
+  tone?: "review" | "risk";
+  periodLabel?: string;
+  tooltip?: string;
+}) {
+  return (
+    <article className={`${dashboardStyles.metricCard} ${dashboardStyles.metricCardCompact}`}>
+      <div className={dashboardStyles.metricCardHeader}>
+        <span className={dashboardStyles.metricLabelRow}>
+          <span className={dashboardStyles.metricLabel}>{label}</span>
+          {periodLabel ? <span className={dashboardStyles.metricPeriodPill}>{periodLabel}</span> : null}
+          {tooltip ? <PreviewInfoTooltip text={tooltip} /> : null}
+        </span>
+        {pill ? (
+          <span
+            className={
+              tone === "risk"
+                ? dashboardStyles.metricBadgeRisk
+                : dashboardStyles.metricBadgeReview
+            }
+          >
+            {pill}
+          </span>
+        ) : null}
+      </div>
+      <strong className={dashboardStyles.metricValueSmall}>{value}</strong>
+      <small className={dashboardStyles.metricHelper}>{helper}</small>
+    </article>
+  );
+}
+
+function buildAlertImpactLabel(alert: AlertLike) {
+  const parsed = safeParseContext(alert.context);
+  if (!parsed) return "—";
+
+  const currency =
+    typeof parsed.currency === "string" ? normalizeCurrencyCode(parsed.currency) : "EUR";
+
+  if (alert.type === "failed_renewal") {
+    const amountDue = typeof parsed.amountDue === "number" ? parsed.amountDue : null;
+    if (amountDue !== null) return `${formatMoneyAmount(amountDue, currency)} at risk`;
+  }
+
+  if (alert.type === "subscription_canceled") {
+    const mrr =
+      typeof parsed.estimatedMonthlyRevenue === "number"
+        ? parsed.estimatedMonthlyRevenue
+        : typeof parsed.amountDue === "number"
+          ? parsed.amountDue
+          : null;
+    if (mrr !== null) return `${formatMoneyAmount(mrr, currency)} MRR impact`;
+  }
+
+  if (alert.type === "subscription_drop") {
+    const previous =
+      typeof parsed.previousActiveSubscriptions === "number"
+        ? parsed.previousActiveSubscriptions
+        : typeof parsed.baselineActiveSubscriptions === "number"
+          ? parsed.baselineActiveSubscriptions
+          : null;
+    const current =
+      typeof parsed.currentActiveSubscriptions === "number"
+        ? parsed.currentActiveSubscriptions
+        : typeof parsed.activeSubscriptions === "number"
+          ? parsed.activeSubscriptions
+          : null;
+    if (previous !== null && current !== null) return `${formatCount(previous)} → ${formatCount(current)} active`;
+  }
+
+  if (alert.type === "past_due_increase") {
+    const previous = typeof parsed.previousPastDue === "number" ? parsed.previousPastDue : null;
+    const current = typeof parsed.currentPastDue === "number" ? parsed.currentPastDue : null;
+    if (previous !== null && current !== null) return `${formatCount(previous)} → ${formatCount(current)} subscriptions`;
+  }
+
+  if (alert.type === "unpaid_subscription" || alert.type === "unpaid_increase") {
+    const current =
+      typeof parsed.currentUnpaid === "number"
+        ? parsed.currentUnpaid
+        : typeof parsed.unpaidCount === "number"
+          ? parsed.unpaidCount
+          : null;
+    if (current !== null) return `${formatCount(current)} subscriptions`;
+  }
+
+  if (alert.type === "cancellation_spike") {
+    const count =
+      typeof parsed.cancellationsCounted === "number"
+        ? parsed.cancellationsCounted
+        : typeof parsed.cancellations === "number"
+          ? parsed.cancellations
+          : null;
+    if (count !== null) return `${formatCount(count)} cancellations`;
+  }
+
+  if (alert.type === "failed_renewal_spike") {
+    const count =
+      typeof parsed.failuresCounted === "number"
+        ? parsed.failuresCounted
+        : typeof parsed.failedRenewals === "number"
+          ? parsed.failedRenewals
+          : null;
+    if (count !== null) return `${formatCount(count)} failed renewals`;
+  }
+
+  if (alert.type === "meaningful_mrr_drop" || alert.type === "revenue_drop") {
+    const dropAmount =
+      typeof parsed.mrrDropAmount === "number"
+        ? parsed.mrrDropAmount
+        : typeof parsed.revenueDropAmount === "number"
+          ? parsed.revenueDropAmount
+          : typeof parsed.baselineAmount === "number" && typeof parsed.currentAmount === "number"
+            ? Math.max(0, parsed.baselineAmount - parsed.currentAmount)
+            : null;
+    if (dropAmount !== null) return `${formatMoneyAmount(dropAmount, currency)} MRR drop`;
+  }
+
+  return "—";
+}
+
+function AccountCurrentIssueCard({
+  alert,
+  accountStatus,
+}: {
+  alert: AlertLike;
+  accountStatus: PreviewAccountStatus;
+}) {
+  const detectedAt = fmtDetectedDate(alert.createdAt);
+  const reviewHref = `/dashboard/inbox?alert=${encodeURIComponent(alert.id ?? "")}${
+    alert.stripeAccountId ? `&account=${encodeURIComponent(alert.stripeAccountId)}` : ""
+  }`;
+
+  return (
+    <article className={`${styles.previewIssueCard} ${previewIssueTone(accountStatus)}`}>
+      <div className={styles.previewIssueHeader}>
+        <div>
+          <strong>{alertLabel(alert.type)}</strong>
+          <span>
+            {detectedAt
+              ? `Detected ${detectedAt}`
+              : alert.detectedLabel
+                ? `Detected ${alert.detectedLabel}`
+                : `Triggered ${fmtDate(alert.createdAt)}`}
+          </span>
+        </div>
+      </div>
+      <p>{buildReadableAlertMessage(alert)}</p>
+      <div className={styles.previewIssuePills}>
+        <span className={styles.previewIssueImpact}>{buildAlertImpactLabel(alert)}</span>
+        <span className={`${styles.previewStatusPill} ${previewStatusTone(accountStatus)}`}>
+          {accountStatus}
+        </span>
+      </div>
+      <div className={styles.inlineMonitoringNote}>
+        Parveil only monitors this issue. No Stripe changes are made.
+      </div>
+      <div className={styles.previewIssueActions}>
+        <Link href={reviewHref} className={styles.previewActionSecondary}>
+          Review in Inbox
+        </Link>
+        {alert.id && alert.stripeAccountId ? (
+          <form action={markAlertReviewedAction} className={styles.alertRowActions}>
+            <input type="hidden" name="alertId" value={alert.id} />
+            <input type="hidden" name="stripeAccountId" value={alert.stripeAccountId} />
+            <button type="submit" className={styles.previewActionPrimary}>
+              Mark as reviewed
+            </button>
+          </form>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+function AccountHistoryItem({ alert }: { alert: AlertLike }) {
+  const timestamp =
+    alert.displayTimestamp ?? fmtDetectedDate(alert.createdAt) ?? fmtDate(alert.createdAt);
+
+  return (
+    <article className={styles.previewHistoryItem}>
+      <div className={styles.previewHistoryMain}>
+        <span className={styles.previewHistoryDot} aria-hidden="true" />
+        <div>
+          <strong>{alertLabel(alert.type)}</strong>
+          <p>{buildHistoryAlertMessage(alert)}</p>
+        </div>
+      </div>
+      <div className={styles.previewHistoryMeta}>
+        <span className={styles.previewHistoryPill}>Reviewed</span>
+        <small>{timestamp}</small>
+      </div>
     </article>
   );
 }
@@ -2783,7 +3026,7 @@ export default async function AccountDetailPage({
 
   const now = new Date();
   const demoSeverity = demoAccount ? getDemoSeverity(demoAccount) : null;
-  const activeAlerts =
+  const activeAlerts: AlertLike[] =
     demoAccount && demoAccount.status === "active_issue"
       ? [
           {
@@ -2830,7 +3073,7 @@ export default async function AccountDetailPage({
         ]
       : alerts.filter((alert) => alert.status === "active");
 
-  const historicalAlerts =
+  const historicalAlerts: AlertLike[] =
     demoAccount
       ? getDemoAlertHistory()
           .filter((entry) => entry.accountName === demoAccount.name)
@@ -2941,158 +3184,102 @@ export default async function AccountDetailPage({
         : null;
   const isImportingHistory =
     account?.backfillStatus === "pending" || account?.backfillStatus === "running";
-  const headerStatus = detailSeverity
-    ? { label: detailSeverity.label, className: detailSeverity.statusClass }
+  const headerStatusLabel: AccountDetailStatus = detailSeverity
+    ? (detailSeverity.label as AccountDetailStatus)
     : account?.status === "paused"
-      ? { label: "Paused", className: styles.statusWarning }
+      ? "Review needed"
       : account?.status === "disconnected"
-        ? { label: "Disconnected", className: styles.statusCritical }
+        ? "Attention needed"
         : isImportingHistory
-          ? { label: "Importing history", className: styles.statusHealthy }
-          : { label: "Monitoring active", className: styles.statusHealthy };
-
-  return (
-    <main className={styles.page}>
-      <div className={styles.shell}>
-        <header className={styles.header}>
-          <div className={styles.headerCopy}>
-            <div className={styles.titleRow}>
-              <div className={styles.titlePrimary}>
-                <h1>{accountName}</h1>
-                {account ? (
-                  <RenameAccountControl
-                    accountId={account.stripeAccountId}
-                    currentName={account.name?.trim() || accountName}
-                  />
-                ) : null}
-              </div>
-              <span className={headerStatus.className}>{headerStatus.label}</span>
-            </div>
-            <p className={styles.headerSubtitle}>
-              Review subscription health, account alerts, and supporting revenue and payment
-              signals for this Stripe account.
-            </p>
-          </div>
-
-            <div className={styles.actions}>
-            {account &&
-            (account.status === "active" ||
-              account.status === "paused" ||
-              account.status === "disconnected") ? (
-              <AccountStatusActions
-                stripeAccountId={account.stripeAccountId}
-                status={account.status as "active" | "paused" | "disconnected"}
-                align="left"
-                label="Manage"
-                variant="header"
-              />
-            ) : null}
-            <Link href="/dashboard/accounts" className={styles.secondaryAction}>
-              Back to accounts
-            </Link>
-          </div>
-        </header>
-
-        <SubscriptionHealthSection
-          summary={subscriptionHealthSummary}
-          periodMetrics={subscriptionHealthPeriodMetrics}
-        />
-
-        <section className={styles.lowerGrid}>
-          <div>
-            <div className={styles.sectionHeading}>
-              <h2>Current Issue</h2>
-            </div>
-
-            <div className={styles.alertStack} id="current-alert">
-              {activeAlerts.length > 0 ? (
-                activeAlerts.map((alert) => <ActiveAlertRow key={alert.id ?? alert.type} alert={alert} />)
-              ) : (
-                <div className={styles.emptyState}>
-                  No active alerts. Parveil is monitoring subscription health for this account.
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <div className={styles.sectionHeading}>
-              <h2>Alert History</h2>
-            </div>
-
-            <div className={styles.resolvedStack}>
-              {historicalAlerts.length > 0 ? (
-                historicalAlerts.map((alert) => <HistoryRow key={alert.id} alert={alert} />)
-              ) : (
-                <div className={styles.emptyState}>No alert history yet.</div>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <section className={styles.monitorSection}>
-          <div className={styles.sectionHeading}>
-            <div>
-              <h2>Supporting monitoring signals</h2>
-              <p className={styles.monitorSectionIntro}>
-                Review revenue health and payment failure monitoring alongside
-                subscription health.
-              </p>
-            </div>
-          </div>
-
-          <AccountMonitor
-            model={chartModel}
-            topAlert={topAlert}
-            paymentContext={paymentContext}
-            isImportingHistory={isImportingHistory}
-            healthyRevenueState={
-              healthyRevenueState ?? {
-                model: null,
-                currentAmount: 0,
-                baselineAmount: null,
-                thresholdValue: null,
-                currency: "EUR",
-                baselineLabel: "similar recent time periods",
-                windowLabel: "current monitoring window",
-                hasEnoughHistory: false,
-                placeholderLabels: buildRecentHourLabels(now, 5),
-              }
-            }
-            healthyPaymentState={
-              healthyPaymentState ?? {
-                model: buildFailureChartModel(
-                  {
-                    type: "payment_failed",
-                    createdAt: now,
-                    context: JSON.stringify({
-                      failureSeries: [],
-                      failureThreshold: getAlertSensitivityConfig().failureFallbackMinCurrent,
-                      normalFailures: null,
-                      baseline: null,
-                      window: "current monitoring window",
-                    }),
-                  },
-                  {
-                    failures: 0,
-                    normalFailures: null,
-                    threshold: getAlertSensitivityConfig().failureFallbackMinCurrent,
-                    criticalThreshold: null,
-                    windowLabel: "current monitoring window",
-                  }
-                ),
-                failures: 0,
-                normalFailures: null,
-                threshold: getAlertSensitivityConfig().failureFallbackMinCurrent,
-                criticalThreshold: null,
-                windowLabel: "current monitoring window",
-                hasEnoughHistory: false,
-              }
-            }
-          />
-        </section>
-      </div>
-    </main>
+          ? "Monitoring active"
+          : "Monitoring active";
+  const metricCurrency = subscriptionHealthSummary?.currency ?? "EUR";
+  const activeIssueCount = activeAlerts.length;
+  const primaryActiveAlert = activeAlerts[0] ?? null;
+  const currentIssueTitle = activeIssueCount > 1 ? "Current issues" : "Current issue";
+  const currentIssueSummary = formatIssueCountLabel(activeIssueCount);
+  const activeSubscriptionsValue = formatCount(subscriptionHealthSummary?.activeSubscriptions ?? 0);
+  const estimatedMrrValue = formatMoneyAmount(
+    subscriptionHealthSummary?.estimatedMonthlyRevenue ?? 0,
+    metricCurrency,
   );
+  const trialsValue = formatCount(subscriptionHealthSummary?.trialingSubscriptions ?? 0);
+  const pastDueValue = formatCount(subscriptionHealthSummary?.pastDueSubscriptions ?? 0);
+  const unpaidValue = formatCount(subscriptionHealthSummary?.unpaidSubscriptions ?? 0);
+  const canceledValue = formatCount(subscriptionHealthPeriodMetrics?.cancellationsLast7Days ?? 0);
+  const failedRenewalsValue = formatCount(
+    subscriptionHealthPeriodMetrics?.failedRenewalsLast7Days ?? 0,
+  );
+  const netSubscriptionsRaw = subscriptionHealthPeriodMetrics?.netSubscriptionsThisMonth ?? 0;
+  const netSubscriptionsValue =
+    netSubscriptionsRaw > 0 ? `+${formatCount(netSubscriptionsRaw)}` : formatCount(netSubscriptionsRaw);
+  const currentIssue =
+    primaryActiveAlert && primaryActiveAlert.id && primaryActiveAlert.stripeAccountId
+      ? {
+          title: alertLabel(primaryActiveAlert.type),
+          detectedLabel:
+            fmtDetectedDate(primaryActiveAlert.createdAt) ??
+            primaryActiveAlert.detectedLabel ??
+            `Triggered ${fmtDate(primaryActiveAlert.createdAt)}`,
+          message: buildReadableAlertMessage(primaryActiveAlert),
+          impact: buildAlertImpactLabel(primaryActiveAlert),
+          status:
+            primaryActiveAlert.severity === "critical"
+              ? ("Attention needed" as const)
+              : ("Review needed" as const),
+          reviewInInboxHref: `/dashboard/inbox?alert=${encodeURIComponent(
+            primaryActiveAlert.id,
+          )}&account=${encodeURIComponent(primaryActiveAlert.stripeAccountId)}`,
+          reviewAction: {
+            kind: "real" as const,
+            alertId: primaryActiveAlert.id,
+            stripeAccountId: primaryActiveAlert.stripeAccountId,
+          },
+        }
+      : primaryActiveAlert
+        ? {
+            title: alertLabel(primaryActiveAlert.type),
+            detectedLabel:
+              fmtDetectedDate(primaryActiveAlert.createdAt) ??
+              primaryActiveAlert.detectedLabel ??
+              `Triggered ${fmtDate(primaryActiveAlert.createdAt)}`,
+            message: buildReadableAlertMessage(primaryActiveAlert),
+            impact: buildAlertImpactLabel(primaryActiveAlert),
+            status:
+              primaryActiveAlert.severity === "critical"
+                ? ("Attention needed" as const)
+                : ("Review needed" as const),
+          }
+        : null;
+
+  const history = historicalAlerts.map((alert) => ({
+    id: alert.id ?? alert.type,
+    typeLabel: alertLabel(alert.type),
+    message: buildHistoryAlertMessage(alert),
+    timestamp:
+      alert.displayTimestamp ?? fmtDetectedDate(alert.createdAt) ?? fmtDate(alert.createdAt),
+  }));
+
+  const viewModel: AccountDetailViewModel = {
+    name: accountName,
+    status: headerStatusLabel,
+    backHref: "/dashboard/accounts",
+    backLabel: "Back to accounts",
+    activeSubscriptions: activeSubscriptionsValue,
+    estimatedMrr: estimatedMrrValue,
+    needsReview: formatCount(activeIssueCount),
+    failedRenewals: failedRenewalsValue,
+    trials: trialsValue,
+    pastDue: pastDueValue,
+    unpaid: unpaidValue,
+    canceled: canceledValue,
+    netSubscriptions: netSubscriptionsValue,
+    currentIssueCountText: currentIssueSummary,
+    currentIssueTitle,
+    currentIssue,
+    history,
+  };
+
+  return <AccountDetailView viewModel={viewModel} />;
 }
 

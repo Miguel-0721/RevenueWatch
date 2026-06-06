@@ -1,10 +1,10 @@
-import { auth } from "@/auth";
+﻿import { auth } from "@/auth";
 import ConnectedAccountsTable from "@/components/dashboard/ConnectedAccountsTable";
 import { formatMoneyAmount } from "@/lib/currency";
 import { prisma } from "@/lib/prisma";
 import {
-  getSubscriptionHealthKpiPeriodMetrics,
   getLatestSubscriptionHealthSummary,
+  getSubscriptionHealthKpiPeriodMetrics,
 } from "@/lib/subscription-health-store";
 import { syncUserPlanFromStripe } from "@/lib/subscription-sync";
 import Link from "next/link";
@@ -67,6 +67,31 @@ type OverviewHistoryRow = {
   accountName: string;
   time: string;
 };
+
+type DashboardViewModel = {
+  previewMode: boolean;
+  scopeCountLabel: string;
+  totalActiveIssues: number;
+  primaryMetrics: {
+    activeSubscriptions: number | string;
+    estimatedMrr: string;
+    needsReview: number | string;
+    failedRenewals: number | string;
+  };
+  secondaryMetrics: {
+    trialing: number | string;
+    pastDue: number | string;
+    unpaid: number | string;
+    canceled: number | string;
+    netMovement: number | string;
+  };
+  issues: OverviewIssueSummary[];
+  accounts: OverviewAccountRow[];
+  history: OverviewHistoryRow[];
+  inboxHref: string;
+};
+
+type SummaryRecord = Awaited<ReturnType<typeof getLatestSubscriptionHealthSummary>>;
 
 function accountDisplayName(name: string | null) {
   return name?.trim() || "Stripe account";
@@ -168,19 +193,22 @@ function buildAlertImpact(
   }
 
   if (alert.type === "subscription_canceled") {
-    const amount = typeof context?.estimatedMonthlyRevenue === "number"
-      ? context.estimatedMonthlyRevenue
-      : null;
+    const amount =
+      typeof context?.estimatedMonthlyRevenue === "number"
+        ? context.estimatedMonthlyRevenue
+        : null;
     if (amount !== null) return `${formatMoneyAmount(amount, currency)} impact`;
   }
 
   if (alert.type === "subscription_drop") {
-    const previous = typeof context?.previousActiveSubscriptions === "number"
-      ? context.previousActiveSubscriptions
-      : null;
-    const current = typeof context?.currentActiveSubscriptions === "number"
-      ? context.currentActiveSubscriptions
-      : null;
+    const previous =
+      typeof context?.previousActiveSubscriptions === "number"
+        ? context.previousActiveSubscriptions
+        : null;
+    const current =
+      typeof context?.currentActiveSubscriptions === "number"
+        ? context.currentActiveSubscriptions
+        : null;
     if (previous !== null && current !== null) return `${previous} -> ${current} active`;
   }
 
@@ -203,31 +231,36 @@ function buildAlertImpact(
   }
 
   if (alert.type === "past_due_increase") {
-    const previous = typeof context?.previousPastDueSubscriptions === "number"
-      ? context.previousPastDueSubscriptions
-      : 0;
-    const current = typeof context?.currentPastDueSubscriptions === "number"
-      ? context.currentPastDueSubscriptions
-      : null;
+    const previous =
+      typeof context?.previousPastDueSubscriptions === "number"
+        ? context.previousPastDueSubscriptions
+        : 0;
+    const current =
+      typeof context?.currentPastDueSubscriptions === "number"
+        ? context.currentPastDueSubscriptions
+        : null;
     if (current !== null) return `${previous} -> ${current} past due`;
   }
 
   if (alert.type === "unpaid_subscription") {
-    const unpaid = typeof context?.unpaidSubscriptions === "number" ? context.unpaidSubscriptions : null;
+    const unpaid =
+      typeof context?.unpaidSubscriptions === "number" ? context.unpaidSubscriptions : null;
     if (unpaid !== null) return `${unpaid} unpaid`;
   }
 
   if (alert.type === "unpaid_increase") {
-    const unpaid = typeof context?.currentUnpaidSubscriptions === "number"
-      ? context.currentUnpaidSubscriptions
-      : null;
+    const unpaid =
+      typeof context?.currentUnpaidSubscriptions === "number"
+        ? context.currentUnpaidSubscriptions
+        : null;
     if (unpaid !== null) return `${unpaid} unpaid`;
   }
 
   if (alert.type === "failed_renewal_spike") {
-    const current = typeof context?.currentDayFailedRenewals === "number"
-      ? context.currentDayFailedRenewals
-      : null;
+    const current =
+      typeof context?.currentDayFailedRenewals === "number"
+        ? context.currentDayFailedRenewals
+        : null;
     const baselineFailedRenewals =
       typeof context?.baselineDailyFailedRenewals === "number"
         ? context.baselineDailyFailedRenewals
@@ -239,23 +272,205 @@ function buildAlertImpact(
   }
 
   if (alert.type === "negative_net_subscription_movement") {
-    const added = typeof context?.currentDayNewSubscriptions === "number"
-      ? context.currentDayNewSubscriptions
-      : null;
-    const lost = typeof context?.currentDayCancellations === "number"
-      ? context.currentDayCancellations
-      : null;
+    const added =
+      typeof context?.currentDayNewSubscriptions === "number"
+        ? context.currentDayNewSubscriptions
+        : null;
+    const lost =
+      typeof context?.currentDayCancellations === "number"
+        ? context.currentDayCancellations
+        : null;
     if (added !== null && lost !== null) return `${added} added · ${lost} lost`;
   }
 
   if (alert.type === "meaningful_mrr_drop") {
-    const current = typeof context?.currentEstimatedMonthlyRevenue === "number"
-      ? context.currentEstimatedMonthlyRevenue
-      : null;
+    const current =
+      typeof context?.currentEstimatedMonthlyRevenue === "number"
+        ? context.currentEstimatedMonthlyRevenue
+        : null;
     if (current !== null) return `${formatMoneyAmount(current, currency)} current`;
   }
 
   return "Needs review";
+}
+
+function buildPreviewDashboardViewModel(): DashboardViewModel {
+  const previewIssues: OverviewIssueSummary[] = [
+    {
+      id: "preview-subscription-canceled",
+      label: "Subscription canceled",
+      accountName: "Northstar Commerce",
+      impact: "\u20ac39 impact",
+      statusLabel: "Review needed",
+      detectedAt: "12m ago",
+    },
+    {
+      id: "preview-failed-renewal",
+      label: "Failed renewal",
+      accountName: "BluePeak Studio",
+      impact: "\u20ac39 at risk",
+      statusLabel: "Review needed",
+      detectedAt: "45m ago",
+    },
+    {
+      id: "preview-subscription-drop",
+      label: "Subscription drop detected",
+      accountName: "Cedar Labs",
+      impact: "10 -> 7 active",
+      statusLabel: "Attention needed",
+      detectedAt: "2h ago",
+    },
+  ];
+
+  const previewHrefByAccountId = new Map(
+    Object.values(previewAccountDetails).map((account) => [
+      account.stripeAccountId,
+      `/dashboard/accounts/${account.slug}?preview=subscription-health`,
+    ]),
+  );
+
+  const previewAccounts: OverviewAccountRow[] = subscriptionHealthPreview.accounts.map((account) => ({
+    stripeAccountId: account.stripeAccountId,
+    name: account.name,
+    statusLabel: account.status,
+    activeSubscriptions: account.activeSubscriptions,
+    estimatedMrr: account.estimatedMrr,
+    activeAlerts: account.activeAlerts,
+    lastActivity: account.lastActivity,
+    href: previewHrefByAccountId.get(account.stripeAccountId),
+  }));
+
+  const previewHistory: OverviewHistoryRow[] = subscriptionHealthPreview.history.map((alert) => ({
+    id: alert.id,
+    label: alertLabel(alert.type),
+    accountName: alert.accountName,
+    time: alert.time,
+  }));
+
+  return {
+    previewMode: true,
+    scopeCountLabel: "3 connected Stripe accounts",
+    totalActiveIssues: subscriptionHealthPreview.overview.needsReview,
+    primaryMetrics: {
+      activeSubscriptions: subscriptionHealthPreview.overview.activeSubscriptions,
+      estimatedMrr: subscriptionHealthPreview.overview.estimatedMrr,
+      needsReview: subscriptionHealthPreview.overview.needsReview,
+      failedRenewals: subscriptionHealthPreview.overview.failedRenewals,
+    },
+    secondaryMetrics: {
+      trialing: subscriptionHealthPreview.overview.trialing,
+      pastDue: subscriptionHealthPreview.overview.pastDue,
+      unpaid: subscriptionHealthPreview.overview.unpaid,
+      canceled: "5",
+      netMovement: "+18",
+    },
+    issues: previewIssues,
+    accounts: previewAccounts,
+    history: previewHistory,
+    inboxHref: "/dashboard/inbox?preview=subscription-health",
+  };
+}
+
+function buildRealDashboardViewModel({
+  orderedAccounts,
+  accounts,
+  sortedAlerts,
+  prioritizedAlerts,
+  recentHistory,
+  summaryByAccount,
+  lastEventByAccount,
+  activeAlertCountByAccount,
+  topAlertSeverityByAccount,
+  totals,
+  displayCurrency,
+}: {
+  orderedAccounts: AccountRecord[];
+  accounts: AccountRecord[];
+  sortedAlerts: ActiveAlertRecord[];
+  prioritizedAlerts: ActiveAlertRecord[];
+  recentHistory: HistoryAlertRecord[];
+  summaryByAccount: Map<string, SummaryRecord>;
+  lastEventByAccount: Map<string, Date | null>;
+  activeAlertCountByAccount: Map<string, number>;
+  topAlertSeverityByAccount: Map<string, string>;
+  totals: {
+    activeSubscriptions: number;
+    trialingSubscriptions: number;
+    pastDueSubscriptions: number;
+    unpaidSubscriptions: number;
+    cancellationsLast7Days: number;
+    failedRenewalsLast7Days: number;
+    estimatedMonthlyRevenue: number;
+    netSubscriptionsThisMonth: number;
+  };
+  displayCurrency: string;
+}): DashboardViewModel {
+  const issueSummaries: OverviewIssueSummary[] = prioritizedAlerts.slice(0, 3).map((alert) => {
+    const accountName = accountDisplayName(
+      accounts.find((account) => account.stripeAccountId === alert.stripeAccountId)?.name ?? null,
+    );
+    const accountSummary = summaryByAccount.get(alert.stripeAccountId ?? "");
+    const currency = accountSummary?.currency ?? displayCurrency;
+
+    return {
+      id: alert.id,
+      label: alertLabel(alert.type),
+      accountName,
+      impact: buildAlertImpact(alert, currency),
+      statusLabel: alert.severity === "critical" ? "Attention needed" : "Review needed",
+      detectedAt: formatLastActivity(alert.createdAt),
+    };
+  });
+
+  const overviewAccounts: OverviewAccountRow[] = orderedAccounts.map((account) => {
+    const summary = summaryByAccount.get(account.stripeAccountId);
+    const severity = topAlertSeverityByAccount.get(account.stripeAccountId) ?? null;
+
+    return {
+      stripeAccountId: account.stripeAccountId,
+      name: accountDisplayName(account.name),
+      statusLabel: getAccountStatusLabel(account.status, severity),
+      activeSubscriptions: summary?.activeSubscriptions ?? 0,
+      estimatedMrr: summary
+        ? formatMoneyAmount(summary.estimatedMonthlyRevenue, summary.currency)
+        : "\u2014",
+      activeAlerts: activeAlertCountByAccount.get(account.stripeAccountId) ?? 0,
+      lastActivity: formatLastActivity(lastEventByAccount.get(account.stripeAccountId)),
+      href: `/dashboard/accounts/${account.stripeAccountId}`,
+    };
+  });
+
+  const overviewHistory: OverviewHistoryRow[] = recentHistory.map((alert) => ({
+    id: alert.id,
+    label: alertLabel(alert.type),
+    accountName: accountDisplayName(
+      accounts.find((account) => account.stripeAccountId === alert.stripeAccountId)?.name ?? null,
+    ),
+    time: formatResolvedTime(alert.createdAt),
+  }));
+
+  return {
+    previewMode: false,
+    scopeCountLabel: `${orderedAccounts.length} connected Stripe account${orderedAccounts.length === 1 ? "" : "s"}`,
+    totalActiveIssues: sortedAlerts.length,
+    primaryMetrics: {
+      activeSubscriptions: totals.activeSubscriptions,
+      estimatedMrr: formatMoneyAmount(totals.estimatedMonthlyRevenue, displayCurrency),
+      needsReview: sortedAlerts.length,
+      failedRenewals: totals.failedRenewalsLast7Days,
+    },
+    secondaryMetrics: {
+      trialing: totals.trialingSubscriptions,
+      pastDue: totals.pastDueSubscriptions,
+      unpaid: totals.unpaidSubscriptions,
+      canceled: totals.cancellationsLast7Days,
+      netMovement: `${totals.netSubscriptionsThisMonth >= 0 ? "+" : ""}${totals.netSubscriptionsThisMonth}`,
+    },
+    issues: issueSummaries,
+    accounts: overviewAccounts,
+    history: overviewHistory,
+    inboxHref: "/dashboard/inbox",
+  };
 }
 
 function MetricSparkline({ points }: { points: number[] }) {
@@ -266,12 +481,11 @@ function MetricSparkline({ points }: { points: number[] }) {
   const range = Math.max(1, max - min);
   const step = width / Math.max(1, points.length - 1);
 
-  const coordinates = points
-    .map((point, index) => {
-      const x = index * step;
-      const y = height - ((point - min) / range) * (height - 4) - 2;
-      return { x, y };
-    });
+  const coordinates = points.map((point, index) => {
+    const x = index * step;
+    const y = height - ((point - min) / range) * (height - 4) - 2;
+    return { x, y };
+  });
 
   const path = coordinates.reduce((accumulator, point, index, array) => {
     if (index === 0) {
@@ -308,6 +522,7 @@ type MetricCardProps = {
   compact?: boolean;
   tone?: "default" | "review" | "risk";
   tooltip?: string;
+  href?: string;
 };
 
 function InfoTooltip({ text }: { text: string }) {
@@ -343,6 +558,7 @@ function MetricCard({
   compact = false,
   tone = "default",
   tooltip,
+  href,
 }: MetricCardProps) {
   const toneClass =
     tone === "review"
@@ -352,7 +568,18 @@ function MetricCard({
         : styles.metricTrendPill;
 
   return (
-    <article className={`${styles.metricCard} ${compact ? styles.metricCardCompact : styles.metricCardLarge}`}>
+    <article
+      className={`${styles.metricCard} ${compact ? styles.metricCardCompact : styles.metricCardLarge} ${
+        href ? styles.clickableCard : ""
+      }`}
+    >
+      {href ? (
+        <Link
+          href={href}
+          className={styles.cardOverlayLink}
+          aria-label={`View ${label.toLowerCase()} details`}
+        />
+      ) : null}
       <div className={styles.metricCardHeader}>
         <span className={styles.metricLabelRow}>
           <span className={styles.metricLabel}>{label}</span>
@@ -372,29 +599,6 @@ function MetricCard({
   );
 }
 
-type OverviewProps = {
-  previewMode: boolean;
-  scopeCountLabel: string;
-  totalActiveIssues: number;
-  primaryMetrics: {
-    activeSubscriptions: number | string;
-    estimatedMrr: string;
-    needsReview: number | string;
-    failedRenewals: number | string;
-  };
-  secondaryMetrics: {
-    trialing: number | string;
-    pastDue: number | string;
-    unpaid: number | string;
-    canceled: number | string;
-    netMovement: number | string;
-  };
-  issues: OverviewIssueSummary[];
-  accounts: OverviewAccountRow[];
-  history: OverviewHistoryRow[];
-  inboxHref: string;
-};
-
 function DashboardOverview({
   previewMode,
   scopeCountLabel,
@@ -405,7 +609,25 @@ function DashboardOverview({
   accounts,
   history,
   inboxHref,
-}: OverviewProps) {
+}: DashboardViewModel) {
+  const metricLinks = previewMode
+    ? {
+        activeSubscriptions: "/dashboard/subscriptions?preview=subscription-health&type=active",
+        failedRenewals: "/dashboard/subscriptions?preview=subscription-health&type=failed-renewal",
+        pastDue: "/dashboard/subscriptions?preview=subscription-health&type=past-due",
+        trialing: "/dashboard/subscriptions?preview=subscription-health&type=trialing",
+        unpaid: "/dashboard/subscriptions?preview=subscription-health&type=unpaid",
+        canceled: "/dashboard/subscriptions?preview=subscription-health&type=canceled",
+      }
+    : {
+        activeSubscriptions: "/dashboard/subscriptions?type=active",
+        failedRenewals: "/dashboard/subscriptions?type=failed-renewal",
+        pastDue: "/dashboard/subscriptions?type=past-due",
+        trialing: "/dashboard/subscriptions?type=trialing",
+        unpaid: "/dashboard/subscriptions?type=unpaid",
+        canceled: "/dashboard/subscriptions?type=canceled",
+      };
+
   return (
     <section className={styles.shell}>
       <header className={styles.header}>
@@ -424,7 +646,7 @@ function DashboardOverview({
           <div className={styles.scopeSummary}>
             <span className={styles.scopeChip}>All accounts</span>
             <span className={styles.scopeDivider} aria-hidden="true">
-              ·
+              {"\u00b7"}
             </span>
             <span className={styles.scopeMeta}>{scopeCountLabel}</span>
           </div>
@@ -438,6 +660,7 @@ function DashboardOverview({
           badgeLabel="+4.2% this month"
           sparkline={[18, 20, 19, 25, 23, 28]}
           helper="Currently active paid subscriptions"
+          href={metricLinks.activeSubscriptions}
         />
         <MetricCard
           label="Estimated MRR"
@@ -464,19 +687,42 @@ function DashboardOverview({
             badgeLabel="At risk"
             tone="risk"
             tooltip="Renewal invoice payments that failed in the last 7 days. For example, a customer's subscription tried to renew, but the payment did not go through."
+            href={metricLinks.failedRenewals}
           />
         </div>
       </section>
 
       <section className={styles.secondaryMetrics}>
-        <article className={`${styles.secondaryCard} ${styles.secondaryNeutral}`}>
+        <article
+          className={`${styles.secondaryCard} ${styles.secondaryNeutral} ${
+            metricLinks.trialing ? styles.clickableCard : ""
+          }`}
+        >
+          {metricLinks.trialing ? (
+            <Link
+              href={metricLinks.trialing}
+              className={styles.cardOverlayLink}
+              aria-label="View trialing subscriptions details"
+            />
+          ) : null}
           <span className={styles.secondaryLabelRow}>
             <span>Trials</span>
           </span>
           <strong>{secondaryMetrics.trialing}</strong>
           <small>Currently in trial</small>
         </article>
-        <article className={`${styles.secondaryCard} ${styles.secondaryReview}`}>
+        <article
+          className={`${styles.secondaryCard} ${styles.secondaryReview} ${
+            metricLinks.pastDue ? styles.clickableCard : ""
+          }`}
+        >
+          {metricLinks.pastDue ? (
+            <Link
+              href={metricLinks.pastDue}
+              className={styles.cardOverlayLink}
+              aria-label="View past-due subscriptions details"
+            />
+          ) : null}
           <span className={styles.secondaryLabelRow}>
             <span>Past-due</span>
             <InfoTooltip text="Subscriptions where Stripe has not collected the latest payment yet. If payment is completed and the subscription becomes active again, this count goes down." />
@@ -484,7 +730,18 @@ function DashboardOverview({
           <strong>{secondaryMetrics.pastDue}</strong>
           <small>Payment not collected yet</small>
         </article>
-        <article className={`${styles.secondaryCard} ${styles.secondaryAttention}`}>
+        <article
+          className={`${styles.secondaryCard} ${styles.secondaryAttention} ${
+            metricLinks.unpaid ? styles.clickableCard : ""
+          }`}
+        >
+          {metricLinks.unpaid ? (
+            <Link
+              href={metricLinks.unpaid}
+              className={styles.cardOverlayLink}
+              aria-label="View unpaid subscriptions details"
+            />
+          ) : null}
           <span className={styles.secondaryLabelRow}>
             <span>Unpaid</span>
             <InfoTooltip text="Subscriptions Stripe currently marks as unpaid after payment could not be collected. If the status changes, this count updates." />
@@ -492,7 +749,18 @@ function DashboardOverview({
           <strong>{secondaryMetrics.unpaid}</strong>
           <small>Marked unpaid in Stripe</small>
         </article>
-        <article className={`${styles.secondaryCard} ${styles.secondaryNeutral}`}>
+        <article
+          className={`${styles.secondaryCard} ${styles.secondaryNeutral} ${
+            metricLinks.canceled ? styles.clickableCard : ""
+          }`}
+        >
+          {metricLinks.canceled ? (
+            <Link
+              href={metricLinks.canceled}
+              className={styles.cardOverlayLink}
+              aria-label="View canceled subscriptions details"
+            />
+          ) : null}
           <span className={styles.secondaryLabelRow}>
             <span>Canceled</span>
           </span>
@@ -525,7 +793,7 @@ function DashboardOverview({
               <Link href={inboxHref} className={styles.sectionLink}>
                 Open Inbox
                 <span className={styles.sectionLinkArrow} aria-hidden="true">
-                  ›
+                  {"\u203a"}
                 </span>
               </Link>
             </div>
@@ -564,7 +832,7 @@ function DashboardOverview({
               <Link href="/dashboard/accounts" className={styles.sectionLink}>
                 View accounts
                 <span className={styles.sectionLinkArrow} aria-hidden="true">
-                  ›
+                  {"\u203a"}
                 </span>
               </Link>
             </div>
@@ -583,7 +851,7 @@ function DashboardOverview({
               <Link href="/dashboard/alerts" className={styles.sectionLink}>
                 View history
                 <span className={styles.sectionLinkArrow} aria-hidden="true">
-                  ›
+                  {"\u203a"}
                 </span>
               </Link>
             </div>
@@ -627,83 +895,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     await syncUserPlanFromStripe(session.user.id);
   }
 
-  const previewIssues: OverviewIssueSummary[] = [
-    {
-      id: "preview-subscription-canceled",
-      label: "Subscription canceled",
-      accountName: "Northstar Commerce",
-      impact: "€39 impact",
-      statusLabel: "Review needed",
-      detectedAt: "12m ago",
-    },
-    {
-      id: "preview-failed-renewal",
-      label: "Failed renewal",
-      accountName: "BluePeak Studio",
-      impact: "€39 at risk",
-      statusLabel: "Review needed",
-      detectedAt: "45m ago",
-    },
-    {
-      id: "preview-subscription-drop",
-      label: "Subscription drop detected",
-      accountName: "Cedar Labs",
-      impact: "10 -> 7 active",
-      statusLabel: "Attention needed",
-      detectedAt: "2h ago",
-    },
-  ];
-
-  const previewHrefByAccountId = new Map(
-    Object.values(previewAccountDetails).map((account) => [
-      account.stripeAccountId,
-      `/dashboard/accounts/${account.slug}?preview=subscription-health`,
-    ]),
-  );
-
-  const previewAccounts: OverviewAccountRow[] = subscriptionHealthPreview.accounts.map((account) => ({
-    stripeAccountId: account.stripeAccountId,
-    name: account.name,
-    statusLabel: account.status,
-    activeSubscriptions: account.activeSubscriptions,
-    estimatedMrr: account.estimatedMrr,
-    activeAlerts: account.activeAlerts,
-    lastActivity: account.lastActivity,
-    href: previewHrefByAccountId.get(account.stripeAccountId),
-  }));
-
-  const previewHistory: OverviewHistoryRow[] = subscriptionHealthPreview.history.map((alert) => ({
-    id: alert.id,
-    label: alertLabel(alert.type),
-    accountName: alert.accountName,
-    time: alert.time,
-  }));
+  const previewDashboardViewModel = buildPreviewDashboardViewModel();
 
   if (isPreviewQuery) {
-    return (
-      <DashboardOverview
-        previewMode
-        scopeCountLabel="3 connected Stripe accounts"
-        totalActiveIssues={subscriptionHealthPreview.overview.needsReview}
-        primaryMetrics={{
-          activeSubscriptions: subscriptionHealthPreview.overview.activeSubscriptions,
-          estimatedMrr: subscriptionHealthPreview.overview.estimatedMrr,
-          needsReview: subscriptionHealthPreview.overview.needsReview,
-          failedRenewals: subscriptionHealthPreview.overview.failedRenewals,
-        }}
-        secondaryMetrics={{
-          trialing: subscriptionHealthPreview.overview.trialing,
-          pastDue: subscriptionHealthPreview.overview.pastDue,
-          unpaid: subscriptionHealthPreview.overview.unpaid,
-          canceled: "5",
-          netMovement: "+18",
-        }}
-        issues={previewIssues}
-        accounts={previewAccounts}
-        history={previewHistory}
-        inboxHref="/dashboard/inbox?preview=subscription-health"
-      />
-    );
+    return <DashboardOverview {...previewDashboardViewModel} />;
   }
 
   const accounts = (await prisma.stripeAccount.findMany({
@@ -767,11 +962,18 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     }),
   ]);
 
-  const summaryByAccount = new Map(summaries);
+  const summaryByAccount = new Map<string, SummaryRecord>(summaries);
   const periodMetricsByAccount = new Map(periodMetricsEntries);
-  const lastEventByAccount = new Map(
-    lastEvents.map((event) => [event.stripeAccountId, event._max.createdAt ?? null]),
+  const lastEventEntries = lastEvents.reduce<Array<readonly [string, Date | null]>>(
+    (entries, event) => {
+      if (typeof event.stripeAccountId === "string") {
+        entries.push([event.stripeAccountId, event._max.createdAt ?? null] as const);
+      }
+      return entries;
+    },
+    [],
   );
+  const lastEventByAccount = new Map<string, Date | null>(lastEventEntries);
 
   const sortedAlerts = [...activeAlerts].sort((left, right) => {
     const severityDiff = severityRank(left.severity) - severityRank(right.severity);
@@ -835,30 +1037,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const shouldShowPreview = process.env.NODE_ENV === "development" && isRealDashboardEmpty;
 
   if (shouldShowPreview) {
-    return (
-      <DashboardOverview
-        previewMode
-        scopeCountLabel="3 connected Stripe accounts"
-        totalActiveIssues={subscriptionHealthPreview.overview.needsReview}
-        primaryMetrics={{
-          activeSubscriptions: subscriptionHealthPreview.overview.activeSubscriptions,
-          estimatedMrr: subscriptionHealthPreview.overview.estimatedMrr,
-          needsReview: subscriptionHealthPreview.overview.needsReview,
-          failedRenewals: subscriptionHealthPreview.overview.failedRenewals,
-        }}
-        secondaryMetrics={{
-          trialing: subscriptionHealthPreview.overview.trialing,
-          pastDue: subscriptionHealthPreview.overview.pastDue,
-          unpaid: subscriptionHealthPreview.overview.unpaid,
-          canceled: "5",
-          netMovement: "+18",
-        }}
-        issues={previewIssues}
-        accounts={previewAccounts}
-        history={previewHistory}
-        inboxHref="/dashboard/inbox?preview=subscription-health"
-      />
-    );
+    return <DashboardOverview {...previewDashboardViewModel} />;
   }
 
   const orderedAccounts = [...accounts]
@@ -879,71 +1058,21 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     return right.createdAt.getTime() - left.createdAt.getTime();
   });
 
-  const issueSummaries: OverviewIssueSummary[] = prioritizedAlerts.slice(0, 3).map((alert) => {
-    const accountName = accountDisplayName(
-      accounts.find((account) => account.stripeAccountId === alert.stripeAccountId)?.name ?? null,
-    );
-    const accountSummary = summaryByAccount.get(alert.stripeAccountId ?? "");
-    const currency = accountSummary?.currency ?? displayCurrency;
-
-    return {
-      id: alert.id,
-      label: alertLabel(alert.type),
-      accountName,
-      impact: buildAlertImpact(alert, currency),
-      statusLabel: alert.severity === "critical" ? "Attention needed" : "Review needed",
-      detectedAt: formatLastActivity(alert.createdAt),
-    };
+  const realDashboardViewModel = buildRealDashboardViewModel({
+    orderedAccounts,
+    accounts,
+    sortedAlerts,
+    prioritizedAlerts,
+    recentHistory,
+    summaryByAccount,
+    lastEventByAccount,
+    activeAlertCountByAccount,
+    topAlertSeverityByAccount,
+    totals,
+    displayCurrency,
   });
 
-  const overviewAccounts: OverviewAccountRow[] = orderedAccounts.map((account) => {
-    const summary = summaryByAccount.get(account.stripeAccountId);
-    const severity = topAlertSeverityByAccount.get(account.stripeAccountId) ?? null;
-
-    return {
-      stripeAccountId: account.stripeAccountId,
-      name: accountDisplayName(account.name),
-      statusLabel: getAccountStatusLabel(account.status, severity),
-      activeSubscriptions: summary?.activeSubscriptions ?? 0,
-      estimatedMrr: summary
-        ? formatMoneyAmount(summary.estimatedMonthlyRevenue, summary.currency)
-        : "\u2014",
-      activeAlerts: activeAlertCountByAccount.get(account.stripeAccountId) ?? 0,
-      lastActivity: formatLastActivity(lastEventByAccount.get(account.stripeAccountId)),
-    };
-  });
-
-  const overviewHistory: OverviewHistoryRow[] = recentHistory.map((alert) => ({
-    id: alert.id,
-    label: alertLabel(alert.type),
-    accountName: accountDisplayName(
-      accounts.find((account) => account.stripeAccountId === alert.stripeAccountId)?.name ?? null,
-    ),
-    time: formatResolvedTime(alert.createdAt),
-  }));
-
-  return (
-    <DashboardOverview
-      previewMode={false}
-      scopeCountLabel={`${orderedAccounts.length} connected Stripe account${orderedAccounts.length === 1 ? "" : "s"}`}
-      totalActiveIssues={sortedAlerts.length}
-      primaryMetrics={{
-        activeSubscriptions: totals.activeSubscriptions,
-        estimatedMrr: formatMoneyAmount(totals.estimatedMonthlyRevenue, displayCurrency),
-        needsReview: sortedAlerts.length,
-        failedRenewals: totals.failedRenewalsLast7Days,
-      }}
-      secondaryMetrics={{
-        trialing: totals.trialingSubscriptions,
-        pastDue: totals.pastDueSubscriptions,
-        unpaid: totals.unpaidSubscriptions,
-        canceled: totals.cancellationsLast7Days,
-        netMovement: `${totals.netSubscriptionsThisMonth >= 0 ? "+" : ""}${totals.netSubscriptionsThisMonth}`,
-      }}
-      issues={issueSummaries}
-      accounts={overviewAccounts}
-      history={overviewHistory}
-      inboxHref="/dashboard/inbox"
-    />
-  );
+  return <DashboardOverview {...realDashboardViewModel} />;
 }
+
+
