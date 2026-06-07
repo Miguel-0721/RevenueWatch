@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import {
   type PreviewAccountDetail,
 } from "@/app/dashboard/previewData";
+import { buildDashboardSparklineSeries } from "@/components/dashboard/SubscriptionHealthMetricCards";
 import AccountDetailView, {
   type AccountDetailCurrentIssue,
   type AccountDetailHistoryEntry,
@@ -34,6 +35,10 @@ function formatIssueCount(count: number) {
   return `${count} issues need review`;
 }
 
+function parsePreviewMoneyAmount(value: string) {
+  return Number.parseInt(value.replace(/[^0-9-]/g, ""), 10) || 0;
+}
+
 export default function PreviewAccountDetailClient({
   previewAccount,
 }: {
@@ -43,10 +48,7 @@ export default function PreviewAccountDetailClient({
   const [historyEntries, setHistoryEntries] = useState<PreviewHistoryEntry[]>(previewAccount.history);
   const [showPreviewReviewNote, setShowPreviewReviewNote] = useState(false);
 
-  const primaryTrendByAccount: Record<
-    string,
-    { active: string; mrr: string }
-  > = {
+  const primaryTrendByAccount: Record<string, { active: string; mrr: string }> = {
     "northstar-commerce": {
       active: "+3.4% this month",
       mrr: "+2.1% this month",
@@ -63,6 +65,7 @@ export default function PreviewAccountDetailClient({
 
   const primaryTrend =
     primaryTrendByAccount[previewAccount.slug] ?? primaryTrendByAccount["northstar-commerce"];
+  const previewEstimatedMrrAmount = parsePreviewMoneyAmount(previewAccount.estimatedMrr);
   const previewNetMovement = Number.parseInt(previewAccount.netSubscriptions, 10) || 0;
   const reviewCount = activeIssue ? 1 : 0;
   const accountStatus = derivePreviewStatus(activeIssue);
@@ -120,6 +123,32 @@ export default function PreviewAccountDetailClient({
     unpaid: previewAccount.unpaid,
     canceled: previewAccount.canceledThisWeek,
     netSubscriptions: previewNetMovement > 0 ? `+${previewNetMovement}` : previewNetMovement,
+    activeSubscriptionsHref: `/dashboard/subscriptions?preview=subscription-health&account=${encodeURIComponent(
+      previewAccount.slug,
+    )}&type=active`,
+    failedRenewalsHref: `/dashboard/subscriptions?preview=subscription-health&account=${encodeURIComponent(
+      previewAccount.slug,
+    )}&type=failed-renewal&window=7d`,
+    trialsHref: `/dashboard/subscriptions?preview=subscription-health&account=${encodeURIComponent(
+      previewAccount.slug,
+    )}&type=trialing`,
+    pastDueHref: `/dashboard/subscriptions?preview=subscription-health&account=${encodeURIComponent(
+      previewAccount.slug,
+    )}&type=past-due`,
+    unpaidHref: `/dashboard/subscriptions?preview=subscription-health&account=${encodeURIComponent(
+      previewAccount.slug,
+    )}&type=unpaid`,
+    canceledHref: `/dashboard/subscriptions?preview=subscription-health&account=${encodeURIComponent(
+      previewAccount.slug,
+    )}&type=canceled&window=7d`,
+    activeSubscriptionsSparkline: buildDashboardSparklineSeries({
+      variant: "active",
+      finalValue: previewAccount.activeSubscriptions,
+    }),
+    estimatedMrrSparkline: buildDashboardSparklineSeries({
+      variant: "mrr",
+      finalValue: previewEstimatedMrrAmount,
+    }),
     currentIssueCountText: issueContextText,
     currentIssueTitle: reviewCount > 1 ? "Current issues" : "Current issue",
     currentIssue,

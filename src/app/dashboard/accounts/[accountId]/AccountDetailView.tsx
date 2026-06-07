@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import dashboardStyles from "@/app/dashboard/page.module.css";
+import {
+  MetricCard,
+  SecondaryMetricCard,
+} from "@/components/dashboard/SubscriptionHealthMetricCards";
 import { markAlertReviewedAction } from "./actions";
 import styles from "./page.module.css";
 
@@ -42,6 +46,14 @@ export type AccountDetailViewModel = {
   unpaid: string | number;
   canceled: string | number;
   netSubscriptions: string | number;
+  activeSubscriptionsHref?: string;
+  failedRenewalsHref?: string;
+  trialsHref?: string;
+  pastDueHref?: string;
+  unpaidHref?: string;
+  canceledHref?: string;
+  activeSubscriptionsSparkline?: number[];
+  estimatedMrrSparkline?: number[];
   currentIssueCountText: string;
   currentIssueTitle: string;
   currentIssue: AccountDetailCurrentIssue;
@@ -61,123 +73,6 @@ function issueTone(status: AccountDetailStatus) {
   if (status === "Attention needed") return styles.previewIssueAttention;
   if (status === "Review needed") return styles.previewIssueReview;
   return styles.previewIssueMonitoring;
-}
-
-function secondaryTone(label: string) {
-  if (label === "Past-due") return dashboardStyles.secondaryReview;
-  if (label === "Unpaid") return dashboardStyles.secondaryAttention;
-  if (label === "Net subscriptions") return dashboardStyles.secondaryPositive;
-  return dashboardStyles.secondaryNeutral;
-}
-
-function InfoTooltip({ text }: { text: string }) {
-  const tooltipId = `account-detail-tooltip-${text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")}`;
-
-  return (
-    <span className={dashboardStyles.infoTooltipWrap}>
-      <button
-        type="button"
-        className={dashboardStyles.infoTooltip}
-        aria-label={text}
-        aria-describedby={tooltipId}
-      >
-        i
-      </button>
-      <span id={tooltipId} role="tooltip" className={dashboardStyles.infoTooltipBubble}>
-        {text}
-      </span>
-    </span>
-  );
-}
-
-function LargeMetricCard({
-  label,
-  value,
-  helper,
-  badge,
-  tooltip,
-}: {
-  label: string;
-  value: string | number;
-  helper: string;
-  badge?: string;
-  tooltip?: string;
-}) {
-  return (
-    <article className={`${dashboardStyles.metricCard} ${dashboardStyles.metricCardLarge}`}>
-      <div className={dashboardStyles.metricCardHeader}>
-        <span className={dashboardStyles.metricLabelRow}>
-          <span className={dashboardStyles.metricLabel}>{label}</span>
-          {tooltip ? <InfoTooltip text={tooltip} /> : null}
-        </span>
-        {badge ? <span className={dashboardStyles.metricTrendPill}>{badge}</span> : null}
-      </div>
-      <strong className={dashboardStyles.metricValue}>{value}</strong>
-      <small className={dashboardStyles.metricHelper}>{helper}</small>
-    </article>
-  );
-}
-
-function CompactMetricCard({
-  label,
-  value,
-  helper,
-  pill,
-  tone,
-  tooltip,
-}: {
-  label: string;
-  value: string | number;
-  helper: string;
-  pill: string;
-  tone: "review" | "risk";
-  tooltip?: string;
-}) {
-  return (
-    <article className={`${dashboardStyles.metricCard} ${dashboardStyles.metricCardCompact}`}>
-      <div className={dashboardStyles.metricCardHeader}>
-        <span className={dashboardStyles.metricLabelRow}>
-          <span className={dashboardStyles.metricLabel}>{label}</span>
-          {tooltip ? <InfoTooltip text={tooltip} /> : null}
-        </span>
-        <span
-          className={
-            tone === "risk" ? dashboardStyles.metricBadgeRisk : dashboardStyles.metricBadgeReview
-          }
-        >
-          {pill}
-        </span>
-      </div>
-      <strong className={dashboardStyles.metricValueSmall}>{value}</strong>
-      <small className={dashboardStyles.metricHelper}>{helper}</small>
-    </article>
-  );
-}
-
-function SupportingMetricCard({
-  label,
-  value,
-  helper,
-  tooltip,
-}: {
-  label: string;
-  value: string | number;
-  helper: string;
-  tooltip?: string;
-}) {
-  return (
-    <article className={`${dashboardStyles.secondaryCard} ${secondaryTone(label)}`}>
-      <span className={dashboardStyles.secondaryLabelRow}>
-        <span>{label}</span>
-        {tooltip ? <InfoTooltip text={tooltip} /> : null}
-      </span>
-      <strong>{value}</strong>
-      <small>{helper}</small>
-    </article>
-  );
 }
 
 export default function AccountDetailView({
@@ -208,58 +103,87 @@ export default function AccountDetailView({
           </div>
         </header>
 
-        <section className={styles.previewPrimaryMetrics}>
-          <LargeMetricCard
+        <section className={dashboardStyles.primaryMetrics}>
+          <MetricCard
             label="Active subscriptions"
             value={viewModel.activeSubscriptions}
             helper="Currently active paid subscriptions"
-            badge={viewModel.activeSubscriptionsBadge}
+            badgeLabel={viewModel.activeSubscriptionsBadge}
+            sparkline={viewModel.activeSubscriptionsSparkline}
+            href={viewModel.activeSubscriptionsHref}
+            ariaLabel="View active subscriptions details"
           />
-          <LargeMetricCard
+          <MetricCard
             label="Estimated MRR"
             value={viewModel.estimatedMrr}
             helper="Active subscriptions only"
-            badge={viewModel.estimatedMrrBadge}
+            badgeLabel={viewModel.estimatedMrrBadge}
+            sparkline={viewModel.estimatedMrrSparkline}
             tooltip="Estimated monthly recurring revenue from active subscriptions only. Trials, canceled, unpaid, and past-due subscriptions are not counted."
           />
           <div className={dashboardStyles.metricStack}>
-            <CompactMetricCard
+            <MetricCard
               label="Needs review"
               value={viewModel.needsReview}
               helper="Active issues waiting in Inbox"
-              pill="Inbox"
+              compact
+              badgeLabel="Inbox"
               tone="review"
             />
-            <CompactMetricCard
+            <MetricCard
               label="Failed renewals"
               value={viewModel.failedRenewals}
               helper="Failed payments · Last 7 days"
-              pill="At risk"
+              compact
+              badgeLabel="At risk"
               tone="risk"
               tooltip="Renewal invoice payments that failed in the last 7 days. For example, a customer's subscription tried to renew, but the payment did not go through."
+              href={viewModel.failedRenewalsHref}
+              ariaLabel="View failed renewals details"
             />
           </div>
         </section>
 
-        <section className={styles.previewSecondaryMetrics}>
-          <SupportingMetricCard label="Trials" value={viewModel.trials} helper="Currently in trial" />
-          <SupportingMetricCard
+        <section className={dashboardStyles.secondaryMetrics}>
+          <SecondaryMetricCard
+            label="Trials"
+            value={viewModel.trials}
+            helper="Currently in trial"
+            toneClassName={dashboardStyles.secondaryNeutral}
+            href={viewModel.trialsHref}
+            ariaLabel="View trialing subscriptions details"
+          />
+          <SecondaryMetricCard
             label="Past-due"
             value={viewModel.pastDue}
             helper="Payment not collected yet"
+            toneClassName={dashboardStyles.secondaryReview}
             tooltip="Subscriptions where Stripe has not collected the latest payment yet. If payment is completed and the subscription becomes active again, this count goes down."
+            href={viewModel.pastDueHref}
+            ariaLabel="View past-due subscriptions details"
           />
-          <SupportingMetricCard
+          <SecondaryMetricCard
             label="Unpaid"
             value={viewModel.unpaid}
             helper="Marked unpaid in Stripe"
+            toneClassName={dashboardStyles.secondaryAttention}
             tooltip="Subscriptions Stripe currently marks as unpaid after payment could not be collected. If the status changes, this count updates."
+            href={viewModel.unpaidHref}
+            ariaLabel="View unpaid subscriptions details"
           />
-          <SupportingMetricCard label="Canceled" value={viewModel.canceled} helper="Canceled · Last 7 days" />
-          <SupportingMetricCard
+          <SecondaryMetricCard
+            label="Canceled"
+            value={viewModel.canceled}
+            helper="Canceled · Last 7 days"
+            toneClassName={dashboardStyles.secondaryNeutral}
+            href={viewModel.canceledHref}
+            ariaLabel="View canceled subscriptions details"
+          />
+          <SecondaryMetricCard
             label="Net subscriptions"
             value={viewModel.netSubscriptions}
             helper="New minus canceled · This month"
+            toneClassName={dashboardStyles.secondaryPositive}
             tooltip="New subscriptions minus canceled subscriptions during this month. For example, 20 new subscriptions and 2 cancellations means +18 net subscriptions."
           />
         </section>

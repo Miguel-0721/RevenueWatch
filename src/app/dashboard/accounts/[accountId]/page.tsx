@@ -12,6 +12,7 @@ import {
   type SubscriptionHealthSummary,
 } from "@/lib/subscription-health-store";
 import { previewAccountDetails } from "@/app/dashboard/previewData";
+import { getDashboardSparklinePoints } from "@/components/dashboard/SubscriptionHealthMetricCards";
 import AccountDetailView, {
   type AccountDetailStatus,
   type AccountDetailViewModel,
@@ -156,6 +157,20 @@ function formatCount(value: number) {
 function fmtDate(d?: Date | null) {
   if (!d) return "No activity yet";
   return new Date(d).toLocaleString();
+}
+
+function buildMetricSparklineFromHistory(
+  values: number[],
+  variant: "active" | "mrr",
+) {
+  const cleanedValues = values.filter((value) => Number.isFinite(value) && value >= 0);
+  const hasVariation = new Set(cleanedValues).size > 1;
+
+  if (cleanedValues.length >= 2 && hasVariation) {
+    return cleanedValues;
+  }
+
+  return getDashboardSparklinePoints(variant);
 }
 
 function fmtDetectedDate(d?: Date | null) {
@@ -3023,6 +3038,23 @@ export default async function AccountDetailPage({
           stripeAccountId: account.stripeAccountId,
         })
       : null;
+  const recentSubscriptionHealthSnapshots =
+    account && !demoAccount
+      ? await prisma.$queryRaw<
+          Array<{
+            activeSubscriptions: number;
+            estimatedMonthlyRevenue: number;
+          }>
+        >`
+          SELECT
+            "activeSubscriptions",
+            "estimatedMonthlyRevenue"
+          FROM "SubscriptionHealthSnapshot"
+          WHERE "stripeAccountId" = ${account.stripeAccountId}
+          ORDER BY COALESCE("windowEnd", "updatedAt", "createdAt") DESC, "updatedAt" DESC
+          LIMIT 6
+        `
+      : [];
 
   const now = new Date();
   const demoSeverity = demoAccount ? getDemoSeverity(demoAccount) : null;
@@ -3198,10 +3230,19 @@ export default async function AccountDetailPage({
   const primaryActiveAlert = activeAlerts[0] ?? null;
   const currentIssueTitle = activeIssueCount > 1 ? "Current issues" : "Current issue";
   const currentIssueSummary = formatIssueCountLabel(activeIssueCount);
+  const chronologicalSnapshots = [...recentSubscriptionHealthSnapshots].reverse();
   const activeSubscriptionsValue = formatCount(subscriptionHealthSummary?.activeSubscriptions ?? 0);
+  const activeSubscriptionsSparkline = buildMetricSparklineFromHistory(
+    chronologicalSnapshots.map((snapshot) => snapshot.activeSubscriptions),
+    "active",
+  );
   const estimatedMrrValue = formatMoneyAmount(
     subscriptionHealthSummary?.estimatedMonthlyRevenue ?? 0,
     metricCurrency,
+  );
+  const estimatedMrrSparkline = buildMetricSparklineFromHistory(
+    chronologicalSnapshots.map((snapshot) => snapshot.estimatedMonthlyRevenue),
+    "mrr",
   );
   const trialsValue = formatCount(subscriptionHealthSummary?.trialingSubscriptions ?? 0);
   const pastDueValue = formatCount(subscriptionHealthSummary?.pastDueSubscriptions ?? 0);
@@ -3274,6 +3315,16 @@ export default async function AccountDetailPage({
     unpaid: unpaidValue,
     canceled: canceledValue,
     netSubscriptions: netSubscriptionsValue,
+    activeSubscriptionsHref: `/dashboard/subscriptions?account=${encodeURIComponent(accountId)}&type=active`,
+    failedRenewalsHref: `/dashboard/subscriptions?account=${encodeURIComponent(accountId)}&type=failed-renewal&window=7d`,
+    trialsHref: `/dashboard/subscriptions?account=${encodeURIComponent(accountId)}&type=trialing`,
+    pastDueHref: `/dashboard/subscriptions?account=${encodeURIComponent(accountId)}&type=past-due`,
+    unpaidHref: `/dashboard/subscriptions?account=${encodeURIComponent(accountId)}&type=unpaid`,
+    canceledHref: `/dashboard/subscriptions?account=${encodeURIComponent(accountId)}&type=canceled&window=7d`,
+    activeSubscriptionsSparkline,
+    estimatedMrrSparkline,
+    activeSubscriptionsBadge: demoAccount ? undefined : "Collecting trend",
+    estimatedMrrBadge: demoAccount ? undefined : "Collecting trend",
     currentIssueCountText: currentIssueSummary,
     currentIssueTitle,
     currentIssue,

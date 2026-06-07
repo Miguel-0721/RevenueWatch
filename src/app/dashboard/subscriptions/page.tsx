@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import {
   previewAffectedSubscriptions,
+  previewAccountDetails,
   type PreviewAffectedSubscriptionRow,
   type PreviewAffectedSubscriptionType,
 } from "@/app/dashboard/previewData";
@@ -19,6 +20,7 @@ type DashboardSubscriptionsPageProps = {
     type?: string;
     account?: string;
     plan?: string;
+    window?: string;
     page?: string;
   }>;
 };
@@ -40,6 +42,30 @@ type SubscriptionListRow = {
 type SelectOption = {
   value: string;
   label: string;
+};
+
+type SubscriptionDrilldownViewModel = {
+  previewMode: boolean;
+  selectedType: PreviewAffectedSubscriptionType;
+  selectedWindow: string;
+  title: string;
+  subtitle: string;
+  helperNote?: string | null;
+  selectedAccount: string;
+  selectedPlan: string;
+  impactLabel: string;
+  timeLabel: string;
+  accountOptions: SelectOption[];
+  planOptions: SelectOption[];
+  filteredRows: SubscriptionListRow[];
+  paginatedRows: SubscriptionListRow[];
+  pageStart: number;
+  pageEnd: number;
+  totalPages: number;
+  currentPage: number;
+  pageNumbers: number[];
+  emptyState: { title: string; body: string };
+  buildPageHref: (page: number) => string;
 };
 
 type StripeAccountLookupRow = {
@@ -112,14 +138,6 @@ function isPreviewType(value: string | undefined): value is PreviewAffectedSubsc
   return Boolean(value && TYPE_OPTIONS.includes(value as PreviewAffectedSubscriptionType));
 }
 
-function titleForType(type: PreviewAffectedSubscriptionType) {
-  return previewAffectedSubscriptions[type].title;
-}
-
-function subtitleForType(type: PreviewAffectedSubscriptionType) {
-  return previewAffectedSubscriptions[type].subtitle;
-}
-
 function impactColumnLabel(type: PreviewAffectedSubscriptionType) {
   if (type === "active") return "MRR";
   if (type === "trialing") return "Trial ends";
@@ -177,12 +195,57 @@ function emptyStateCopy(type: PreviewAffectedSubscriptionType) {
   };
 }
 
+function emptyStateCopyForWindow(type: PreviewAffectedSubscriptionType, window: string) {
+  if (window !== "7d") {
+    return emptyStateCopy(type);
+  }
+
+  if (type === "canceled") {
+    return {
+      title: "No canceled subscriptions found",
+      body: "No subscriptions were canceled in this period.",
+    };
+  }
+
+  if (type === "failed-renewal") {
+    return {
+      title: "No failed renewals found",
+      body: "No failed renewal payments were recorded in this period.",
+    };
+  }
+
+  return emptyStateCopy(type);
+}
+
+function subtitleForWindow(baseSubtitle: string, type: PreviewAffectedSubscriptionType, window: string) {
+  if (window !== "7d") {
+    return baseSubtitle;
+  }
+
+  if (type === "canceled") {
+    return "Recently canceled subscriptions from the last 7 days.";
+  }
+
+  if (type === "failed-renewal") {
+    return "Failed renewal payments from the last 7 days.";
+  }
+
+  return baseSubtitle;
+}
+
 function filterRows(rows: SubscriptionListRow[], account: string, plan: string) {
   return rows.filter((row) => {
     if (account !== "all" && row.accountValue !== account) return false;
     if (plan !== "all" && row.planValue !== plan) return false;
     return true;
   });
+}
+
+function previewAccountSlug(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 function formatRecurringInterval(interval: string | null | undefined, intervalCount: number) {
@@ -280,13 +343,37 @@ function mapPreviewRows(rows: PreviewAffectedSubscriptionRow[]): SubscriptionLis
     customerSecondary: row.customerEmail,
     customerEmail: row.customerEmail,
     accountLabel: row.account,
-    accountValue: row.account,
+    accountValue: previewAccountSlug(row.account),
     planLabel: row.plan,
     planValue: row.plan,
     impact: row.impact,
     time: row.lastEvent,
     href: row.href,
   }));
+}
+
+function buildPreviewHelperNote(input: {
+  selectedType: PreviewAffectedSubscriptionType;
+  selectedAccount: string;
+  filteredRows: SubscriptionListRow[];
+  defaultHelperNote?: string | null;
+}) {
+  const { selectedType, selectedAccount, filteredRows, defaultHelperNote } = input;
+
+  if (selectedType !== "active") {
+    return defaultHelperNote ?? null;
+  }
+
+  if (selectedAccount === "all") {
+    return defaultHelperNote ?? null;
+  }
+
+  const previewAccount = previewAccountDetails[selectedAccount];
+  if (!previewAccount) {
+    return defaultHelperNote ?? null;
+  }
+
+  return `Showing ${filteredRows.length} sample subscriptions from ${previewAccount.activeSubscriptions} active subscriptions.`;
 }
 
 function uniqueOptions(options: SelectOption[]) {
@@ -305,9 +392,17 @@ function uniqueOptions(options: SelectOption[]) {
     );
 }
 
+function buildCustomerFallback(stripeCustomerId: string | null, fallbackId: string | null) {
+  return {
+    customerPrimary: "Customer",
+    customerSecondary: stripeCustomerId ?? fallbackId ?? "—",
+  };
+}
+
 async function loadRealRows(
   userId: string,
   selectedType: PreviewAffectedSubscriptionType,
+  selectedWindow: string,
 ): Promise<SubscriptionListRow[]> {
   const accounts = await prisma.$queryRaw<StripeAccountLookupRow[]>`
     SELECT "stripeAccountId", "name"
@@ -330,6 +425,7 @@ async function loadRealRows(
   }
 
   if (selectedType === "failed-renewal") {
+    const cutoff = selectedWindow === "7d" ? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) : null;
     const events = await prisma.$queryRaw<FailedRenewalQueryRow[]>(Prisma.sql`
       SELECT
         e."id",
@@ -353,20 +449,21 @@ async function loadRealRows(
       WHERE e."stripeAccountId" IN (${Prisma.join(stripeAccountIds)})
         AND e."type" = 'invoice.payment_failed'
         AND e."stripeSubscriptionId" IS NOT NULL
+        ${cutoff ? Prisma.sql`AND e."occurredAt" >= ${cutoff}` : Prisma.empty}
       ORDER BY e."occurredAt" DESC
     `);
 
     return events.map((event) => {
       const subscriptionCurrency = event.subscriptionCurrency ?? event.currency;
+      const customerDisplay = buildCustomerFallback(
+        event.stripeCustomerId ?? event.subscriptionCustomerId,
+        event.stripeSubscriptionId,
+      );
 
       return {
         id: event.id,
-        customerPrimary:
-          event.stripeCustomerId ??
-          event.subscriptionCustomerId ??
-          event.stripeSubscriptionId ??
-          "—",
-        customerSecondary: event.stripeSubscriptionId ?? null,
+        customerPrimary: customerDisplay.customerPrimary,
+        customerSecondary: customerDisplay.customerSecondary,
         accountLabel: accountMap.get(event.stripeAccountId) ?? event.stripeAccountId,
         accountValue: event.stripeAccountId,
         planLabel: buildRealPlanLabel({
@@ -407,6 +504,8 @@ async function loadRealRows(
     canceled: "canceled",
   };
 
+  const cutoff = selectedWindow === "7d" ? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) : null;
+
   const subscriptions = await prisma.$queryRaw<SubscriptionQueryRow[]>(Prisma.sql`
     SELECT
       "id",
@@ -429,14 +528,24 @@ async function loadRealRows(
     FROM "SubscriptionHealthSubscription"
     WHERE "stripeAccountId" IN (${Prisma.join(stripeAccountIds)})
       AND "status" = ${statusByType[selectedType as Exclude<PreviewAffectedSubscriptionType, "failed-renewal">]}
+      ${
+        selectedType === "canceled" && cutoff
+          ? Prisma.sql`AND COALESCE("canceledAt", "endedAt", "lastEventCreatedAt", "updatedAt") >= ${cutoff}`
+          : Prisma.empty
+      }
     ORDER BY "lastEventCreatedAt" DESC NULLS LAST, "updatedAt" DESC
   `);
 
   return subscriptions.map((subscription) => {
+    const customerDisplay = buildCustomerFallback(
+      subscription.stripeCustomerId,
+      subscription.stripeSubscriptionId,
+    );
+
     const baseRow = {
       id: subscription.id,
-      customerPrimary: subscription.stripeCustomerId ?? subscription.stripeSubscriptionId,
-      customerSecondary: subscription.stripeCustomerId ? subscription.stripeSubscriptionId : null,
+      customerPrimary: customerDisplay.customerPrimary,
+      customerSecondary: customerDisplay.customerSecondary,
       accountLabel:
         accountMap.get(subscription.stripeAccountId) ?? subscription.stripeAccountId,
       accountValue: subscription.stripeAccountId,
@@ -488,28 +597,24 @@ async function loadRealRows(
   });
 }
 
-export default async function DashboardSubscriptionsPage({
-  searchParams,
-}: DashboardSubscriptionsPageProps) {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    redirect("/login");
-  }
-
-  const params = searchParams ? await searchParams : undefined;
-  const isPreviewMode = params?.preview === "subscription-health";
-  const selectedType: PreviewAffectedSubscriptionType = isPreviewType(params?.type)
-    ? params.type
-    : "failed-renewal";
-  const selectedAccount = params?.account ?? "all";
-  const selectedPlan = params?.plan ?? "all";
-  const selectedPage = Math.max(1, Number.parseInt(params?.page ?? "1", 10) || 1);
-
+function buildDrilldownViewModel({
+  previewMode,
+  selectedType,
+  selectedWindow,
+  selectedAccount,
+  selectedPlan,
+  selectedPage,
+  allRows,
+}: {
+  previewMode: boolean;
+  selectedType: PreviewAffectedSubscriptionType;
+  selectedWindow: string;
+  selectedAccount: string;
+  selectedPlan: string;
+  selectedPage: number;
+  allRows: SubscriptionListRow[];
+}): SubscriptionDrilldownViewModel {
   const source = previewAffectedSubscriptions[selectedType];
-  const allRows = isPreviewMode
-    ? mapPreviewRows(source.rows)
-    : await loadRealRows(session.user.id, selectedType);
   const filteredRows = filterRows(allRows, selectedAccount, selectedPlan);
   const accountOptions = uniqueOptions(
     allRows.map((row) => ({
@@ -538,31 +643,64 @@ export default async function DashboardSubscriptionsPage({
     Math.max(0, currentPage - 3),
     Math.min(totalPages, currentPage + 2),
   );
+
   const buildPageHref = (page: number) => {
     const query = new URLSearchParams();
-    if (isPreviewMode) query.set("preview", "subscription-health");
+    if (previewMode) query.set("preview", "subscription-health");
     query.set("type", selectedType);
+    if (selectedWindow !== "all") query.set("window", selectedWindow);
     if (selectedAccount !== "all") query.set("account", selectedAccount);
     if (selectedPlan !== "all") query.set("plan", selectedPlan);
     if (page > 1) query.set("page", String(page));
     return `/dashboard/subscriptions?${query.toString()}`;
   };
 
-  const emptyState = emptyStateCopy(selectedType);
+  return {
+    previewMode,
+    selectedType,
+    selectedWindow,
+    title: source.title,
+    subtitle: subtitleForWindow(source.subtitle, selectedType, selectedWindow),
+    helperNote: previewMode
+      ? buildPreviewHelperNote({
+          selectedType,
+          selectedAccount,
+          filteredRows,
+          defaultHelperNote: source.helperNote,
+        })
+      : null,
+    selectedAccount,
+    selectedPlan,
+    impactLabel,
+    timeLabel,
+    accountOptions,
+    planOptions,
+    filteredRows,
+    paginatedRows,
+    pageStart,
+    pageEnd,
+    totalPages,
+    currentPage,
+    pageNumbers,
+    emptyState: emptyStateCopyForWindow(selectedType, selectedWindow),
+    buildPageHref,
+  };
+}
 
+function renderSubscriptionDrilldown(viewModel: SubscriptionDrilldownViewModel) {
   return (
     <section className={styles.shell}>
       <header className={styles.header}>
         <div className={styles.headerTop}>
           <div>
             <div className={styles.headerTitleRow}>
-              <h1>{source.title}</h1>
-              {isPreviewMode ? <span className={styles.previewBadge}>Preview data</span> : null}
+              <h1>{viewModel.title}</h1>
+              {viewModel.previewMode ? <span className={styles.previewBadge}>Preview data</span> : null}
             </div>
-            <p>{source.subtitle}</p>
+            <p>{viewModel.subtitle}</p>
           </div>
           <Link
-            href={isPreviewMode ? "/dashboard?preview=subscription-health" : "/dashboard"}
+            href={viewModel.previewMode ? "/dashboard?preview=subscription-health" : "/dashboard"}
             className={styles.secondaryButton}
           >
             Back to dashboard
@@ -579,22 +717,27 @@ export default async function DashboardSubscriptionsPage({
           <div>
             <h2>Affected subscriptions</h2>
             <p>Review the subscription/customer rows behind this subscription-health metric.</p>
-            {isPreviewMode && source.helperNote ? (
-              <p className={styles.helperLine}>{source.helperNote}</p>
-            ) : null}
+            {viewModel.helperNote ? <p className={styles.helperLine}>{viewModel.helperNote}</p> : null}
           </div>
         </div>
 
         <form className={styles.filterBar} method="get">
-          {isPreviewMode ? (
+          {viewModel.previewMode ? (
             <input type="hidden" name="preview" value="subscription-health" />
           ) : null}
-          <input type="hidden" name="type" value={selectedType} />
+          <input type="hidden" name="type" value={viewModel.selectedType} />
+          {viewModel.selectedWindow !== "all" ? (
+            <input type="hidden" name="window" value={viewModel.selectedWindow} />
+          ) : null}
           <label className={styles.filterSelectWrap}>
             <span className={styles.filterLabel}>Account</span>
-            <select name="account" defaultValue={selectedAccount} className={styles.filterSelect}>
+            <select
+              name="account"
+              defaultValue={viewModel.selectedAccount}
+              className={styles.filterSelect}
+            >
               <option value="all">All accounts</option>
-              {accountOptions.map((account) => (
+              {viewModel.accountOptions.map((account) => (
                 <option key={account.value} value={account.value}>
                   {account.label}
                 </option>
@@ -603,9 +746,13 @@ export default async function DashboardSubscriptionsPage({
           </label>
           <label className={styles.filterSelectWrap}>
             <span className={styles.filterLabel}>Plan</span>
-            <select name="plan" defaultValue={selectedPlan} className={styles.filterSelect}>
+            <select
+              name="plan"
+              defaultValue={viewModel.selectedPlan}
+              className={styles.filterSelect}
+            >
               <option value="all">All plans</option>
-              {planOptions.map((plan) => (
+              {viewModel.planOptions.map((plan) => (
                 <option key={plan.value} value={plan.value}>
                   {plan.label}
                 </option>
@@ -617,10 +764,10 @@ export default async function DashboardSubscriptionsPage({
           </button>
         </form>
 
-        {filteredRows.length === 0 ? (
+        {viewModel.filteredRows.length === 0 ? (
           <div className={styles.emptyState}>
-            <strong>{emptyState.title}</strong>
-            <p>{emptyState.body}</p>
+            <strong>{viewModel.emptyState.title}</strong>
+            <p>{viewModel.emptyState.body}</p>
           </div>
         ) : (
           <>
@@ -631,13 +778,13 @@ export default async function DashboardSubscriptionsPage({
                     <th>Customer</th>
                     <th>Account</th>
                     <th>Plan</th>
-                    <th>{impactLabel}</th>
-                    <th>{timeLabel}</th>
+                    <th>{viewModel.impactLabel}</th>
+                    <th>{viewModel.timeLabel}</th>
                     <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedRows.map((row) => (
+                  {viewModel.paginatedRows.map((row) => (
                     <tr key={row.id}>
                       <td>
                         <div className={styles.customerCell}>
@@ -671,7 +818,7 @@ export default async function DashboardSubscriptionsPage({
             </div>
 
             <div className={styles.mobileList}>
-              {paginatedRows.map((row) => (
+              {viewModel.paginatedRows.map((row) => (
                 <article key={`${row.id}-mobile`} className={styles.mobileCard}>
                   <div className={styles.mobileMain}>
                     <strong className={styles.customerName}>{row.customerPrimary}</strong>
@@ -700,12 +847,15 @@ export default async function DashboardSubscriptionsPage({
 
             <div className={styles.paginationFooter}>
               <span>
-                Showing {pageStart}–{pageEnd} of {filteredRows.length} subscriptions
+                Showing {viewModel.pageStart}–{viewModel.pageEnd} of {viewModel.filteredRows.length} subscriptions
               </span>
-              {totalPages > 1 ? (
+              {viewModel.totalPages > 1 ? (
                 <nav className={styles.pagination} aria-label="Affected subscriptions pagination">
-                  {currentPage > 1 ? (
-                    <Link href={buildPageHref(currentPage - 1)} className={styles.paginationButton}>
+                  {viewModel.currentPage > 1 ? (
+                    <Link
+                      href={viewModel.buildPageHref(viewModel.currentPage - 1)}
+                      className={styles.paginationButton}
+                    >
                       Previous
                     </Link>
                   ) : (
@@ -716,8 +866,8 @@ export default async function DashboardSubscriptionsPage({
                     </span>
                   )}
                   <div className={styles.paginationPages}>
-                    {pageNumbers.map((pageNumber) =>
-                      pageNumber === currentPage ? (
+                    {viewModel.pageNumbers.map((pageNumber) =>
+                      pageNumber === viewModel.currentPage ? (
                         <span
                           key={pageNumber}
                           className={`${styles.paginationButton} ${styles.paginationButtonActive}`}
@@ -728,7 +878,7 @@ export default async function DashboardSubscriptionsPage({
                       ) : (
                         <Link
                           key={pageNumber}
-                          href={buildPageHref(pageNumber)}
+                          href={viewModel.buildPageHref(pageNumber)}
                           className={styles.paginationButton}
                         >
                           {pageNumber}
@@ -736,8 +886,11 @@ export default async function DashboardSubscriptionsPage({
                       ),
                     )}
                   </div>
-                  {currentPage < totalPages ? (
-                    <Link href={buildPageHref(currentPage + 1)} className={styles.paginationButton}>
+                  {viewModel.currentPage < viewModel.totalPages ? (
+                    <Link
+                      href={viewModel.buildPageHref(viewModel.currentPage + 1)}
+                      className={styles.paginationButton}
+                    >
                       Next
                     </Link>
                   ) : (
@@ -754,5 +907,42 @@ export default async function DashboardSubscriptionsPage({
         )}
       </section>
     </section>
+  );
+}
+
+export default async function DashboardSubscriptionsPage({
+  searchParams,
+}: DashboardSubscriptionsPageProps) {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
+
+  const params = searchParams ? await searchParams : undefined;
+  const isPreviewMode = params?.preview === "subscription-health";
+  const selectedType: PreviewAffectedSubscriptionType = isPreviewType(params?.type)
+    ? params.type
+    : "failed-renewal";
+  const selectedWindow = params?.window === "7d" ? "7d" : "all";
+  const selectedAccount = params?.account ?? "all";
+  const selectedPlan = params?.plan ?? "all";
+  const selectedPage = Math.max(1, Number.parseInt(params?.page ?? "1", 10) || 1);
+
+  const source = previewAffectedSubscriptions[selectedType];
+  const allRows = isPreviewMode
+    ? mapPreviewRows(source.rows)
+    : await loadRealRows(session.user.id, selectedType, selectedWindow);
+
+  return renderSubscriptionDrilldown(
+    buildDrilldownViewModel({
+      previewMode: isPreviewMode,
+      selectedType,
+      selectedWindow,
+      selectedAccount,
+      selectedPlan,
+      selectedPage,
+      allRows,
+    }),
   );
 }

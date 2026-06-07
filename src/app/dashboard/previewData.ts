@@ -217,13 +217,15 @@ type PreviewAffectedSubscriptionDataset = {
   helperNote?: string;
 };
 
-function accountHref(account: string) {
-  const slug = account
+function previewAccountSlug(account: string) {
+  return account
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
 
-  return `/dashboard/accounts/${slug}?preview=subscription-health`;
+function accountHref(account: string) {
+  return `/dashboard/accounts/${previewAccountSlug(account)}?preview=subscription-health`;
 }
 
 function makeAffectedRow(
@@ -370,23 +372,23 @@ const activeAffectedRows: PreviewAffectedSubscriptionRow[] = [
   makeAffectedRow("affected-active-1", "Jane Cooper", "jane@example.com", "BluePeak Studio", "Pro monthly", `${EURO}39 MRR`, "Active", "Started Apr 12"),
   makeAffectedRow("affected-active-2", "Noah Bennett", "noah@example.com", "Northstar Commerce", "Growth monthly", `${EURO}117 MRR`, "Active", "Started Mar 8"),
   makeAffectedRow("affected-active-3", "Mila Chen", "mila@example.com", "Cedar Labs", "Team monthly", `${EURO}420 MRR`, "Active", "Started Feb 21"),
-  makeAffectedRow("affected-active-4", "Olivia Price", "olivia@example.com", "BluePeak Studio", "Pro yearly", `${EURO}10 MRR`, "Active", "Started Jan 14"),
+  makeAffectedRow("affected-active-4", "Olivia Price", "olivia@example.com", "Cedar Labs", "Pro yearly", `${EURO}10 MRR`, "Active", "Started Jan 14"),
   makeAffectedRow("affected-active-5", "Luca Moretti", "luca@example.com", "Northstar Commerce", "Starter monthly", `${EURO}19 MRR`, "Active", "Started Apr 20"),
   makeAffectedRow("affected-active-6", "Harper Lee", "harper@example.com", "Cedar Labs", "Growth monthly", `${EURO}117 MRR`, "Active", "Started Mar 2"),
   makeAffectedRow("affected-active-7", "Ethan Walsh", "ethan@example.com", "BluePeak Studio", "Team monthly", `${EURO}117 MRR`, "Active", "Started Feb 28"),
   makeAffectedRow("affected-active-8", "Sofia Nguyen", "sofia@example.com", "Northstar Commerce", "Pro monthly", `${EURO}39 MRR`, "Active", "Started Jan 30"),
   makeAffectedRow("affected-active-9", "Daniel Reed", "daniel@example.com", "Cedar Labs", "Pro yearly", `${EURO}35 MRR`, "Active", "Started Jan 7"),
-  makeAffectedRow("affected-active-10", "Ava Mitchell", "ava@example.com", "BluePeak Studio", "Growth monthly", `${EURO}117 MRR`, "Active", "Started Apr 4"),
+  makeAffectedRow("affected-active-10", "Ava Mitchell", "ava@example.com", "Cedar Labs", "Growth monthly", `${EURO}117 MRR`, "Active", "Started Apr 4"),
   makeAffectedRow("affected-active-11", "Nina Torres", "nina@example.com", "Northstar Commerce", "Team monthly", `${EURO}117 MRR`, "Active", "Started Mar 14"),
   makeAffectedRow("affected-active-12", "Henry Sullivan", "henry@example.com", "Cedar Labs", "Pro monthly", `${EURO}39 MRR`, "Active", "Started Feb 16"),
-  makeAffectedRow("affected-active-13", "Grace Patel", "grace@example.com", "BluePeak Studio", "Starter monthly", `${EURO}19 MRR`, "Active", "Started Jan 11"),
+  makeAffectedRow("affected-active-13", "Grace Patel", "grace@example.com", "Cedar Labs", "Starter monthly", `${EURO}19 MRR`, "Active", "Started Jan 11"),
   makeAffectedRow("affected-active-14", "Lucas Hart", "lucas@example.com", "Northstar Commerce", "Pro monthly", `${EURO}39 MRR`, "Active", "Started Apr 8"),
   makeAffectedRow("affected-active-15", "Emma Brooks", "emma@example.com", "Cedar Labs", "Growth yearly", `${EURO}9 MRR`, "Active", "Started Mar 25"),
   makeAffectedRow("affected-active-16", "Jack Morrison", "jack@example.com", "BluePeak Studio", "Pro monthly", `${EURO}39 MRR`, "Active", "Started Feb 4"),
   makeAffectedRow("affected-active-17", "Mason Rivera", "mason@example.com", "Northstar Commerce", "Team monthly", `${EURO}117 MRR`, "Active", "Started Jan 19"),
   makeAffectedRow("affected-active-18", "Chloe Bennett", "chloe@example.com", "Cedar Labs", "Starter monthly", `${EURO}19 MRR`, "Active", "Started Apr 17"),
   makeAffectedRow("affected-active-19", "Leo Carter", "leo@example.com", "BluePeak Studio", "Growth monthly", `${EURO}117 MRR`, "Active", "Started Mar 12"),
-  makeAffectedRow("affected-active-20", "Zoe Marshall", "zoe@example.com", "Northstar Commerce", "Pro yearly", `${EURO}33 MRR`, "Active", "Started Feb 9"),
+  makeAffectedRow("affected-active-20", "Zoe Marshall", "zoe@example.com", "Cedar Labs", "Pro yearly", `${EURO}33 MRR`, "Active", "Started Feb 9"),
 ];
 
 const failedRenewalAffectedRows: PreviewAffectedSubscriptionRow[] = [
@@ -400,9 +402,9 @@ const failedRenewalAffectedRows: PreviewAffectedSubscriptionRow[] = [
   makeAffectedRow("affected-failed-renewal-8", "Ethan Walker", "ethan@example.com", "Northstar Commerce", "Pro yearly", `${EURO}420 at risk`, "Failed renewal", "May 16, 3:08 PM"),
   makeAffectedRow("affected-failed-renewal-9", "Grace Patel", "grace@example.com", "BluePeak Studio", "Pro monthly", `${EURO}39 at risk`, "Failed renewal", "May 15, 10:31 AM"),
   makeAffectedRow("affected-failed-renewal-10", "Ava Mitchell", "ava@example.com", "BluePeak Studio", "Growth monthly", `${EURO}117 at risk`, "Failed renewal", "May 14, 8:54 AM"),
-  makeAffectedRow("affected-failed-renewal-11", "Daniel Reed", "daniel@example.com", "Cedar Labs", "Team yearly", `${EURO}210 at risk`, "Failed renewal", "May 13, 2:44 PM"),
-  makeAffectedRow("affected-failed-renewal-12", "Nina Torres", "nina@example.com", "Northstar Commerce", "Starter monthly", `${EURO}19 at risk`, "Failed renewal", "May 12, 11:18 AM"),
-  makeAffectedRow("affected-failed-renewal-13", "Liam Foster", "liam@example.com", "Cedar Labs", "Pro monthly", `${EURO}39 at risk`, "Failed renewal", "May 11, 5:03 PM"),
+  makeAffectedRow("affected-failed-renewal-11", "Daniel Reed", "daniel@example.com", "BluePeak Studio", "Team yearly", `${EURO}210 at risk`, "Failed renewal", "May 13, 2:44 PM"),
+  makeAffectedRow("affected-failed-renewal-12", "Nina Torres", "nina@example.com", "BluePeak Studio", "Starter monthly", `${EURO}19 at risk`, "Failed renewal", "May 12, 11:18 AM"),
+  makeAffectedRow("affected-failed-renewal-13", "Liam Foster", "liam@example.com", "BluePeak Studio", "Pro monthly", `${EURO}39 at risk`, "Failed renewal", "May 11, 5:03 PM"),
   makeAffectedRow("affected-failed-renewal-14", "Henry Sullivan", "henry@example.com", "BluePeak Studio", "Team monthly", `${EURO}117 at risk`, "Failed renewal", "May 10, 9:42 AM"),
 ];
 
@@ -415,7 +417,7 @@ const pastDueAffectedRows: PreviewAffectedSubscriptionRow[] = [
   makeAffectedRow("affected-past-due-6", "Jack Morrison", "jack@example.com", "Northstar Commerce", "Starter monthly", `${EURO}19 at risk`, "Past due", "May 15, 9:55 AM"),
   makeAffectedRow("affected-past-due-7", "Chloe Bennett", "chloe@example.com", "BluePeak Studio", "Growth monthly", `${EURO}117 at risk`, "Past due", "May 14, 6:24 PM"),
   makeAffectedRow("affected-past-due-8", "Leo Carter", "leo@example.com", "Cedar Labs", "Pro monthly", `${EURO}39 at risk`, "Past due", "May 13, 3:06 PM"),
-  makeAffectedRow("affected-past-due-9", "Zoe Marshall", "zoe@example.com", "Northstar Commerce", "Pro yearly", `${EURO}420 at risk`, "Past due", "May 12, 10:48 AM"),
+  makeAffectedRow("affected-past-due-9", "Zoe Marshall", "zoe@example.com", "BluePeak Studio", "Pro yearly", `${EURO}420 at risk`, "Past due", "May 12, 10:48 AM"),
 ];
 
 const trialingAffectedRows: PreviewAffectedSubscriptionRow[] = [
@@ -428,27 +430,27 @@ const trialingAffectedRows: PreviewAffectedSubscriptionRow[] = [
   makeAffectedRow("affected-trialing-7", "Emma Brooks", "emma@example.com", "BluePeak Studio", "Growth monthly", "Trial ends May 29", "Trialing", "4 days left"),
   makeAffectedRow("affected-trialing-8", "Henry Sullivan", "henry@example.com", "Cedar Labs", "Starter monthly", "Trial ends Jun 3", "Trialing", "9 days left"),
   makeAffectedRow("affected-trialing-9", "Mila Chen", "mila@example.com", "Northstar Commerce", "Pro monthly", "Trial ends Jun 7", "Trialing", "13 days left"),
-  makeAffectedRow("affected-trialing-10", "Noah Bennett", "noah@example.com", "BluePeak Studio", "Team monthly", "Trial ends May 31", "Trialing", "6 days left"),
+  makeAffectedRow("affected-trialing-10", "Noah Bennett", "noah@example.com", "Cedar Labs", "Team monthly", "Trial ends May 31", "Trialing", "6 days left"),
   makeAffectedRow("affected-trialing-11", "Olivia Price", "olivia@example.com", "Cedar Labs", "Growth monthly", "Trial ends Jun 5", "Trialing", "11 days left"),
   makeAffectedRow("affected-trialing-12", "Lucas Hart", "lucas@example.com", "Northstar Commerce", "Starter monthly", "Trial ends Jun 8", "Trialing", "14 days left"),
   makeAffectedRow("affected-trialing-13", "Sofia Nguyen", "sofia@example.com", "BluePeak Studio", "Pro monthly", "Trial ends May 27", "Trialing", "2 days left"),
   makeAffectedRow("affected-trialing-14", "Ethan Walker", "ethan@example.com", "Cedar Labs", "Team monthly", "Trial ends Jun 9", "Trialing", "15 days left"),
   makeAffectedRow("affected-trialing-15", "Liam Foster", "liam@example.com", "Northstar Commerce", "Growth monthly", "Trial ends Jun 10", "Trialing", "16 days left"),
-  makeAffectedRow("affected-trialing-16", "Mason Rivera", "mason@example.com", "BluePeak Studio", "Starter monthly", "Trial ends May 26", "Trialing", "1 day left"),
+  makeAffectedRow("affected-trialing-16", "Mason Rivera", "mason@example.com", "Cedar Labs", "Starter monthly", "Trial ends May 26", "Trialing", "1 day left"),
   makeAffectedRow("affected-trialing-17", "Chloe Bennett", "chloe@example.com", "Cedar Labs", "Pro monthly", "Trial ends Jun 11", "Trialing", "17 days left"),
   makeAffectedRow("affected-trialing-18", "Leo Carter", "leo@example.com", "Northstar Commerce", "Team monthly", "Trial ends Jun 12", "Trialing", "18 days left"),
   makeAffectedRow("affected-trialing-19", "Zoe Marshall", "zoe@example.com", "BluePeak Studio", "Growth monthly", "Trial ends Jun 13", "Trialing", "19 days left"),
   makeAffectedRow("affected-trialing-20", "Harper Lee", "harper@example.com", "Cedar Labs", "Starter monthly", "Trial ends Jun 14", "Trialing", "20 days left"),
   makeAffectedRow("affected-trialing-21", "Jack Morrison", "jack@example.com", "Northstar Commerce", "Pro monthly", "Trial ends Jun 15", "Trialing", "21 days left"),
-  makeAffectedRow("affected-trialing-22", "Ivy Collins", "ivy@example.com", "BluePeak Studio", "Team monthly", "Trial ends Jun 16", "Trialing", "22 days left"),
+  makeAffectedRow("affected-trialing-22", "Ivy Collins", "ivy@example.com", "Cedar Labs", "Team monthly", "Trial ends Jun 16", "Trialing", "22 days left"),
   makeAffectedRow("affected-trialing-23", "Owen Diaz", "owen@example.com", "Cedar Labs", "Growth monthly", "Trial ends Jun 17", "Trialing", "23 days left"),
-  makeAffectedRow("affected-trialing-24", "Ruby Hayes", "ruby@example.com", "Northstar Commerce", "Starter monthly", "Trial ends Jun 18", "Trialing", "24 days left"),
-  makeAffectedRow("affected-trialing-25", "Caleb Ross", "caleb@example.com", "BluePeak Studio", "Pro monthly", "Trial ends Jun 19", "Trialing", "25 days left"),
+  makeAffectedRow("affected-trialing-24", "Ruby Hayes", "ruby@example.com", "Cedar Labs", "Starter monthly", "Trial ends Jun 18", "Trialing", "24 days left"),
+  makeAffectedRow("affected-trialing-25", "Caleb Ross", "caleb@example.com", "Cedar Labs", "Pro monthly", "Trial ends Jun 19", "Trialing", "25 days left"),
   makeAffectedRow("affected-trialing-26", "Maya Brooks", "maya@example.com", "Cedar Labs", "Team monthly", "Trial ends Jun 20", "Trialing", "26 days left"),
   makeAffectedRow("affected-trialing-27", "Wyatt Perry", "wyatt@example.com", "Northstar Commerce", "Growth monthly", "Trial ends Jun 21", "Trialing", "27 days left"),
-  makeAffectedRow("affected-trialing-28", "Layla Kim", "layla@example.com", "BluePeak Studio", "Starter monthly", "Trial ends Jun 22", "Trialing", "28 days left"),
+  makeAffectedRow("affected-trialing-28", "Layla Kim", "layla@example.com", "Cedar Labs", "Starter monthly", "Trial ends Jun 22", "Trialing", "28 days left"),
   makeAffectedRow("affected-trialing-29", "Isaac Ward", "isaac@example.com", "Cedar Labs", "Pro monthly", "Trial ends Jun 23", "Trialing", "29 days left"),
-  makeAffectedRow("affected-trialing-30", "Nora James", "nora@example.com", "Northstar Commerce", "Team monthly", "Trial ends Jun 24", "Trialing", "30 days left"),
+  makeAffectedRow("affected-trialing-30", "Nora James", "nora@example.com", "Cedar Labs", "Team monthly", "Trial ends Jun 24", "Trialing", "30 days left"),
   makeAffectedRow("affected-trialing-31", "Julian Scott", "julian@example.com", "BluePeak Studio", "Growth monthly", "Trial ends Jun 25", "Trialing", "31 days left"),
   makeAffectedRow("affected-trialing-32", "Ella Morgan", "ella@example.com", "Cedar Labs", "Starter monthly", "Trial ends Jun 26", "Trialing", "32 days left"),
 ];

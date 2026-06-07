@@ -1,5 +1,10 @@
 ﻿import { auth } from "@/auth";
 import ConnectedAccountsTable from "@/components/dashboard/ConnectedAccountsTable";
+import {
+  getDashboardSparklinePoints,
+  MetricCard,
+  SecondaryMetricCard,
+} from "@/components/dashboard/SubscriptionHealthMetricCards";
 import { formatMoneyAmount } from "@/lib/currency";
 import { prisma } from "@/lib/prisma";
 import {
@@ -473,132 +478,6 @@ function buildRealDashboardViewModel({
   };
 }
 
-function MetricSparkline({ points }: { points: number[] }) {
-  const width = 192;
-  const height = 40;
-  const min = Math.min(...points);
-  const max = Math.max(...points);
-  const range = Math.max(1, max - min);
-  const step = width / Math.max(1, points.length - 1);
-
-  const coordinates = points.map((point, index) => {
-    const x = index * step;
-    const y = height - ((point - min) / range) * (height - 4) - 2;
-    return { x, y };
-  });
-
-  const path = coordinates.reduce((accumulator, point, index, array) => {
-    if (index === 0) {
-      return `M ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
-    }
-
-    const previous = array[index - 1];
-    const midpointX = ((previous.x + point.x) / 2).toFixed(2);
-    return `${accumulator} Q ${previous.x.toFixed(2)} ${previous.y.toFixed(2)} ${midpointX} ${(
-      (previous.y + point.y) /
-      2
-    ).toFixed(2)} T ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
-  }, "");
-
-  return (
-    <svg
-      className={styles.metricSparkline}
-      viewBox={`0 0 ${width} ${height}`}
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d={path} />
-    </svg>
-  );
-}
-
-type MetricCardProps = {
-  label: string;
-  value: string | number;
-  helper: string;
-  badgeLabel?: string;
-  periodLabel?: string;
-  sparkline?: number[];
-  compact?: boolean;
-  tone?: "default" | "review" | "risk";
-  tooltip?: string;
-  href?: string;
-};
-
-function InfoTooltip({ text }: { text: string }) {
-  const tooltipId = `dashboard-tooltip-${text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")}`;
-
-  return (
-    <span className={styles.infoTooltipWrap}>
-      <button
-        type="button"
-        className={styles.infoTooltip}
-        aria-label={text}
-        aria-describedby={tooltipId}
-      >
-        i
-      </button>
-      <span id={tooltipId} role="tooltip" className={styles.infoTooltipBubble}>
-        {text}
-      </span>
-    </span>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  helper,
-  badgeLabel,
-  periodLabel,
-  sparkline,
-  compact = false,
-  tone = "default",
-  tooltip,
-  href,
-}: MetricCardProps) {
-  const toneClass =
-    tone === "review"
-      ? styles.metricBadgeReview
-      : tone === "risk"
-        ? styles.metricBadgeRisk
-        : styles.metricTrendPill;
-
-  return (
-    <article
-      className={`${styles.metricCard} ${compact ? styles.metricCardCompact : styles.metricCardLarge} ${
-        href ? styles.clickableCard : ""
-      }`}
-    >
-      {href ? (
-        <Link
-          href={href}
-          className={styles.cardOverlayLink}
-          aria-label={`View ${label.toLowerCase()} details`}
-        />
-      ) : null}
-      <div className={styles.metricCardHeader}>
-        <span className={styles.metricLabelRow}>
-          <span className={styles.metricLabel}>{label}</span>
-          {periodLabel ? <span className={styles.metricPeriodPill}>{periodLabel}</span> : null}
-          {tooltip ? <InfoTooltip text={tooltip} /> : null}
-        </span>
-        {badgeLabel ? <span className={toneClass}>{badgeLabel}</span> : null}
-      </div>
-      <strong className={compact ? styles.metricValueSmall : styles.metricValue}>{value}</strong>
-      {sparkline ? (
-        <div className={styles.metricSparklineWrap}>
-          <MetricSparkline points={sparkline} />
-        </div>
-      ) : null}
-      <small className={styles.metricHelper}>{helper}</small>
-    </article>
-  );
-}
-
 function DashboardOverview({
   previewMode,
   scopeCountLabel,
@@ -611,22 +490,25 @@ function DashboardOverview({
   inboxHref,
 }: DashboardViewModel) {
   const metricLinks = previewMode
-    ? {
+      ? {
         activeSubscriptions: "/dashboard/subscriptions?preview=subscription-health&type=active",
-        failedRenewals: "/dashboard/subscriptions?preview=subscription-health&type=failed-renewal",
+        failedRenewals:
+          "/dashboard/subscriptions?preview=subscription-health&type=failed-renewal&window=7d",
         pastDue: "/dashboard/subscriptions?preview=subscription-health&type=past-due",
         trialing: "/dashboard/subscriptions?preview=subscription-health&type=trialing",
         unpaid: "/dashboard/subscriptions?preview=subscription-health&type=unpaid",
-        canceled: "/dashboard/subscriptions?preview=subscription-health&type=canceled",
+        canceled: "/dashboard/subscriptions?preview=subscription-health&type=canceled&window=7d",
       }
     : {
         activeSubscriptions: "/dashboard/subscriptions?type=active",
-        failedRenewals: "/dashboard/subscriptions?type=failed-renewal",
+        failedRenewals: "/dashboard/subscriptions?type=failed-renewal&window=7d",
         pastDue: "/dashboard/subscriptions?type=past-due",
         trialing: "/dashboard/subscriptions?type=trialing",
         unpaid: "/dashboard/subscriptions?type=unpaid",
-        canceled: "/dashboard/subscriptions?type=canceled",
+        canceled: "/dashboard/subscriptions?type=canceled&window=7d",
       };
+  const activeSubscriptionsBadge = previewMode ? "+4.2% this month" : "Collecting trend";
+  const estimatedMrrBadge = previewMode ? "+1.8% this month" : "Collecting trend";
 
   return (
     <section className={styles.shell}>
@@ -657,16 +539,16 @@ function DashboardOverview({
         <MetricCard
           label="Active subscriptions"
           value={primaryMetrics.activeSubscriptions}
-          badgeLabel="+4.2% this month"
-          sparkline={[18, 20, 19, 25, 23, 28]}
+          badgeLabel={activeSubscriptionsBadge}
+          sparkline={getDashboardSparklinePoints("active")}
           helper="Currently active paid subscriptions"
           href={metricLinks.activeSubscriptions}
         />
         <MetricCard
           label="Estimated MRR"
           value={primaryMetrics.estimatedMrr}
-          badgeLabel="+1.8% this month"
-          sparkline={[14, 15, 17, 16, 20, 22]}
+          badgeLabel={estimatedMrrBadge}
+          sparkline={getDashboardSparklinePoints("mrr")}
           helper="Active subscriptions only"
           tooltip="Estimated monthly recurring revenue from active subscriptions only. Trials, canceled, unpaid, and past-due subscriptions are not counted."
         />
@@ -693,88 +575,47 @@ function DashboardOverview({
       </section>
 
       <section className={styles.secondaryMetrics}>
-        <article
-          className={`${styles.secondaryCard} ${styles.secondaryNeutral} ${
-            metricLinks.trialing ? styles.clickableCard : ""
-          }`}
-        >
-          {metricLinks.trialing ? (
-            <Link
-              href={metricLinks.trialing}
-              className={styles.cardOverlayLink}
-              aria-label="View trialing subscriptions details"
-            />
-          ) : null}
-          <span className={styles.secondaryLabelRow}>
-            <span>Trials</span>
-          </span>
-          <strong>{secondaryMetrics.trialing}</strong>
-          <small>Currently in trial</small>
-        </article>
-        <article
-          className={`${styles.secondaryCard} ${styles.secondaryReview} ${
-            metricLinks.pastDue ? styles.clickableCard : ""
-          }`}
-        >
-          {metricLinks.pastDue ? (
-            <Link
-              href={metricLinks.pastDue}
-              className={styles.cardOverlayLink}
-              aria-label="View past-due subscriptions details"
-            />
-          ) : null}
-          <span className={styles.secondaryLabelRow}>
-            <span>Past-due</span>
-            <InfoTooltip text="Subscriptions where Stripe has not collected the latest payment yet. If payment is completed and the subscription becomes active again, this count goes down." />
-          </span>
-          <strong>{secondaryMetrics.pastDue}</strong>
-          <small>Payment not collected yet</small>
-        </article>
-        <article
-          className={`${styles.secondaryCard} ${styles.secondaryAttention} ${
-            metricLinks.unpaid ? styles.clickableCard : ""
-          }`}
-        >
-          {metricLinks.unpaid ? (
-            <Link
-              href={metricLinks.unpaid}
-              className={styles.cardOverlayLink}
-              aria-label="View unpaid subscriptions details"
-            />
-          ) : null}
-          <span className={styles.secondaryLabelRow}>
-            <span>Unpaid</span>
-            <InfoTooltip text="Subscriptions Stripe currently marks as unpaid after payment could not be collected. If the status changes, this count updates." />
-          </span>
-          <strong>{secondaryMetrics.unpaid}</strong>
-          <small>Marked unpaid in Stripe</small>
-        </article>
-        <article
-          className={`${styles.secondaryCard} ${styles.secondaryNeutral} ${
-            metricLinks.canceled ? styles.clickableCard : ""
-          }`}
-        >
-          {metricLinks.canceled ? (
-            <Link
-              href={metricLinks.canceled}
-              className={styles.cardOverlayLink}
-              aria-label="View canceled subscriptions details"
-            />
-          ) : null}
-          <span className={styles.secondaryLabelRow}>
-            <span>Canceled</span>
-          </span>
-          <strong>{secondaryMetrics.canceled}</strong>
-          <small>Canceled · Last 7 days</small>
-        </article>
-        <article className={`${styles.secondaryCard} ${styles.secondaryPositive}`}>
-          <span className={styles.secondaryLabelRow}>
-            <span>Net subscriptions</span>
-            <InfoTooltip text="New subscriptions minus canceled subscriptions during this month. For example, 20 new subscriptions and 2 cancellations means +18 net subscriptions." />
-          </span>
-          <strong>{secondaryMetrics.netMovement}</strong>
-          <small>New minus canceled · This month</small>
-        </article>
+        <SecondaryMetricCard
+          label="Trials"
+          value={secondaryMetrics.trialing}
+          helper="Currently in trial"
+          toneClassName={styles.secondaryNeutral}
+          href={metricLinks.trialing}
+          ariaLabel="View trialing subscriptions details"
+        />
+        <SecondaryMetricCard
+          label="Past-due"
+          value={secondaryMetrics.pastDue}
+          helper="Payment not collected yet"
+          toneClassName={styles.secondaryReview}
+          tooltip="Subscriptions where Stripe has not collected the latest payment yet. If payment is completed and the subscription becomes active again, this count goes down."
+          href={metricLinks.pastDue}
+          ariaLabel="View past-due subscriptions details"
+        />
+        <SecondaryMetricCard
+          label="Unpaid"
+          value={secondaryMetrics.unpaid}
+          helper="Marked unpaid in Stripe"
+          toneClassName={styles.secondaryAttention}
+          tooltip="Subscriptions Stripe currently marks as unpaid after payment could not be collected. If the status changes, this count updates."
+          href={metricLinks.unpaid}
+          ariaLabel="View unpaid subscriptions details"
+        />
+        <SecondaryMetricCard
+          label="Canceled"
+          value={secondaryMetrics.canceled}
+          helper="Canceled · Last 7 days"
+          toneClassName={styles.secondaryNeutral}
+          href={metricLinks.canceled}
+          ariaLabel="View canceled subscriptions details"
+        />
+        <SecondaryMetricCard
+          label="Net subscriptions"
+          value={secondaryMetrics.netMovement}
+          helper="New minus canceled · This month"
+          toneClassName={styles.secondaryPositive}
+          tooltip="New subscriptions minus canceled subscriptions during this month. For example, 20 new subscriptions and 2 cancellations means +18 net subscriptions."
+        />
       </section>
 
       <section className={styles.contentGrid}>
