@@ -4782,3 +4782,294 @@ When continuing this branch or merging its ideas elsewhere:
 - keep preview-mode interactions explicitly non-persistent unless the user asks for broader session persistence
 - keep Billing changes conservative unless a full redesign is explicitly requested
 - update `PROJECT_MEMORY.md` again whenever a substantial accepted product/UX direction changes
+
+---
+
+## Memory Update - 2026-06-07 Dashboard / Accounts / Subscriptions Parity
+
+This section is the current source of truth for the active monitoring UX branch and supersedes older branch/status notes where they conflict.
+
+### Current Working Branch
+
+- Current active branch:
+  - `feature-monitoring-inbox-ui`
+- Latest pushed commit on this branch:
+  - `25936ec`
+  - `Unify dashboard and account metric parity`
+
+### Recent Pushed Commits On This Branch
+
+- `25936ec`
+  - `Unify dashboard and account metric parity`
+- `4c61014`
+  - `Unify dashboard subscription health parity`
+- `4444c71`
+  - `Update project memory for monitoring UX`
+- `f021850`
+  - `Polish alerts preview history UX`
+- `f32dcf0`
+  - `Add alerts history pagination`
+- `049f26d`
+  - `Refine alerts history layout and filters`
+
+### Current Product Surface Roles
+
+- `Dashboard`
+  - subscription-health overview across all connected Stripe accounts
+  - KPI cards, current issues summary, connected accounts overview, recent alert history
+- `Inbox`
+  - active review workflow for issues that still need action/review
+- `Alerts`
+  - full alert archive / history across connected accounts
+  - current alerts and past alerts are visually separated
+- `Accounts`
+  - monitored-account overview list/table
+- `Account detail`
+  - per-account subscription-health overview, current issue, and alert history
+- `Subscriptions`
+  - read-only subscription drill-down page for KPI card click-through
+- `Billing`
+  - Parveil's own billing only
+  - not a Stripe customer-subscription management surface
+
+### Current Preview / Real Mode Parity Direction
+
+Current UX direction:
+- preview and real mode should share the same page structure and visual system wherever safely possible
+- preview mode should differ by data source and preview badge behavior, not by having a different page design
+- real mode must never show fake companies, fake customers, or fake Stripe data
+
+Current parity status:
+- `Dashboard`
+  - preview and real both use the shared overview renderer
+- `Inbox`
+  - preview and real both use the shared inbox review client
+- `Alerts`
+  - preview and real both use the shared alerts page renderer/structure
+- `Accounts`
+  - preview and real both use the shared monitored-accounts overview structure
+- `Account detail`
+  - preview and real both use the shared `AccountDetailView`
+
+### Dashboard Current Truth
+
+Current dashboard behavior:
+- KPI cards are clickable when a safe destination exists
+- clickable KPI cards:
+  - `Active subscriptions`
+  - `Trials`
+  - `Past-due`
+  - `Unpaid`
+  - `Canceled`
+  - `Failed renewals`
+- non-clickable KPI cards remain:
+  - `Estimated MRR`
+  - `Needs review`
+  - `Net subscriptions`
+
+Current click-through destinations:
+- `/dashboard/subscriptions?type=active`
+- `/dashboard/subscriptions?type=trialing`
+- `/dashboard/subscriptions?type=past-due`
+- `/dashboard/subscriptions?type=unpaid`
+- `/dashboard/subscriptions?type=canceled&window=7d`
+- `/dashboard/subscriptions?type=failed-renewal&window=7d`
+
+Important rule:
+- preview links preserve `?preview=subscription-health`
+- real mode links use only real account / subscription-health data
+
+### Subscriptions Drill-Down Current Truth
+
+Current route:
+- `/dashboard/subscriptions`
+
+Current supported drill-down types:
+- `active`
+- `trialing`
+- `past-due`
+- `unpaid`
+- `canceled`
+- `failed-renewal`
+
+Current supported filters:
+- `account`
+- `plan`
+- page-local pagination
+- `window=7d` for:
+  - `canceled`
+  - `failed-renewal`
+
+Current important behavior:
+- real mode uses only real stored subscription-health data
+- if there are no real rows, the page keeps the normal structure and shows a calm type-specific empty state
+- no real-mode fake customers are shown
+- account-scoped drill-down works in both:
+  - preview mode via preview account slug
+  - real mode via real Stripe account id
+
+Current plan-filter truth:
+- preview mode keeps preview-friendly fake plan labels
+- real mode derives dynamic plan options from stored subscription fields only:
+  - `priceId`
+  - `currency`
+  - `unitAmount`
+  - `interval`
+  - `intervalCount`
+  - `quantity`
+- no Prisma migration has been made yet for friendly Stripe product/price metadata
+
+### Accounts Overview Current Truth
+
+Current `/dashboard/accounts` behavior:
+- preview and real use the same monitored-accounts overview layout
+- columns:
+  - `Account`
+  - `Status`
+  - `Top issue`
+  - `Active subscriptions`
+  - `Estimated MRR`
+  - `Active alerts`
+  - `Last activity`
+  - `Action`
+- `View details` is the only visible row action
+- visible `Manage` was removed from the overview rows for parity with preview
+- accounts that need review are sorted first
+- healthy accounts remain visible
+
+Current real-mode fallbacks:
+- active subscriptions:
+  - `—`
+- estimated MRR:
+  - `—`
+- active alerts:
+  - `0`
+- top issue:
+  - `Monitoring active`
+  - `Monitoring paused`
+  - `Importing history`
+  - or the active alert label
+- last activity:
+  - `No Stripe events yet`
+
+### Account Detail Current Truth
+
+Current `/dashboard/accounts/[accountId]` behavior:
+- preview and real both render through shared `AccountDetailView`
+- current layout:
+  - header with account name, status pill, and back action
+  - top subscription-health metric cards
+  - `Current issue`
+  - `Alert history`
+- supporting monitoring-signal sections were intentionally removed from the live shared account-detail render to avoid a third visual variant
+
+Current clickable account-detail metric cards:
+- `Active subscriptions`
+- `Trials`
+- `Past-due`
+- `Unpaid`
+- `Canceled`
+- `Failed renewals`
+
+Current non-clickable account-detail metric cards:
+- `Estimated MRR`
+- `Needs review`
+- `Net subscriptions`
+
+Current account-detail drill-down routes:
+- `/dashboard/subscriptions?account=<accountId>&type=active`
+- `/dashboard/subscriptions?account=<accountId>&type=trialing`
+- `/dashboard/subscriptions?account=<accountId>&type=past-due`
+- `/dashboard/subscriptions?account=<accountId>&type=unpaid`
+- `/dashboard/subscriptions?account=<accountId>&type=canceled&window=7d`
+- `/dashboard/subscriptions?account=<accountId>&type=failed-renewal&window=7d`
+
+### Shared Metric Card System
+
+Current shared metric-card implementation:
+- `src/components/dashboard/SubscriptionHealthMetricCards.tsx`
+
+Current shared exports:
+- `MetricCard`
+- `SecondaryMetricCard`
+- `InfoTooltip`
+- shared sparkline helpers
+
+Important current rule:
+- dashboard and account detail large metric cards should reuse the same metric-card structure, sparkline renderer, pill placement, and hover/focus behavior
+- avoid local page-specific KPI card variants when the shared component can be used
+
+### Shared Sparkline Current Truth
+
+Current sparkline implementation is shared across:
+- dashboard preview
+- dashboard real
+- account detail preview
+- account detail real
+
+Current shared sparkline behavior:
+- thin shared stroke width
+- widened shared chart area
+- same shared SVG/path renderer for all contexts
+- current local-only refinements have been tuning:
+  - width usage
+  - vertical amplitude
+  - top-right trend-pill parity
+
+Important note:
+- sparkline tuning after commit `25936ec` is currently local-only until explicitly pushed
+
+### Trend / Badge Current Truth
+
+Current large-card top-right badge behavior:
+- preview mode shows preview percentage/trend text
+- real mode uses a neutral fallback badge:
+  - `Collecting trend`
+- this applies to:
+  - dashboard large cards
+  - account-detail large cards
+
+Important trust rule:
+- do not fake real percentage trends if real trend data is not available yet
+
+### Alerts Current Truth
+
+Current `/dashboard/alerts` behavior:
+- current alerts and past alerts are separate cards
+- past alerts support:
+  - filters
+  - pagination
+  - scroll-to-section behavior on pagination
+- preview mode includes expanded reviewed-history sample data so pagination can be tested
+- alerts page acts as archive/history, not the active review workflow
+
+### Inbox Current Truth
+
+Current `/dashboard/inbox` behavior:
+- preview and real both use the same inbox review layout
+- preview `Mark as reviewed` remains non-persistent
+- real `Mark as reviewed` continues using the existing safe server action / DB flow
+
+### Billing Current Truth
+
+Current billing truth remains:
+- keep the stable Billing layout
+- do not aggressively redesign Billing without explicit approval
+- keep Alerts in the sidebar
+- preserve real billing portal / plan behavior
+
+### Current Local State At Time Of This Memory Update
+
+At the time of this memory update:
+- latest pushed branch state is commit `25936ec`
+- current local unpushed work is focused on shared sparkline visual refinements only
+- current untracked local-only items remain:
+  - `.stitch_ref/`
+  - `.stitch_ref_latest/`
+  - `antigravity_config.json`
+  - `public/uploads/`
+
+### Current Verification Pattern
+
+Primary regression check still used repeatedly:
+- `npx.cmd tsc --noEmit`

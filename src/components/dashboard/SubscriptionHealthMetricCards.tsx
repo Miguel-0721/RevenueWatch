@@ -1,8 +1,15 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import styles from "@/app/dashboard/page.module.css";
 
 const DASHBOARD_ACTIVE_SPARKLINE = [18, 20, 19, 25, 23, 28] as const;
 const DASHBOARD_MRR_SPARKLINE = [14, 15, 17, 16, 20, 22] as const;
+const METRIC_SPARKLINE_STROKE_WIDTH = 1.25;
+const METRIC_SPARKLINE_VERTICAL_SCALE = 1.56;
+const METRIC_SPARKLINE_STYLE = {
+  "--metric-sparkline-stroke-width": String(METRIC_SPARKLINE_STROKE_WIDTH),
+  "--metric-sparkline-vertical-scale": String(METRIC_SPARKLINE_VERTICAL_SCALE),
+} as CSSProperties;
 
 type MetricSparklineProps = {
   points: number[];
@@ -60,17 +67,23 @@ function MetricSparkline({ points }: MetricSparklineProps) {
     return null;
   }
 
-  const width = 164;
+  const width = 272;
   const height = 40;
+  const insetTop = 0;
+  const insetRight = 2;
+  const insetBottom = 0;
+  const insetLeft = 2;
   const minValue = Math.min(...points);
   const maxValue = Math.max(...points);
   const range = maxValue - minValue || 1;
-  const stepX = width / (points.length - 1);
+  const usableWidth = width - insetLeft - insetRight;
+  const usableHeight = height - insetTop - insetBottom;
+  const stepX = usableWidth / (points.length - 1);
 
   const path = points.reduce((segments, point, index) => {
-    const x = Number((index * stepX).toFixed(2));
+    const x = Number((insetLeft + index * stepX).toFixed(2));
     const normalized = (point - minValue) / range;
-    const y = Number((height - normalized * height).toFixed(2));
+    const y = Number((insetTop + (1 - normalized) * usableHeight).toFixed(2));
     return `${segments}${index === 0 ? "M" : " L"}${x} ${y}`;
   }, "");
 
@@ -78,6 +91,7 @@ function MetricSparkline({ points }: MetricSparklineProps) {
     <svg
       className={styles.metricSparkline}
       viewBox={`0 0 ${width} ${height}`}
+      style={METRIC_SPARKLINE_STYLE}
       aria-hidden="true"
       focusable="false"
     >

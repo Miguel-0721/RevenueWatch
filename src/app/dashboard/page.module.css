@@ -306,16 +306,21 @@
 }
 
 .metricSparkline {
-  width: 188px;
-  height: 40px;
+  width: min(100%, 308px);
+  height: 52px;
+  overflow: visible;
 }
 
 .metricSparkline path {
   fill: none;
   stroke: #0f56d9;
-  stroke-width: 1.25;
+  stroke-width: var(--metric-sparkline-stroke-width, 1.25);
   stroke-linecap: round;
   stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  transform-box: fill-box;
+  transform-origin: bottom center;
+  transform: scaleY(var(--metric-sparkline-vertical-scale, 1));
 }
 
 .metricHelper {
@@ -334,7 +339,7 @@
 
 .metricCardLarge .metricSparklineWrap {
   margin-top: auto;
-  padding-top: 3px;
+  padding-top: 2px;
 }
 
 .metricCardLarge .metricHelper {
